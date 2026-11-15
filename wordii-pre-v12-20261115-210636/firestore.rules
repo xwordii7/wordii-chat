@@ -1,0 +1,356 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    // Progressive XP requirements; legacy users keep their current level.
+    function xpNeed(l) {
+      return l == 1 ? 10 : l == 2 ? 20 : l == 3 ? 30 : l == 4 ? 40
+        : l == 5 ? 60 : l == 6 ? 80 : l == 7 ? 100 : l == 8 ? 130
+        : l == 9 ? 160 : l == 10 ? 200 : l == 11 ? 250 : l == 12 ? 300
+        : l == 13 ? 350 : l == 14 ? 400 : l == 15 ? 500 : 500 + (l - 15) * 100;
+    }
+    function xpAdvanceOk(oldD, newD, amount) {
+      let oldLevel = oldD.get('level', 1);
+      let oldProgress = oldD.get('levelProgress', oldD.get('points', 0) % 10);
+      let total = oldProgress + amount;
+      let willLevel = oldLevel < 100 && total >= xpNeed(oldLevel);
+      return newD.level is int && newD.level >= 1 && newD.level <= 100
+        && newD.level == (willLevel ? oldLevel + 1 : oldLevel)
+        && newD.levelProgress is int
+        && newD.levelProgress == (oldLevel >= 100 ? 0 : (willLevel ? total - xpNeed(oldLevel) : total));
+    }
+    function okStatus(d) {
+      return d.keys().hasOnly(['ownerUid', 'viewers', 'text', 'bg', 'img', 'close', 'mentions', 'via', 'createdAt'])
+        && (!('close' in d) || d.close is bool)
+        && (!('mentions' in d) || (d.mentions is list && d.mentions.size() <= 10))
+        && (!('via' in d) || (d.via is string && d.via.size() <= 60))
+        && d.ownerUid is string && d.viewers is list && d.viewers.size() <= 100
+        && (
+          ('text' in d && !('img' in d) && d.text is string && d.text.size() > 0 && d.text.size() <= 300
+            && d.bg is int && d.bg >= 0 && d.bg < 8)
+          ||
+          ('img' in d && !('text' in d) && !('bg' in d) && d.img is string && d.img.size() > 100 && d.img.size() <= 400000)
+        );
+    }
+    function isAdmin() {
+      return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('admin', false) == true;
+    }
+    function chatMembers(chatId) {
+      return get(/databases/$(database)/documents/chats/$(chatId)).data.members;
+    }
+
+    // One profile per account, created once, never edited.
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['username', 'usernameKey', 'verified', 'admin', 'createdAt'])
+        && request.resource.data.createdAt == request.time
+        && getAfter(/databases/$(database)/documents/usernames/$(request.resource.data.usernameKey)).data.uid == uid
+        && (
+          // normal user: name + 3-digit tag, never verified
+          (request.resource.data.usernameKey.matches('^[a-z0-9_]{3,15}-[0-9]{3}$')
+            && !('verified' in request.resource.data) && !('admin' in request.resource.data)
+            && request.resource.data.username ==
+                 '@' + request.resource.data.usernameKey.split('-')[0] + '#' + request.resource.data.usernameKey.split('-')[1])
+          ||
+          // admin: reserved name without a tag, verified (needs the admin key, see usernames below)
+          (request.resource.data.usernameKey.matches('^[a-z0-9_]{3,15}$')
+            && request.resource.data.verified == true
+            && request.resource.data.admin == true
+            && request.resource.data.username == '@' + request.resource.data.usernameKey)
+        );
+      // Owner may change only displayName and avatar (small JPEG as text).
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'avatar', 'banner', 'bio', 'isPublic', 'showOnline'])
+        && (!('displayName' in request.resource.data)
+            || (request.resource.data.displayName is string && request.resource.data.displayName.size() <= 30))
+        && (!('avatar' in request.resource.data)
+            || (request.resource.data.avatar is string && request.resource.data.avatar.size() <= 40000))
+        && (!('banner' in request.resource.data)
+            || (request.resource.data.banner is string && request.resource.data.banner.size() <= 90000))
+        && (!('bio' in request.resource.data)
+            || (request.resource.data.bio is string && request.resource.data.bio.size() <= 150))
+        && (!('isPublic' in request.resource.data) || request.resource.data.isPublic is bool)
+        && (!('showOnline' in request.resource.data) || request.resource.data.showOnline is bool);
+      // +1 point per active minute. Pace is checked against the SERVER clock.
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'level', 'levelProgress', 'lastMinuteAt'])
+        && request.resource.data.lastMinuteAt == request.time
+        && request.time > resource.data.get('lastMinuteAt', request.time - duration.value(1, 'd')) + duration.value(55, 's')
+        && request.resource.data.points == resource.data.get('points', 0) + 1
+        && xpAdvanceOk(resource.data, request.resource.data, 1);
+      // +4 points once per day; streak grows only if you also claimed yesterday.
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'level', 'levelProgress', 'streak', 'lastDay'])
+        && request.resource.data.lastDay is int
+        && request.resource.data.lastDay * 86400000 <= request.time.toMillis()
+        && request.time.toMillis() < (request.resource.data.lastDay + 1) * 86400000
+        && request.resource.data.lastDay > resource.data.get('lastDay', -1)
+        && request.resource.data.points == resource.data.get('points', 0) + 4
+        && request.resource.data.streak == (resource.data.get('lastDay', -5) == request.resource.data.lastDay - 1
+             ? resource.data.get('streak', 0) + 1 : 1)
+        && xpAdvanceOk(resource.data, request.resource.data, 4);
+      // Online presence: the app stamps lastSeen (server time) about once a minute while it is open.
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeen'])
+        && request.resource.data.lastSeen == request.time;
+      // Admin can give or remove the blue verified badge of any user.
+      allow update: if isAdmin() && request.auth.uid != uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified'])
+        && request.resource.data.verified is bool;
+      // Admin can adjust another regular user's level and current-level XP progress.
+      allow update: if isAdmin() && request.auth.uid != uid
+        && resource.data.get('admin', false) != true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['level', 'levelProgress'])
+        && request.resource.data.level is int
+        && request.resource.data.level >= 1 && request.resource.data.level <= 100
+        && request.resource.data.levelProgress is int
+        && (request.resource.data.level == 100
+          ? request.resource.data.levelProgress == 0
+          : request.resource.data.levelProgress >= 0
+            && request.resource.data.levelProgress < xpNeed(request.resource.data.level));
+      // Follower counter: +1 / -1 only together with creating / deleting the follow record.
+      allow update: if signedIn() && request.auth.uid != uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount'])
+        && (
+          (request.resource.data.followersCount == resource.data.get('followersCount', 0) + 1
+            && !exists(/databases/$(database)/documents/follows/$(request.auth.uid + '_' + uid))
+            && existsAfter(/databases/$(database)/documents/follows/$(request.auth.uid + '_' + uid)))
+          ||
+          (request.resource.data.followersCount == resource.data.get('followersCount', 0) - 1
+            && exists(/databases/$(database)/documents/follows/$(request.auth.uid + '_' + uid))
+            && !existsAfter(/databases/$(database)/documents/follows/$(request.auth.uid + '_' + uid)))
+        );
+      allow delete: if false;
+    }
+
+    // Reserves a username. A second create on the same name fails, so no duplicates.
+    match /usernames/{key} {
+      allow read: if false;
+      // Names with a tag are open to everyone. Untagged (reserved) names need the secret admin key.
+      // This collection can never be read by the app, so the key stays private.
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.usernameKey == key
+        && (
+          (key.matches('^[a-z0-9_]{3,15}-[0-9]{3}$')
+            && request.resource.data.keys().hasOnly(['uid', 'createdAt']))
+          ||
+          (key.matches('^[a-z0-9_]{3,15}$')
+            && request.resource.data.keys().hasOnly(['uid', 'createdAt', 'adminKey'])
+            && request.resource.data.adminKey in ['1e402e693c6e7d8a', 'fe1ce365b657fcd2', '5338085b6e3fec8f', 'f707a8bc9b3b7172', '1cd5754368598615'])
+        );
+      allow update, delete: if false;
+    }
+
+    // Temporary 6-digit friend codes. Can be fetched by exact code only (no listing).
+    match /connectCodes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create, update: if signedIn() && code.matches('^[0-9]{6}$')
+        && request.resource.data.keys().hasOnly(['uid', 'expiresAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(12, 'm')
+        && (resource == null || resource.data.uid == request.auth.uid || resource.data.expiresAt < request.time);
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // Status: visible to the owner and to the friends listed in `viewers` (24 h is enforced by the app).
+    match /statuses/{id} {
+      allow read: if signedIn()
+        && (resource.data.ownerUid == request.auth.uid || request.auth.uid in resource.data.viewers);
+      allow create: if signedIn() && okStatus(request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+
+      // Who saw / liked a status. The viewer writes their own record; the owner reads them all.
+      match /views/{viewerId} {
+        allow read: if signedIn() && (viewerId == request.auth.uid
+          || get(/databases/$(database)/documents/statuses/$(id)).data.ownerUid == request.auth.uid);
+        allow create: if signedIn() && viewerId == request.auth.uid
+          && request.auth.uid in get(/databases/$(database)/documents/statuses/$(id)).data.viewers
+          && request.resource.data.keys().hasOnly(['liked', 'at'])
+          && request.resource.data.liked is bool
+          && request.resource.data.at == request.time;
+        allow update: if signedIn() && viewerId == request.auth.uid
+          && request.resource.data.keys().hasOnly(['liked', 'at'])
+          && request.resource.data.liked is bool
+          && request.resource.data.at == resource.data.at;
+        allow delete: if false;
+      }
+    }
+
+    // Chat requests (found by username search). Pair id = both uids sorted, same as the chat id.
+    match /requests/{pairId} {
+      allow read: if signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['from', 'to', 'note', 'createdAt'])
+        && request.resource.data.from == request.auth.uid
+        && request.resource.data.to is string
+        && request.resource.data.to != request.auth.uid
+        && pairId == (request.auth.uid < request.resource.data.to
+             ? request.auth.uid + '_' + request.resource.data.to
+             : request.resource.data.to + '_' + request.auth.uid)
+        && request.resource.data.note is string && request.resource.data.note.size() <= 100
+        && request.resource.data.createdAt == request.time
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && exists(/databases/$(database)/documents/users/$(request.resource.data.to))
+        && !exists(/databases/$(database)/documents/chats/$(pairId));
+      allow update: if false;
+      allow delete: if signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+    }
+
+    // Voice / video calls: WebRTC signalling only (the call itself goes phone to phone).
+    match /calls/{callId} {
+      allow read: if signedIn() && (resource.data.caller == request.auth.uid || resource.data.callee == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['caller', 'callee', 'type', 'status', 'offer', 'createdAt'])
+        && request.resource.data.caller == request.auth.uid
+        && request.resource.data.callee is string && request.resource.data.callee != request.auth.uid
+        && request.resource.data.type in ['audio', 'video']
+        && request.resource.data.status == 'ringing'
+        && request.resource.data.offer.sdp.size() < 30000
+        && request.resource.data.createdAt == request.time
+        && exists(/databases/$(database)/documents/chats/$(request.auth.uid < request.resource.data.callee
+             ? request.auth.uid + '_' + request.resource.data.callee
+             : request.resource.data.callee + '_' + request.auth.uid));
+      allow update: if signedIn() && (
+          (resource.data.callee == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'answer'])
+            && request.resource.data.status in ['accepted', 'declined', 'ended'])
+          ||
+          (resource.data.caller == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+            && request.resource.data.status in ['ended', 'cancelled'])
+        );
+      allow delete: if false;
+
+      match /callerCandidates/{cid} {
+        allow read: if signedIn() && (get(/databases/$(database)/documents/calls/$(callId)).data.caller == request.auth.uid
+          || get(/databases/$(database)/documents/calls/$(callId)).data.callee == request.auth.uid);
+        allow create: if signedIn() && get(/databases/$(database)/documents/calls/$(callId)).data.caller == request.auth.uid
+          && request.resource.data.keys().hasOnly(['c']) && request.resource.data.c is string && request.resource.data.c.size() < 3000;
+      }
+      match /calleeCandidates/{cid} {
+        allow read: if signedIn() && (get(/databases/$(database)/documents/calls/$(callId)).data.caller == request.auth.uid
+          || get(/databases/$(database)/documents/calls/$(callId)).data.callee == request.auth.uid);
+        allow create: if signedIn() && get(/databases/$(database)/documents/calls/$(callId)).data.callee == request.auth.uid
+          && request.resource.data.keys().hasOnly(['c']) && request.resource.data.c is string && request.resource.data.c.size() < 3000;
+      }
+    }
+
+    // Follows: only the follower can read their own list (nobody else sees who you follow).
+    match /follows/{id} {
+      allow read: if signedIn() && resource.data.follower == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['follower', 'target', 'createdAt'])
+        && request.resource.data.follower == request.auth.uid
+        && request.resource.data.target is string
+        && request.resource.data.target != request.auth.uid
+        && id == request.auth.uid + '_' + request.resource.data.target
+        && request.resource.data.createdAt == request.time
+        && exists(/databases/$(database)/documents/users/$(request.resource.data.target));
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.follower == request.auth.uid;
+    }
+
+    match /chats/{chatId} {
+      allow get: if signedIn() && (resource == null || request.auth.uid in resource.data.members);
+      allow list: if signedIn() && request.auth.uid in resource.data.members;
+      // A chat starts either (a) with the owner of a valid 6-digit code, or
+      // (b) when the receiver approves a chat request.
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['members', 'via', 'createdAt'])
+        && request.resource.data.members.size() == 2
+        && request.resource.data.members[0] < request.resource.data.members[1]
+        && request.auth.uid in request.resource.data.members
+        && chatId == request.resource.data.members[0] + '_' + request.resource.data.members[1]
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.via is string
+        && (
+          (request.resource.data.via != 'request' && request.resource.data.via != 'public'
+            && get(/databases/$(database)/documents/connectCodes/$(request.resource.data.via)).data.uid in request.resource.data.members
+            && get(/databases/$(database)/documents/connectCodes/$(request.resource.data.via)).data.uid != request.auth.uid
+            && get(/databases/$(database)/documents/connectCodes/$(request.resource.data.via)).data.expiresAt > request.time)
+          ||
+          (request.resource.data.via == 'request'
+            && exists(/databases/$(database)/documents/requests/$(chatId))
+            && get(/databases/$(database)/documents/requests/$(chatId)).data.to == request.auth.uid
+            && get(/databases/$(database)/documents/requests/$(chatId)).data.from in request.resource.data.members)
+          ||
+          (request.resource.data.via == 'public'
+            && get(/databases/$(database)/documents/users/$(request.resource.data.members[0] == request.auth.uid ? request.resource.data.members[1] : request.resource.data.members[0])).data.get('isPublic', false) == true)
+        );
+      // Group chat: made by its owner, 3-20 members. Group ids never contain "_" (1:1 chat ids do).
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['members', 'group', 'name', 'owner', 'via', 'createdAt'])
+        && request.resource.data.group == true
+        && request.resource.data.via == 'group'
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.members is list
+        && request.resource.data.members.size() >= 3 && request.resource.data.members.size() <= 20
+        && request.auth.uid in request.resource.data.members
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 40
+        && !chatId.matches('.*_.*')
+        && request.resource.data.createdAt == request.time;
+      // Members may only stamp "last message" info (used for unread dots and notifications).
+      allow update: if signedIn() && request.auth.uid in resource.data.members
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastAt', 'lastBy'])
+        && request.resource.data.lastBy == request.auth.uid
+        && request.resource.data.lastAt == request.time;
+      allow delete: if false;
+
+      // "typing..." marker: each member writes only their own record.
+      match /typing/{typerId} {
+        allow read: if signedIn() && request.auth.uid in chatMembers(chatId);
+        allow create, update: if signedIn() && typerId == request.auth.uid
+          && request.auth.uid in chatMembers(chatId)
+          && request.resource.data.keys().hasOnly(['at'])
+          && request.resource.data.at == request.time;
+        allow delete: if false;
+      }
+
+      match /messages/{messageId} {
+        allow read: if signedIn() && request.auth.uid in chatMembers(chatId);
+        allow create: if signedIn()
+          && request.auth.uid in chatMembers(chatId)
+          && request.resource.data.keys().hasOnly(['senderId', 'text', 'img', 'aud', 'dur', 'createdAt'])
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && (
+            ('text' in request.resource.data && !('img' in request.resource.data) && !('aud' in request.resource.data)
+              && request.resource.data.text is string
+              && request.resource.data.text.size() > 0
+              && request.resource.data.text.size() <= 8000)
+            ||
+            ('img' in request.resource.data && !('text' in request.resource.data) && !('aud' in request.resource.data)
+              && request.resource.data.img is string
+              && request.resource.data.img.size() > 100
+              && request.resource.data.img.size() <= 400000)
+            ||
+            ('aud' in request.resource.data && !('text' in request.resource.data) && !('img' in request.resource.data)
+              && request.resource.data.aud is string
+              && request.resource.data.aud.size() > 100
+              && request.resource.data.aud.size() <= 400000
+              && request.resource.data.dur is int
+              && request.resource.data.dur >= 1 && request.resource.data.dur <= 60)
+          );
+        // The receiver (not the sender) may stamp "seen" once.
+        allow update: if signedIn()
+          && request.auth.uid in chatMembers(chatId)
+          && resource.data.senderId != request.auth.uid
+          && !('seenAt' in resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seenAt'])
+          && request.resource.data.seenAt == request.time;
+        allow delete: if false;
+      }
+    }
+  }
+}

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08171d">
+<title>Wordii Chat</title>
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="splash"><img class="logo-img" src="logo-192.png" alt="Wordii Chat"><p>Loading…</p></div>
+
+<section id="onboard" class="screen hidden">
+  <div class="card center">
+    <img class="logo-img" src="logo-192.png" alt="Wordii Chat">
+    <div class="seg"><button id="modeNew" class="on">New account</button><button id="modeLogin">Log in</button></div>
+    <div id="paneNew">
+      <p class="muted">Pick a name (we add a number, like <b>@wordii#123</b>). Use your Gmail so you can recover your account later.</p>
+      <input id="nameInput" maxlength="15" placeholder="your name (letters, numbers, _)" autocomplete="off">
+      <input id="newEmail" type="email" placeholder="Your Gmail" autocomplete="email" autocapitalize="none">
+      <input id="newPw" type="password" placeholder="Password (6+ characters)" autocomplete="new-password">
+      <button id="createBtn" class="btn">Create account</button>
+    </div>
+    <div id="paneLogin" class="hidden">
+      <p class="muted">Log in with your Gmail (or your @username) and password.</p>
+      <input id="loginName" placeholder="Gmail or @username" autocomplete="username" autocapitalize="none">
+      <input id="loginPw" type="password" placeholder="Password" autocomplete="current-password">
+      <button id="loginBtn" class="btn">Log in</button>
+      <p class="tiny"><a href="#" id="forgotLink">Forgot password?</a></p>
+    </div>
+    <p class="tiny">Symbol messages hide text at a glance. They are <b>obfuscation, not encryption</b>. · <a href="#" id="adminLink">Admin</a></p>
+    <div id="paneAdmin" class="hidden">
+      <p class="muted">Admin sign-up (reserved name, verified + admin badge)</p>
+      <input id="adminName" maxlength="15" placeholder="Admin username, no number (e.g. wordii)" autocapitalize="none">
+      <input id="adminEmail" type="email" placeholder="Admin Gmail" autocapitalize="none">
+      <input id="adminKey" type="password" placeholder="Admin key" autocomplete="off">
+      <input id="adminPw" type="password" placeholder="Admin password (6+ characters)" autocomplete="new-password">
+      <button id="adminBtn" class="btn ghost">Create admin account</button>
+    </div>
+  </div>
+</section>
+
+<main id="app" class="hidden">
+  <header class="top"><div class="brand"><img class="brand-logo" src="logo-128.png" alt="">Wordii<span>Chat</span></div><div class="topright"><button id="bellBtn" class="bell" aria-label="Inbox">🔔<i id="bellCount" class="hidden"></i></button><div id="socials"></div><div id="topStats" class="chip"></div></div></header>
+  <section id="tab-chats" class="tab"><h2>Chats</h2>
+    <button id="newGroupBtn" class="btn sm ghost" style="margin-bottom:10px">👥 New group</button>
+    <div class="card"><b>🔍 Find someone</b>
+      <input id="searchInput" placeholder="Search a username, like @name#123 or name" autocomplete="off" autocapitalize="none">
+      <div id="searchResults"></div></div>
+    <div id="chatList"></div></section>
+  <section id="tab-status" class="tab hidden">
+    <h2>Status</h2>
+    <div class="card"><b>My status</b><p class="tiny">Friends can see it for 24 hours.</p>
+      <div class="row-btns"><button id="stTextBtn" class="btn sm">✏️ Text</button><button id="stPhotoBtn" class="btn sm ghost">📷 Photo</button><input id="stFile" type="file" accept="image/*" hidden></div>
+      <div class="closebox"><label class="tiny"><input type="checkbox" id="stClose"> Close friends only</label><button id="stPick" class="btn sm ghost">Choose people</button><span id="stCloseCount" class="tiny"></span><button id="stMention" class="btn sm ghost">@ Mention</button><span id="stMentionCount" class="tiny"></span></div>
+      <div id="myStatusList"></div></div>
+    <h3 class="sec">Friends' updates</h3><div id="friendStatus"></div>
+  </section>
+  <section id="tab-connect" class="tab hidden">
+    <h2>Connect</h2>
+    <div class="card center">
+      <p class="muted">Your code (share it with a friend)</p>
+      <div id="myCode" class="code">······</div>
+      <p id="codeTimer" class="tiny"></p>
+      <button id="newCodeBtn" class="btn ghost">New code</button>
+    </div>
+    <div class="card">
+      <p class="muted">Got a friend's code?</p>
+      <input id="friendCode" inputmode="numeric" maxlength="6" placeholder="6-digit code">
+      <button id="connectBtn" class="btn">Connect</button>
+    </div>
+  </section>
+  <section id="tab-profile" class="tab hidden"><div id="profile"></div></section>
+  <nav class="bottom">
+    <button data-tab="chats" class="on">💬<span>Chats</span></button>
+    <button data-tab="status">✨<span>Status</span></button>
+    <button data-tab="connect">🔗<span>Connect</span></button>
+    <button data-tab="profile">👤<span>You</span></button>
+  </nav>
+</main>
+
+<section id="chat" class="hidden">
+  <header class="chat-top"><button id="backBtn" class="icon">←</button><div id="chatTitle"></div><button id="hideBtn" class="icon" aria-label="Symbol hiding">🙈</button><button id="callBtn" class="icon" aria-label="Voice call">📞</button><button id="vidBtn" class="icon" aria-label="Video call">🎥</button></header>
+  <div id="msgs"></div>
+  <p id="typingBar" class="tiny typing"></p>
+  <p class="tiny center-t">Tap a message to read it for 10 s · Long-press to copy symbols · 🙈 turns hiding on/off · Symbols ≠ encryption</p>
+  <form id="composer"><button type="button" id="attachBtn" class="icon" aria-label="Send photo">📎</button><input id="fileInput" type="file" accept="image/*" hidden><button type="button" id="micBtn" class="icon" aria-label="Voice message">🎤</button><button type="button" id="recCancel" class="icon hidden" aria-label="Cancel recording">✕</button><input id="msgInput" maxlength="800" placeholder="Message…" autocomplete="off"><button class="send" aria-label="Send">➤</button></form>
+</section>
+<section id="statusCompose" class="hidden"><div class="card center">
+  <b>New status</b>
+  <div id="stPreview" class="st-preview"><textarea id="stText" maxlength="300" placeholder="What's on your mind?"></textarea></div>
+  <div id="stColors" class="colors"></div>
+  <button id="stPost" class="btn">Post</button><button id="stCancel" class="btn ghost">Cancel</button>
+</div></section>
+<section id="statusView" class="hidden"><div id="svTop"></div><div id="svBody"></div><div id="svBar"></div><button id="svClose" class="icon" aria-label="Close">✕</button></section>
+<aside id="inbox" class="hidden"><div class="inbox-head"><b>Inbox</b><button id="inboxClose" class="icon" aria-label="Close">✕</button></div><div id="inboxBody"></div></aside>
+<section id="settings" class="hidden"><header class="chat-top"><button id="setBack" class="icon">←</button><b id="setTitle">Settings</b></header><div id="settingsBody"></div></section>
+<section id="profileView" class="hidden"><header class="chat-top"><button id="pvBack" class="icon">←</button><b>Profile</b></header><div id="pvBody"></div></section>
+<section id="picker" class="hidden"><div class="card"><b id="pkTitle"></b><div id="pkList"></div><button id="pkOk" class="btn">Done</button><button id="pkCancel" class="btn ghost">Cancel</button></div></section>
+<section id="verifyGate" class="hidden"><div class="card center"><img class="logo-img" src="logo-128.png" alt="" style="width:90px;height:90px"><h2>Verify your Gmail</h2><p class="muted" id="vgText"></p>
+  <button id="vgDone" class="btn">I verified</button><button id="vgResend" class="btn ghost">Resend email</button><button id="vgOut" class="btn ghost">Log out</button><p class="tiny">Check your Spam folder too.</p></div></section>
+<section id="incoming" class="hidden"><div class="inc-card"><div id="incAva"></div><h2 id="incName"></h2><p id="incType"></p>
+  <div class="inc-btns"><button id="incDecline" class="call-btn red" aria-label="Decline">✕</button><button id="incAccept" class="call-btn green" aria-label="Accept">✓</button></div></div></section>
+<section id="callUI" class="hidden"><video id="remoteVideo" autoplay playsinline></video><video id="localVideo" autoplay playsinline muted></video>
+  <div id="callInfo"><div id="callAva"></div><h2 id="callName"></h2><p id="callState"></p></div>
+  <div class="call-bar"><button id="cMute" class="call-btn" aria-label="Mute">🎙️</button><button id="cCam" class="call-btn" aria-label="Camera">📷</button><button id="cEnd" class="call-btn red" aria-label="End call">📵</button></div></section>
+<section id="levelUpModal" class="hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="levelUpTitle">
+  <div class="levelup-card">
+    <div class="levelup-spark">🎉 ✨ 🎉</div>
+    <div id="levelUpTitle" class="levelup-title">LEVEL UP!</div>
+    <div class="levelup-number">LEVEL <span id="levelUpNumber">2</span></div>
+    <p>Congratulations! You reached a new level.</p>
+    <button id="levelUpContinue" class="btn">Continue</button>
+  </div>
+</section>
+<div id="toast"></div>
+<script type="module" src="app.js"></script>
+<script>if("serviceWorker" in navigator){addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));}</script>
+</body>
+</html>
