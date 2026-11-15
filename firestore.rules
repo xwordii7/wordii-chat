@@ -3,22 +3,10 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() { return request.auth != null; }
-    // Progressive XP requirements; legacy users keep their current level.
-    function xpNeed(l) {
-      return l == 1 ? 10 : l == 2 ? 20 : l == 3 ? 30 : l == 4 ? 40
-        : l == 5 ? 60 : l == 6 ? 80 : l == 7 ? 100 : l == 8 ? 130
-        : l == 9 ? 160 : l == 10 ? 200 : l == 11 ? 250 : l == 12 ? 300
-        : l == 13 ? 350 : l == 14 ? 400 : l == 15 ? 500 : 500 + (l - 15) * 100;
-    }
-    function xpAdvanceOk(oldD, newD, amount) {
-      let oldLevel = oldD.get('level', 1);
-      let oldProgress = oldD.get('levelProgress', oldD.get('points', 0) % 10);
-      let total = oldProgress + amount;
-      let willLevel = oldLevel < 100 && total >= xpNeed(oldLevel);
-      return newD.level is int && newD.level >= 1 && newD.level <= 100
-        && newD.level == (willLevel ? oldLevel + 1 : oldLevel)
-        && newD.levelProgress is int
-        && newD.levelProgress == (oldLevel >= 100 ? 0 : (willLevel ? total - xpNeed(oldLevel) : total));
+    // level must match points: level = 1 + floor(points / 10)
+    function lvlOk(d) {
+      return d.level is int && d.points is int && d.level >= 1
+        && (d.level - 1) * 10 <= d.points && d.points < d.level * 10;
     }
     function okStatus(d) {
       return d.keys().hasOnly(['ownerUid', 'viewers', 'text', 'bg', 'img', 'close', 'mentions', 'via', 'createdAt'])
@@ -75,14 +63,14 @@ service cloud.firestore {
         && (!('showOnline' in request.resource.data) || request.resource.data.showOnline is bool);
       // +1 point per active minute. Pace is checked against the SERVER clock.
       allow update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'level', 'levelProgress', 'lastMinuteAt'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'level', 'lastMinuteAt'])
         && request.resource.data.lastMinuteAt == request.time
         && request.time > resource.data.get('lastMinuteAt', request.time - duration.value(1, 'd')) + duration.value(55, 's')
         && request.resource.data.points == resource.data.get('points', 0) + 1
-        && xpAdvanceOk(resource.data, request.resource.data, 1);
+        && lvlOk(request.resource.data);
       // +4 points once per day; streak grows only if you also claimed yesterday.
       allow update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'level', 'levelProgress', 'streak', 'lastDay'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'level', 'streak', 'lastDay'])
         && request.resource.data.lastDay is int
         && request.resource.data.lastDay * 86400000 <= request.time.toMillis()
         && request.time.toMillis() < (request.resource.data.lastDay + 1) * 86400000
@@ -90,7 +78,7 @@ service cloud.firestore {
         && request.resource.data.points == resource.data.get('points', 0) + 4
         && request.resource.data.streak == (resource.data.get('lastDay', -5) == request.resource.data.lastDay - 1
              ? resource.data.get('streak', 0) + 1 : 1)
-        && xpAdvanceOk(resource.data, request.resource.data, 4);
+        && lvlOk(request.resource.data);
       // Online presence: the app stamps lastSeen (server time) about once a minute while it is open.
       allow update: if signedIn() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeen'])
@@ -99,17 +87,6 @@ service cloud.firestore {
       allow update: if isAdmin() && request.auth.uid != uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified'])
         && request.resource.data.verified is bool;
-      // Admin can adjust another regular user's level and current-level XP progress.
-      allow update: if isAdmin() && request.auth.uid != uid
-        && resource.data.get('admin', false) != true
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['level', 'levelProgress'])
-        && request.resource.data.level is int
-        && request.resource.data.level >= 1 && request.resource.data.level <= 100
-        && request.resource.data.levelProgress is int
-        && (request.resource.data.level == 100
-          ? request.resource.data.levelProgress == 0
-          : request.resource.data.levelProgress >= 0
-            && request.resource.data.levelProgress < xpNeed(request.resource.data.level));
       // Follower counter: +1 / -1 only together with creating / deleting the follow record.
       allow update: if signedIn() && request.auth.uid != uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount'])
@@ -123,6 +100,15 @@ service cloud.firestore {
             && !existsAfter(/databases/$(database)/documents/follows/$(request.auth.uid + '_' + uid)))
         );
       allow delete: if false;
+
+      // Private: your phone's push subscriptions (only you can read/write; the Render server reads them with admin rights).
+      match /private/{doc} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn() && request.auth.uid == uid && doc == 'push'
+          && request.resource.data.keys().hasOnly(['subs'])
+          && request.resource.data.subs is list && request.resource.data.subs.size() <= 5;
+        allow delete: if false;
+      }
     }
 
     // Reserves a username. A second create on the same name fails, so no duplicates.

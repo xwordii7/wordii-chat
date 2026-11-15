@@ -1,0 +1,25 @@
+{
+  "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/cli": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
+    "firebase": "^13.3.0"
+  },
+  "name": "wordii-chat",
+  "version": "1.0.0",
+  "description": "Works on Firebase's FREE plan. No Cloud Functions, no card needed.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xwordii7/wordii-chat.git"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/xwordii7/wordii-chat/issues"
+  },
+  "homepage": "https://github.com/xwordii7/wordii-chat#readme"
+}

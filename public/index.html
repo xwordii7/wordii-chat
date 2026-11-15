@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#08171d">
+<meta name="theme-color" content="#07040f">
 <title>Wordii Chat</title>
 <link rel="icon" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -107,15 +107,6 @@
 <section id="callUI" class="hidden"><video id="remoteVideo" autoplay playsinline></video><video id="localVideo" autoplay playsinline muted></video>
   <div id="callInfo"><div id="callAva"></div><h2 id="callName"></h2><p id="callState"></p></div>
   <div class="call-bar"><button id="cMute" class="call-btn" aria-label="Mute">🎙️</button><button id="cCam" class="call-btn" aria-label="Camera">📷</button><button id="cEnd" class="call-btn red" aria-label="End call">📵</button></div></section>
-<section id="levelUpModal" class="hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="levelUpTitle">
-  <div class="levelup-card">
-    <div class="levelup-spark">🎉 ✨ 🎉</div>
-    <div id="levelUpTitle" class="levelup-title">LEVEL UP!</div>
-    <div class="levelup-number">LEVEL <span id="levelUpNumber">2</span></div>
-    <p>Congratulations! You reached a new level.</p>
-    <button id="levelUpContinue" class="btn">Continue</button>
-  </div>
-</section>
 <div id="toast"></div>
 <script type="module" src="app.js"></script>
 <script>if("serviceWorker" in navigator){addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));}</script>

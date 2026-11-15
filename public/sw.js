@@ -1,5 +1,5 @@
 // Minimal service worker: network first, cached copy if offline.
-const CACHE = "wordii-v6";
+const CACHE = "wordii-v5";
 self.addEventListener("install", (e) => { self.skipWaiting(); });
 self.addEventListener("activate", (e) => { e.waitUntil(self.clients.claim()); });
 self.addEventListener("fetch", (e) => {
@@ -17,4 +17,19 @@ self.addEventListener("fetch", (e) => {
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   e.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => (list.length ? list[0].focus() : clients.openWindow("/"))));
+});
+
+// Phone push from the Wordii push server. If the app is open in front, the app shows its own alert instead.
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : "" }; }
+  e.waitUntil((async () => {
+    const wins = await clients.matchAll({ type: "window", includeUncontrolled: true });
+    if (wins.some((w) => w.visibilityState === "visible" && w.focused)) return;
+    await self.registration.showNotification(d.title || "Wordii Chat", {
+      body: d.body || "", tag: d.tag || "wordii", renotify: true,
+      icon: "icon-192.png", badge: "icon-192.png",
+      vibrate: d.call ? [300, 150, 300, 150, 300] : [150], requireInteraction: !!d.call,
+    });
+  })());
 });

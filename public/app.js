@@ -3,27 +3,13 @@ import { getAuth, signInAnonymously, onAuthStateChanged, linkWithCredential, Ema
 import { getFirestore, doc, getDoc, getDocs, getCountFromServer, setDoc, updateDoc, deleteDoc, writeBatch, increment, collection, query, where, orderBy, limit, onSnapshot, addDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { encodeMessage, decodeMessage, isSymbolMessage } from "./codec.js";
-import { links, turnServers } from "./links.js";
+import { links, turnServers, vapidPublicKey } from "./links.js";
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 let toastTimer;
 function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2600); }
-function showLevelUp(level) {
-  const modal = $("#levelUpModal");
-  if (!modal) return;
-  $("#levelUpNumber").textContent = String(level);
-  modal.classList.remove("hidden");
-  modal.setAttribute("aria-hidden", "false");
-}
-function closeLevelUp() {
-  const modal = $("#levelUpModal");
-  if (modal) { modal.classList.add("hidden"); modal.setAttribute("aria-hidden", "true"); }
-}
-document.addEventListener("click", (e) => { if (e.target.closest("#levelUpContinue") || e.target.id === "levelUpModal") closeLevelUp(); });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLevelUp(); });
-
 function fatal(e) { $("#splash").classList.remove("hidden"); $("#splash").innerHTML = `<div class="logo-big">Wordii<span>Chat</span></div><p class="muted">Could not start: ${esc(e.message || e)}</p>`; }
 function authMsg(c) {
   if (/invalid-credential|wrong-password|user-not-found|invalid-email/.test(c)) return "Wrong username or password.";
@@ -50,29 +36,43 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app), db = getFirestore(app);
 
 let uid = null, me = null, chats = [], started = false, firstChats = true;
+let lastSeenLevel = null;
 const friends = {}, friendUnsubs = {};
 
+// Level celebration appears only on a real level increase during this session.
+function showLevelCelebration(level) {
+  let panel = document.getElementById("wordiiLevelCelebration");
+  if (!panel) {
+    panel = document.createElement("div");
+    panel.id = "wordiiLevelCelebration";
+    panel.innerHTML = `<div class="wordii-level-card" role="dialog" aria-modal="true" aria-label="Level up"><div class="wordii-level-spark">✦ ✨ ✦</div><div class="wordii-level-trophy">🏆</div><div class="wordii-level-title">LEVEL UP!</div><div class="wordii-level-number"></div><p>Your journey just got brighter.</p><button type="button" class="btn wordii-level-close">Continue</button></div>`;
+    document.body.appendChild(panel);
+    panel.querySelector("button").addEventListener("click", () => panel.classList.remove("visible"));
+    panel.addEventListener("click", (e) => { if (e.target === panel) panel.classList.remove("visible"); });
+  }
+  panel.querySelector(".wordii-level-number").textContent = `LEVEL ${level}`;
+  panel.classList.add("visible");
+}
+
 // ---------- auth + profile ----------
-let authStarted = false, previousMyLevel = null;
+let authStarted = false;
 onAuthStateChanged(auth, (u) => {
   if (!u) { signInAnonymously(auth).catch(fatal); return; }
   if (authStarted) return;
   authStarted = true; uid = u.uid;
-  onSnapshot(doc(db, "users", uid), { includeMetadataChanges: true }, (s) => {
+  onSnapshot(doc(db, "users", uid), (s) => {
     $("#splash").classList.add("hidden");
     if (!s.exists()) { me = null; $("#app").classList.add("hidden"); $("#onboard").classList.remove("hidden"); return; }
-    const nextMe = s.data(), nextLevel = nextMe.level || 1;
-    if (!s.metadata.hasPendingWrites) {
-      if (previousMyLevel !== null && !nextMe.admin && nextLevel > previousMyLevel) showLevelUp(nextLevel);
-      previousMyLevel = nextLevel;
-    }
-    me = nextMe;
+    const incoming = s.data();
+    const currentLevel = Number(incoming.level) || 1;
+    if (lastSeenLevel !== null && currentLevel > lastSeenLevel) showLevelCelebration(currentLevel);
+    lastSeenLevel = currentLevel;
+    me = incoming;
     $("#onboard").classList.add("hidden"); $("#app").classList.remove("hidden");
     if (!started) { started = true; startApp(); }
     renderProfile(); checkGate();
   }, fatal);
 });
-
 
 async function createProfile(raw) {
   const name = raw.trim().toLowerCase();
@@ -193,6 +193,7 @@ function startApp() {
   startFollows();
   presenceTick(); setInterval(presenceTick, 60000);
   startCalls();
+  syncPush();
   setInterval(() => { renderChats(); renderChatTitle(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") presenceTick(); });
   if (auth.currentUser?.isAnonymous) setTimeout(() => toast("Set a password in Profile to keep your username safe"), 5000);
@@ -214,7 +215,6 @@ const showTab = (name) => $(`.bottom button[data-tab="${name}"]`).click();
 
 // ---------- render ----------
 const nameOf = (u) => u?.displayName || u?.username || "…";
-const levelBadgeHTML = (u) => u?.admin ? `<span class="infinite-level-badge">∞ INFINITE LEVEL</span>` : (u?.level || 1) >= 100 ? `<span class="level100-badge">🏅 LEVEL 100 XP</span>` : `<span class="level-pill">LEVEL ${u?.level || 1}</span>`;
 const avatarHTML = (u, big) => {
   const inner = u?.avatar && String(u.avatar).startsWith("data:image/jpeg;base64,")
     ? `<img src="${esc(u.avatar)}" alt="">` : esc(((u?.username || "?@")[1] || "?").toUpperCase());
@@ -232,7 +232,7 @@ function renderChats() {
 $("#chatList").addEventListener("click", (e) => { const r = e.target.closest("[data-chat]"); if (r) openChat(chats.find((c) => c.id === r.dataset.chat)); });
 function renderProfile() {
   if (!me) return;
-  $("#topStats").textContent = me.admin ? "∞ · ADMIN" : `Lv ${me.level || 1} · ${me.points || 0} XP`;
+  $("#topStats").textContent = `Lv ${me.level || 1} · ${me.points || 0} pts`;
   if (!$("#settings").classList.contains("hidden")) renderSettings();
   const row = (go, icon, title, sub) => `<div class="wrow" data-go="${go}"><div class="wi">${icon}</div><div><b>${title}</b><span>${sub}</span></div></div>`;
   $("#profile").innerHTML = `
@@ -241,12 +241,11 @@ function renderProfile() {
       <div class="bio-bubble" data-go="edit">${esc(me.bio || "Add a bio")}</div>
       <div class="you-ava">${avatarHTML(me, true)}<button class="plus" data-go="edit" aria-label="Change logo">+</button></div>
       <h2>${esc(nameOf(me))}${vb(me)}</h2>
-      <div class="profile-level">${levelBadgeHTML(me)}</div>
       ${me.displayName ? `<p class="muted">${esc(me.username)}</p>` : ""}
       <p class="tiny">${me.followersCount || 0} followers · ${following.size} following (only you can see who)</p>
     </div>
     <div class="wlist">
-      ${row("points", "🏆", "Points & level", `${me.admin ? "Infinite level" : "Level " + (me.level || 1)} · ${me.points || 0} XP · 🔥 ${me.streak || 0}`)}
+      ${row("points", "🏆", "Points & level", `Level ${me.level || 1} · ${me.points || 0} points · 🔥 ${me.streak || 0}`)}
       ${row("edit", "👤", "Edit profile", "Name, bio, logo, banner")}
       ${row("account", "🔑", "Account", auth.currentUser?.isAnonymous ? "Add your Gmail to protect this account" : "Gmail, password, log out")}
       ${row("privacy", "🔒", "Privacy", `${me.isPublic ? "Public" : "Private"} account · online status`)}
@@ -255,7 +254,7 @@ function renderProfile() {
       ${row("lang", "🌐", "App language", "English")}
       ${row("subs", "💎", "Subscriptions", "Explore premium benefits")}
       ${row("invite", "👥", "Invite a friend", "Share Wordii Chat")}
-      ${me.admin ? row("admin", "🛡️", "Admin tools", "Give or remove blue ✔ badges") + row("levels", "🏆", "Manage User Level", "Change a user's level and XP") + row("dash", "📊", "Admin dashboard", "See who is using the app") : ""}
+      ${me.admin ? row("admin", "🛡️", "Admin tools", "Give or remove blue ✔ badges") + row("dash", "📊", "Admin dashboard", "See who is using the app") : ""}
     </div>
     ${followCard()}
     <p class="tiny" style="padding:6px 10px">Symbol messages are <b>obfuscation, not encryption</b>.</p>`;
@@ -475,44 +474,28 @@ document.addEventListener("change", (e) => {
   });
 });
 
-// ---------- progressive XP + levels ----------
-const XP_NEEDS = [10, 20, 30, 40, 60, 80, 100, 130, 160, 200, 250, 300, 350, 400, 500];
-function xpNeed(level) { return level <= XP_NEEDS.length ? XP_NEEDS[level - 1] : 500 + (level - 15) * 100; }
-function currentLevelProgress(user) {
-  return Number.isInteger(user?.levelProgress) ? user.levelProgress : ((user?.points || 0) % 10);
-}
-function addLevelXP(level, progress, amount) {
-  let nextLevel = Math.max(1, Math.min(100, level || 1));
-  let nextProgress = Math.max(0, progress || 0) + amount;
-  while (nextLevel < 100 && nextProgress >= xpNeed(nextLevel)) {
-    nextProgress -= xpNeed(nextLevel);
-    nextLevel++;
-  }
-  if (nextLevel >= 100) nextProgress = 0;
-  return { level: nextLevel, levelProgress: nextProgress };
-}
+// ---------- points and levels (rules on the server check every change) ----------
+const levelFor = (points) => Math.floor(points / 10) + 1;
 let dailyBusy = false;
 async function claimDaily() {
-  if (!me || dailyBusy || me.admin) return;
+  if (!me || dailyBusy) return;
   const day = Math.floor(Date.now() / 86400000), last = me.lastDay ?? -1;
   if (last >= day) return;
   dailyBusy = true;
   try {
     const streak = last === day - 1 ? (me.streak || 0) + 1 : 1, points = (me.points || 0) + 4;
-    const xp = addLevelXP(me.level || 1, currentLevelProgress(me), 4);
-    await updateDoc(doc(db, "users", uid), { points, ...xp, streak, lastDay: day });
-    toast(`Daily streak ${streak}! +4 XP`);
-  } catch (e) { toast("Daily XP: " + friendly(e)); }
+    await updateDoc(doc(db, "users", uid), { points, level: levelFor(points), streak, lastDay: day });
+    toast(`Daily streak ${streak}! +4 points`);
+  } catch (e) { toast("Daily points: " + friendly(e)); }
   dailyBusy = false;
 }
 async function minuteTick() {
-  if (!me || me.admin || document.visibilityState !== "visible" || !document.hasFocus()) return;
+  if (!me || document.visibilityState !== "visible" || !document.hasFocus()) return;
   const last = me.lastMinuteAt?.toMillis?.() || 0;
   if (Date.now() - last < 56000) return;
   const points = (me.points || 0) + 1;
-  const xp = addLevelXP(me.level || 1, currentLevelProgress(me), 1);
-  try { await updateDoc(doc(db, "users", uid), { points, ...xp, lastMinuteAt: serverTimestamp() }); }
-  catch (e) { console.warn("minute XP failed", e); }
+  try { await updateDoc(doc(db, "users", uid), { points, level: levelFor(points), lastMinuteAt: serverTimestamp() }); }
+  catch (e) { console.warn("minute point failed", e); }
 }
 
 // ---------- YouTube / Instagram corner icons ----------
@@ -849,7 +832,7 @@ function renderPV() {
     : incoming.some((r) => r.id === id) ? `<button class="btn" data-pv="acc">Accept request</button>`
     : `<button class="btn" data-pv="req">✉️ Send request</button>`;
   body.innerHTML = `<div class="pv-banner" ${hasBanner(u) ? `style="background:${bannerCss(u)}"` : ""}></div><div class="pv-ava">${avatarHTML(u, true)}</div>
-    <div class="pv-info"><h2>${esc(nameOf(u))}${vb(u)}</h2><div class="profile-level">${levelBadgeHTML(u)}</div><p class="muted">${esc(u.username)}</p><p class="presence ${isOnline(u) ? "on" : ""}">${esc(presenceText(u))}</p>
+    <div class="pv-info"><h2>${esc(nameOf(u))}${vb(u)}</h2><p class="muted">${esc(u.username)}</p><p class="presence ${isOnline(u) ? "on" : ""}">${esc(presenceText(u))}</p>
     ${u.bio ? `<p class="bio">${esc(u.bio)}</p>` : `<p class="tiny">No bio yet.</p>`}
     <p><b>${u.followersCount || 0}</b> <span class="muted">followers</span></p>
     <p class="tiny">${u.isPublic ? "🌍 Public account" : "🔒 Private account"}</p>
@@ -879,11 +862,11 @@ $("#searchResults").addEventListener("click", (e) => {
 });
 
 // --- settings ---
-const BG_SW = ["#10272f", "radial-gradient(#1b7772,#10272f)", "linear-gradient(160deg,#064e5c,#0b1b3a)", "linear-gradient(160deg,#7c4a2b,#25464d)", "#000"];
+const BG_SW = ["#2a1b4d", "radial-gradient(#7b2cff,#1d1040)", "linear-gradient(160deg,#064e5c,#0b1b3a)", "linear-gradient(160deg,#7c2d12,#4c1d95)", "#000"];
 let admList = [], admTimer;
 let subKey = "";
-const SUB_TITLES = { points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "Admin tools", levels: "Manage User Level", dash: "Admin dashboard" };
-function openSub(k) { if (["admin", "levels", "dash"].includes(k) && !me?.admin) { toast("Admin access only."); return; } subKey = k; $("#setTitle").textContent = SUB_TITLES[k] || "Settings"; $("#settings").classList.remove("hidden"); renderSettings(true); }
+const SUB_TITLES = { points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "Admin tools", dash: "Admin dashboard" };
+function openSub(k) { subKey = k; $("#setTitle").textContent = SUB_TITLES[k] || "Settings"; $("#settings").classList.remove("hidden"); renderSettings(true); }
 function shareInvite() {
   const d = { title: "Wordii Chat", text: `Chat with me on Wordii Chat! Find me: ${me.username}`, url: location.origin };
   if (navigator.share) navigator.share(d).catch(() => {}); else { copy(`${d.text} ${d.url}`); toast("Invite copied"); }
@@ -895,12 +878,9 @@ function renderSettings(force) {
   const u = auth.currentUser, email = u?.email && !isFakeEmail(u.email) ? u.email : "";
   const t = pref("theme", "auto"), bg = pref("chatbg", "0"), nOn = pref("notif", "on") === "on";
   const pages = {
-    points: () => {
-      const level = me.level || 1, progress = currentLevelProgress(me), need = xpNeed(level), pct = me.admin ? 100 : (level >= 100 ? 100 : Math.min(100, progress / need * 100));
-      return `<div class="card center xp-card"><div class="xp-emblem">${me.admin ? "∞" : level >= 100 ? "🏅" : "🏆"}</div><div class="stats"><div><b>${me.admin ? "∞" : level}</b><span>Level</span></div><div><b>${me.points || 0}</b><span>Total XP</span></div><div><b>🔥 ${me.streak || 0}</b><span>Streak</span></div></div>
-      ${me.admin ? `<div class="infinite-tag">♾ INFINITE LEVEL · ADMIN</div>` : level >= 100 ? `<div class="level100-tag">🏅 LEVEL 100 XP BADGE</div>` : `<div class="bar"><i style="width:${pct}%"></i></div><p class="tiny">${progress} / ${need} XP to Level ${level + 1}</p>`}</div>
-      <div class="card tiny">Earn XP: +4 once a day (streak) and +1 for every active minute. Higher levels require more XP.</div>`;
-    },
+    points: () => `<div class="card center"><div class="stats"><div><b>${me.level || 1}</b><span>Level</span></div><div><b>${me.points || 0}</b><span>Points</span></div><div><b>🔥 ${me.streak || 0}</b><span>Streak</span></div></div>
+      <div class="bar"><i style="width:${((me.points || 0) % 10) * 10}%"></i></div><p class="tiny">${10 - ((me.points || 0) % 10)} more points to Level ${(me.level || 1) + 1}</p></div>
+      <div class="card tiny">Earn points: +4 once a day (streak) and +1 for every active minute. Every 10 points = 1 level.</div>`,
     edit: () => `<div class="card center"><div class="you-ava">${avatarHTML(me, true)}</div><br><button id="logoBtn" class="btn sm ghost" style="margin-top:12px">Change logo</button><input id="logoInput" type="file" accept="image/*" hidden></div>
       <div class="card"><b>Your name</b><p class="tiny">Friends see this name. Your @username stays the same.</p><input id="dnInput" maxlength="30" placeholder="Display name" value="${esc(me.displayName || "")}"><button id="saveName" class="btn">Save name</button></div>
       <div class="card"><b>About you</b><p class="tiny">Your bio and banner show when people open your profile.</p>
@@ -920,30 +900,22 @@ function renderSettings(force) {
         <p class="tiny" style="margin-top:12px">Chat background</p>
         <div class="colors">${BG_SW.map((c, i) => `<button type="button" data-bg="${i}" class="${String(i) === bg ? "on" : ""}" style="background:${c}" aria-label="Background ${i + 1}"></button>`).join("")}</div></div>`,
     notif: () => `<div class="card"><label class="setrow"><span><b>Message notifications</b></span><input type="checkbox" id="setNotif" ${nOn ? "checked" : ""}></label>
-        <p class="tiny">They work while the app is open or recently in the background. A fully closed app needs a paid server.</p>
-        ${"Notification" in window && Notification.permission === "default" ? `<button class="btn sm" id="setAllow">Allow phone notifications</button>` : ""}</div>`,
+        <p class="tiny">Alerts inside the app and while it is open or in the background.</p></div>
+      <div class="card"><b>Alerts when the app is closed</b>
+        <p class="tiny">${pushOn() ? "✅ ON for this phone." : "OFF for this phone."} New messages, chat requests and incoming calls show a notification even if the app is fully closed. (Needs the Wordii push server, see PUSH-SETUP.md.)</p>
+        <button class="btn" id="${pushOn() ? "pushOff" : "pushOn"}">${pushOn() ? "Turn off" : "Turn on"}</button></div>`,
     dash: () => `<div class="card center" id="dashStats">Loading…</div><div class="seg"><button data-dtab="active" class="on">Active</button><button data-dtab="new">New</button><button data-dtab="top">Top points</button></div><div id="dashList"></div>`,
     lang: () => `<div class="card tiny">English. Hindi is coming soon.</div>`,
     subs: () => `<div class="card tiny">No paid plans. Everything is free right now.</div>`,
     admin: () => `<div class="card"><b>Give blue ✔ badges</b><p class="tiny">Search a username, then give or remove the verified badge.</p><input id="admSearch" placeholder="Search username" autocapitalize="none" autocomplete="off"><div id="admResults"></div></div>`,
-    levels: () => `<div class="card"><b>Manage User Level</b><p class="tiny">Search a user, then set their level and XP progress. Admin accounts are protected.</p><input id="levelAdmSearch" placeholder="Search username" autocapitalize="none" autocomplete="off"><div id="levelAdmResults"></div></div>`,
   };
   $("#settingsBody").innerHTML = (pages[subKey] || (() => ""))();
   if (subKey === "admin") renderAdm();
-  if (subKey === "levels") renderLevelAdm();
   if (subKey === "dash") loadDash();
 }
 function renderAdm() {
   const box = $("#admResults"); if (!box) return;
   box.innerHTML = admList.length ? admList.map((u) => `<div class="row nopoint">${avatarHTML(u)}<div class="grow"><b>${esc(nameOf(u))}${vb(u)}</b><span class="muted">${esc(u.username)}</span></div><button class="btn sm ${u.verified ? "ghost" : ""}" data-adm="${esc(u.id)}">${u.verified ? "Remove ✔" : "Give ✔"}</button></div>`).join("") : `<p class="tiny">Type at least 2 letters.</p>`;
-}
-function renderLevelAdm() {
-  const box = $("#levelAdmResults"); if (!box) return;
-  box.innerHTML = admList.length ? admList.map((u) => {
-    const level = u.level || 1, progress = currentLevelProgress(u), need = xpNeed(level);
-    return `<div class="card level-admin-card"><div class="row nopoint">${avatarHTML(u)}<div class="grow"><b>${esc(nameOf(u))}${vb(u)}</b><span class="muted">${esc(u.username)} · ${u.admin ? "Admin account protected" : `Level ${level} · ${progress}/${need} XP`}</span></div></div>
-      ${u.admin ? "" : `<div class="level-admin-fields"><label>Level<input type="number" min="1" max="100" value="${level}" data-level-value="${esc(u.id)}"></label><label>XP progress<input type="number" min="0" max="${Math.max(0,need-1)}" value="${progress}" data-xp-value="${esc(u.id)}"></label></div><button class="btn sm" data-level-save="${esc(u.id)}">Save level</button>`}</div>`;
-  }).join("") : `<p class="tiny">Type at least 2 letters.</p>`;
 }
 $("#setBack").onclick = () => $("#settings").classList.add("hidden");
 $("#settingsBody").addEventListener("change", (e) => {
@@ -954,13 +926,9 @@ $("#settingsBody").addEventListener("change", (e) => {
   else if (t.id === "setShowOnline") act(async () => { await updateDoc(doc(db, "users", uid), { showOnline: t.checked }); toast(t.checked ? "Others can see when you are online" : "Your online status is hidden"); });
 });
 $("#settingsBody").addEventListener("input", (e) => {
-  if (!["admSearch", "levelAdmSearch"].includes(e.target.id)) return;
-  const isLevelSearch = e.target.id === "levelAdmSearch";
+  if (e.target.id !== "admSearch") return;
   clearTimeout(admTimer);
-  admTimer = setTimeout(async () => {
-    try { admList = await searchPeople(e.target.value); } catch (err) { toast(friendly(err)); admList = []; }
-    if (isLevelSearch) renderLevelAdm(); else renderAdm();
-  }, 350);
+  admTimer = setTimeout(async () => { try { admList = await searchPeople($("#admSearch").value); } catch (err) { toast(friendly(err)); admList = []; } renderAdm(); }, 350);
 });
 $("#settingsBody").addEventListener("click", (e) => {
   const bgb = e.target.closest("[data-bg]");
@@ -969,20 +937,6 @@ $("#settingsBody").addEventListener("click", (e) => {
   if (adm) {
     const u = admList.find((x) => x.id === adm.dataset.adm); if (!u) return;
     act(async () => { await updateDoc(doc(db, "users", u.id), { verified: !u.verified }); u.verified = !u.verified; renderAdm(); toast(u.verified ? "Verified ✔ given" : "Badge removed"); }, adm);
-    return;
-  }
-  const levelSave = e.target.closest("[data-level-save]");
-  if (levelSave) {
-    const id = levelSave.dataset.levelSave, u = admList.find((x) => x.id === id);
-    if (!u || u.admin) return;
-    const levelInput = $(`[data-level-value="${CSS.escape(id)}"]`), xpInput = $(`[data-xp-value="${CSS.escape(id)}"]`);
-    const level = Number(levelInput?.value), progress = Number(xpInput?.value), need = xpNeed(level);
-    if (!Number.isInteger(level) || level < 1 || level > 100 || !Number.isInteger(progress) || progress < 0 || progress >= (level >= 100 ? 1 : need)) { toast("Enter a valid level and XP amount."); return; }
-    act(async () => {
-      await updateDoc(doc(db, "users", id), { level, levelProgress: level >= 100 ? 0 : progress });
-      u.level = level; u.levelProgress = level >= 100 ? 0 : progress;
-      renderLevelAdm(); toast("User level updated successfully.");
-    }, levelSave);
     return;
   }
   if (e.target.closest("#setAllow")) Notification.requestPermission().then(() => renderSettings());
@@ -1094,7 +1048,9 @@ function startTyping(c) {
 function renderTyping() {
   const el = $("#typingBar"); if (!el || rec) return;
   const now = Date.now(), who = Object.keys(typingAt).filter((id) => now - typingAt[id] < 5000);
-  el.textContent = who.length ? (activeChat?.group ? who.map((id) => nameOf(person(id))).join(", ") + " typing…" : "typing…") : "";
+  if (!who.length) { el.replaceChildren(); return; }
+  const label = activeChat?.group ? who.map((id) => nameOf(person(id))).join(", ") + " is typing" : "typing";
+  el.innerHTML = `<span class="wordii-typing-pill"><span class="wordii-typing-label">${esc(label)}</span><span class="wordii-typing-dots" aria-hidden="true"><i></i><i></i><i></i></span></span>`;
 }
 function sendTyping() {
   if (!activeChat || Date.now() - lastTypingWrite < 2500) return;
@@ -1208,7 +1164,7 @@ async function loadDashList() {
     : query(users, orderBy("lastSeen", "desc"), limit(30));
   try {
     const rows = (await getDocs(q)).docs.map((d) => ({ id: d.id, ...d.data() }));
-    box.innerHTML = rows.length ? rows.map((u) => `<div class="row nopoint">${avWithDot(u)}<div class="grow"><b>${esc(nameOf(u))}${vb(u)}</b><span class="muted">${esc(u.username)} · Lv ${u.admin ? "∞" : (u.level || 1)} · ${u.points || 0} XP · 🔥 ${u.streak || 0} · ${u.followersCount || 0} followers<br>${esc(presenceText(u) || "no activity yet")}</span></div></div>`).join("") : `<p class="tiny">Nothing yet.</p>`;
+    box.innerHTML = rows.length ? rows.map((u) => `<div class="row nopoint">${avWithDot(u)}<div class="grow"><b>${esc(nameOf(u))}${vb(u)}</b><span class="muted">${esc(u.username)} · Lv ${u.level || 1} · ${u.points || 0} pts · 🔥 ${u.streak || 0} · ${u.followersCount || 0} followers<br>${esc(presenceText(u) || "no activity yet")}</span></div></div>`).join("") : `<p class="tiny">Nothing yet.</p>`;
   } catch (e) { box.innerHTML = `<p class="tiny">${esc(friendly(e))}</p>`; }
 }
 document.addEventListener("click", (e) => {
@@ -1344,3 +1300,40 @@ $("#vidBtn").onclick = (e) => act(() => startCall("video"), e.currentTarget);
 $("#cMute").onclick = () => { const t = call?.stream?.getAudioTracks()[0]; if (!t) return; t.enabled = !t.enabled; $("#cMute").textContent = t.enabled ? "🎙️" : "🔇"; };
 $("#cCam").onclick = () => { const t = call?.stream?.getVideoTracks()[0]; if (!t) return; t.enabled = !t.enabled; $("#cCam").textContent = t.enabled ? "📷" : "🚫"; };
 $("#cEnd").onclick = () => endCall(true, "Call ended");
+
+// ================= v13: phone push notifications (app closed) =================
+const pushOn = () => pref("push", "off") === "on" && "Notification" in window && Notification.permission === "granted";
+const b64ToU8 = (b64) => { const raw = atob((b64 + "=".repeat((4 - (b64.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(raw, (c) => c.charCodeAt(0)); };
+const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && !!vapidPublicKey && !vapidPublicKey.startsWith("PASTE");
+async function savePushSub(sub) {
+  const j = sub.toJSON(), entry = { endpoint: j.endpoint, keys: { p256dh: j.keys.p256dh, auth: j.keys.auth } };
+  const ref = doc(db, "users", uid, "private", "push");
+  const cur = (await getDoc(ref)).data()?.subs || [];
+  await setDoc(ref, { subs: [entry, ...cur.filter((x) => x.endpoint !== entry.endpoint)].slice(0, 5) });
+}
+async function getSub() {
+  const reg = await navigator.serviceWorker.ready;
+  return (await reg.pushManager.getSubscription()) || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(vapidPublicKey) });
+}
+async function enablePush() {
+  if (!pushSupported()) throw new Error("Push alerts are not supported on this phone/browser.");
+  if ((await Notification.requestPermission()) !== "granted") throw new Error("Notifications are blocked. Allow them in your phone's app settings.");
+  await savePushSub(await getSub()); setPref("push", "on");
+}
+async function disablePush() {
+  setPref("push", "off");
+  try {
+    const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      const ep = sub.endpoint; await sub.unsubscribe();
+      const ref = doc(db, "users", uid, "private", "push"), cur = (await getDoc(ref)).data()?.subs || [];
+      await setDoc(ref, { subs: cur.filter((x) => x.endpoint !== ep) });
+    }
+  } catch {}
+}
+async function syncPush() { if (pushOn() && pushSupported()) { try { await savePushSub(await getSub()); } catch {} } }
+document.addEventListener("click", (e) => {
+  const on = e.target.closest("#pushOn"), off = e.target.closest("#pushOff");
+  if (on) act(async () => { await enablePush(); toast("Alerts when closed: ON ✅"); renderSettings(true); }, on);
+  if (off) act(async () => { await disablePush(); toast("Alerts when closed: OFF"); renderSettings(true); }, off);
+});
