@@ -19,6 +19,12 @@ jobs:
           java-version: '21'
 
 
+      - name: Install Capacitor dependencies
+        run: npm ci
+
+      - name: Sync Android project
+        run: npx cap sync android
+
       - name: Build Debug APK
         working-directory: android
         run: |
