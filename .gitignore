@@ -151,3 +151,6 @@ vite.config.ts.timestamp-*
 /private/
 /public-backup-*/
 /node_modules/
+.private/
+
+node_modules/
