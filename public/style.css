@@ -188,3 +188,34 @@ select{width:100%;padding:12px;margin:8px 0;border-radius:12px;border:1px solid 
 
 /* Admin login separation */
 .admin-login-separator { margin: 18px 0 12px; padding-top: 14px; border-top: 1px solid rgba(150,150,150,.3); font-weight: 700; text-align: center; }
+
+
+/* Wordii Premium UI refresh — visual changes only; existing IDs and JS retained */
+:root{--panel:#1a1b25;--input:#15161e;--bar:#0d0e14f5;--hdr:#0d0e14ee;--bggrad:radial-gradient(circle at 50% -25%,#25121d 0%,#0b0b10 52%);--bg:#0b0b10;--card:#14151d;--line:#2b2933;--text:#f6f5f8;--muted:#aaa8b6;--accent:#d9274a;--neon:#ff5574}
+html,body{font-family:Inter,system-ui,-apple-system,Roboto,sans-serif}
+#splash{z-index:100;overflow:hidden;background:radial-gradient(ellipse at 50% 35%,#30101d 0%,#0b0b10 58%,#07070a 100%);display:flex;align-items:center;justify-content:center;animation:fade .45s ease}
+.splash-aura{position:absolute;width:330px;height:330px;left:50%;top:37%;transform:translate(-50%,-50%);border-radius:50%;background:#c5224933;filter:blur(90px);pointer-events:none}
+.splash-content{position:relative;display:flex;flex-direction:column;align-items:center;width:min(80vw,320px)}
+.splash-logo-wrap{width:132px;height:132px;border-radius:35px;display:grid;place-items:center;box-shadow:0 16px 60px #e527452a;animation:splash-enter .75s cubic-bezier(.2,.8,.2,1) both}
+#splash .logo-img{width:124px;height:124px;margin:0;border-radius:30px;box-shadow:none;animation:none}
+.splash-name{font-size:30px;letter-spacing:-1px;margin:25px 0 2px;font-weight:850}.splash-name span{color:#ff5574}
+.splash-tagline{color:#b5aeb8;font-size:13px;letter-spacing:.35px;margin:5px 0 48px}
+.splash-progress{height:4px;width:185px;border-radius:99px;background:#ffffff16;overflow:hidden}.splash-progress i{display:block;width:42%;height:100%;border-radius:99px;background:linear-gradient(90deg,#a91d3b,#ff6682);animation:splash-loading 1.5s ease-in-out infinite}
+.splash-wait{font-size:11px;letter-spacing:1.1px;color:#8f8995;text-transform:uppercase;margin-top:16px}
+.splash-footer{position:absolute;bottom:calc(25px + env(safe-area-inset-bottom));font-size:10px;color:#6f6876;letter-spacing:2.5px}
+@keyframes splash-enter{from{opacity:0;transform:translateY(16px) scale(.87)}to{opacity:1;transform:none}}
+@keyframes splash-loading{0%{transform:translateX(-120%)}55%{transform:translateX(125%)}100%{transform:translateX(350%)}}
+.logo-img{box-shadow:0 12px 45px #e5274533}.brand-logo{box-shadow:0 3px 16px #e5274533;border-radius:12px}.brand{font-size:21px;letter-spacing:-.6px}.brand span{margin-left:3px;text-shadow:none}
+.top{padding-bottom:14px;border-bottom:1px solid #ffffff0c}.topright{gap:5px}
+#app{padding-left:14px;padding-right:14px}.tab h2{font-size:26px;letter-spacing:-.8px;margin-top:22px;margin-bottom:15px}
+.card{border:1px solid #ffffff0d;border-radius:22px;box-shadow:0 10px 30px #0002}
+.row{border:1px solid #ffffff0c;background:#161720;border-radius:20px;padding:14px 13px;box-shadow:0 4px 18px #0002}.row:active{background:#20212b}
+.avatar{border:1.5px solid #e34260;box-shadow:none;background:linear-gradient(135deg,#33202a,#1a1b25)}
+input{background:#1b1c25;border-color:#35323d;border-radius:14px}input:focus{border-color:#e43c5b;box-shadow:0 0 0 3px #e43c5b22}
+.btn{background:linear-gradient(135deg,#c81d43,#ed4563);box-shadow:0 5px 18px #d9274a33}.btn.ghost{border-color:#8f3c51}
+.bottom{box-shadow:0 -12px 35px #0004;border-top:1px solid #ffffff12}.bottom button{border-radius:15px;transition:background .2s,color .2s}.bottom button.on{background:#d9274a22;color:#ff728c;text-shadow:none}
+#chat{background:radial-gradient(ellipse at 60% 10%,#1c111a 0%,#0b0b10 58%)}.chat-top{background:#12131b;border-bottom:1px solid #ffffff12}
+#msgs{gap:10px;padding:16px 12px}.bubble{border-radius:19px;padding:11px 14px;line-height:1.5;word-break:break-word}.mine .bubble{background:linear-gradient(145deg,#ab1c3d,#d12e51);border-bottom-right-radius:5px}.theirs .bubble{background:#24232c;border-color:#ffffff0e;border-bottom-left-radius:5px}.bubble.open{box-shadow:none}.bubble:not(.open){color:#ff8ca0}
+#composer{background:#111219;border-top:1px solid #ffffff0c}.send{background:linear-gradient(135deg,#c81d43,#ed4563);border-radius:15px;box-shadow:none}
+.chip,.icon{background:#21202b}.icon{border-radius:13px}
+@media(prefers-reduced-motion:reduce){#splash,.splash-logo-wrap,.splash-progress i{animation:none!important}}
