@@ -1,7 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged, linkWithCredential, EmailAuthProvider, signInWithEmailAndPassword, signOut, sendEmailVerification, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, getDocs, getCountFromServer, setDoc, updateDoc, deleteDoc, writeBatch, increment, collection, query, where, orderBy, limit, onSnapshot, addDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, signInAnonymously, onAuthStateChanged, linkWithCredential, EmailAuthProvider, signInWithEmailAndPassword, signOut, sendEmailVerification, sendPasswordResetEmail, verifyBeforeUpdateEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, getDocs, runTransaction, getCountFromServer, setDoc, updateDoc, deleteDoc, writeBatch, increment, collection, query, where, orderBy, limit, onSnapshot, addDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
+import { getStorage, ref as storageRef, uploadBytes, getBlob } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { encodeMessage, decodeMessage, isSymbolMessage } from "./codec.js";
 import { links, turnServers, vapidPublicKey } from "./links.js";
 
@@ -75,17 +76,31 @@ onAuthStateChanged(auth, (u) => {
 });
 
 async function createProfile(raw) {
-  const name = raw.trim().toLowerCase();
-  if (!/^[a-z0-9_]{3,15}$/.test(name)) throw new Error("Name must be 3-15 letters, numbers or _.");
-  for (let i = 0; i < 8; i++) {
-    const tag = String(100 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900));
-    const key = `${name}-${tag}`;
-    const b = writeBatch(db);
-    b.set(doc(db, "usernames", key), { uid, createdAt: serverTimestamp() });
-    b.set(doc(db, "users", uid), { username: `@${name}#${tag}`, usernameKey: key, createdAt: serverTimestamp() });
-    try { await b.commit(); return key; } catch (e) { if (e.code !== "permission-denied") throw e; }
-  }
-  throw new Error("That name is busy. Try another one.");
+  const name = raw.trim().toLowerCase().replace(/^@/, "");
+  if (!/^[a-z0-9_]{3,15}$/.test(name))
+    throw new Error("Username must be 3-15 letters, numbers or _.");
+
+  const key = name;
+  const usernameRef = doc(db, "usernames", key);
+  const userRef = doc(db, "users", uid);
+
+  await runTransaction(db, async (tx) => {
+    const existing = await tx.get(usernameRef);
+    const existingProfile = await tx.get(userRef);
+    if (existingProfile.exists())
+      throw new Error("This account already has a username.");
+    if (existing.exists())
+      throw new Error("Username already taken. Try another username.");
+
+    tx.set(usernameRef, { uid, createdAt: serverTimestamp() });
+    tx.set(userRef, {
+      username: "@" + name,
+      usernameKey: key,
+      createdAt: serverTimestamp()
+    });
+  });
+
+  return key;
 }
 // ---------- sign up / log in with Gmail (so you can recover your account) ----------
 const emailFor = (key) => `${key}@wordii-chat.web.app`; // only for OLD accounts made before Gmail login
@@ -130,8 +145,16 @@ $("#createBtn").onclick = (e) => act(async () => {
   const email = $("#newEmail").value.trim().toLowerCase(), pw = $("#newPw").value;
   if (!EMAIL_RE.test(email)) throw new Error("Enter a valid Gmail address.");
   if (pw.length < 6) throw new Error("Password must be at least 6 characters.");
-  await createProfile($("#nameInput").value);
-  try { await linkEmail(email, pw); } catch (err) { toast("Account made, but Gmail not saved: " + friendly(err)); }
+  const username = $("#nameInput").value;
+  const currentUser = auth.currentUser;
+
+  if (currentUser.isAnonymous) {
+    await linkEmail(email, pw);
+  } else if (currentUser.email?.toLowerCase() !== email) {
+    throw new Error("This session is linked to another Gmail. Log out and use the correct account.");
+  }
+
+  await createProfile(username);
   renderProfile();
 }, e.currentTarget);
 $("#loginBtn").onclick = (e) => act(async () => {
@@ -174,19 +197,13 @@ $("#adminForgotLink").onclick = (e) => {
     toast("If the account exists, a reset email was sent. Check Spam too.");
   });
 };
-$("#adminBtn").onclick = (e) => act(async () => {
-  const key = $("#adminName").value.trim().toLowerCase().replace(/^@/, ""), adminKey = $("#adminKey").value.trim();
-  const email = $("#adminEmail").value.trim().toLowerCase(), pw = $("#adminPw").value;
-  if (!/^[a-z0-9_]{3,15}$/.test(key)) throw new Error("Admin username: 3-15 letters, numbers or _ (no number tag).");
-  if (!EMAIL_RE.test(email)) throw new Error("Enter a valid Gmail address.");
-  if (pw.length < 6) throw new Error("Password must be at least 6 characters.");
-  const b = writeBatch(db);
-  b.set(doc(db, "usernames", key), { uid, createdAt: serverTimestamp(), adminKey });
-  b.set(doc(db, "users", uid), { username: "@" + key, usernameKey: key, verified: true, admin: true, createdAt: serverTimestamp() });
-  try { await b.commit(); } catch (err) { throw err.code === "permission-denied" ? new Error("Wrong admin key, or that admin name is already taken.") : err; }
-  try { await linkEmail(email, pw); } catch (err) { toast("Admin made, but Gmail not saved: " + friendly(err)); }
-  renderProfile();
-}, e.currentTarget);
+// New admin registration is disabled.
+// Existing admins can still log in using Admin Login.
+const adminCreateBtn = $("#adminBtn");
+if (adminCreateBtn) {
+  adminCreateBtn.disabled = true;
+  adminCreateBtn.hidden = true;
+}
 
 // ---------- app start ----------
 function startApp() {
@@ -236,6 +253,52 @@ $$(".bottom button").forEach((b) => (b.onclick = () => {
   $$(".tab").forEach((t) => t.classList.toggle("hidden", t.id !== "tab-" + b.dataset.tab));
 }));
 const showTab = (name) => $(`.bottom button[data-tab="${name}"]`).click();
+// Premium navigation mirrors existing working tabs; Calls opens the available call list.
+function syncPremiumTabs(name) {
+  $$(".premium-tabs button").forEach(b => b.classList.toggle("on", b.dataset.premiumTab === name));
+}
+$$('.premium-tabs button').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.premiumTab === 'calls') {
+    $$('.tab').forEach(t => t.classList.toggle('hidden', t.id !== 'tab-calls'));
+    $$('.bottom button').forEach(x => x.classList.remove('on'));
+    syncPremiumTabs('calls');
+    renderCallFriends();
+  } else showTab(b.dataset.premiumTab);
+}));
+$$('.bottom button').forEach(b => b.addEventListener('click', () => syncPremiumTabs(b.dataset.tab)));
+
+function renderCallFriends(){
+  const box=$('#callFriends');if(!box)return;
+  const direct=chats.filter(c=>!c.group && c.members?.includes(uid));
+  box.innerHTML=direct.length ? direct.map(c=>{
+    const f=friends[c.members.find(id=>id!==uid)];
+    return `<div class="row call-friend">${avatarHTML(f)}<div class="grow"><b>${esc(nameOf(f))}</b><span class="muted">${isOnline(f)?'Online':'Connected'}</span></div><button class="call-launch" data-call-id="${esc(c.id)}" data-call-type="audio" aria-label="Voice call">♧</button><button class="call-launch" data-call-id="${esc(c.id)}" data-call-type="video" aria-label="Video call">▣</button></div>`;
+  }).join('') : '<div class="card center muted">No connected friends yet. Open Connect to add a friend.</div>';
+}
+$('#callFriends').addEventListener('click',e=>{
+  const btn=e.target.closest('[data-call-id]');if(!btn)return;
+  const c=chats.find(c=>c.id===btn.dataset.callId);if(!c)return;
+  openChat(c);
+  act(()=>startCall(btn.dataset.callType),btn);
+});
+
+$('#storyRail').addEventListener('click', e => {
+  // The plus control always creates a new story, even when stories already exist.
+  if (e.target.closest('[data-add-story]')) { openWordiiStory(); return; }
+  const item=e.target.closest('[data-story-owner]');
+  if (!item) return;
+  if (item.dataset.storyOwner === 'me') { const mine=mineAlive(); if(mine.length) openSV(mine); else openWordiiStory(); return; }
+  openSV(friendGroups()[item.dataset.storyOwner] || []);
+});
+function renderStoryRail() {
+  const rail=$('#storyRail'); if (!rail) return;
+  const myAvatar=me ? avatarHTML(me) : '<div class="avatar">W</div>';
+  const groups=friendGroups();
+  const others=Object.entries(friends).filter(([id,f]) => !!f && (groups[id] || []).length).slice(0,12);
+  rail.innerHTML=`<button type="button" class="story" data-story-owner="me" aria-label="View my status"><span class="story-circle">${myAvatar}<i data-add-story="true" role="button" aria-label="Add another status" title="Add status">+</i></span><small>My status</small></button>` +
+    others.map(([id,f]) => `<button type="button" class="story" data-story-owner="${esc(id)}"><span class="story-circle">${avatarHTML(f)}</span><small>${esc(nameOf(f)).slice(0,13)}</small></button>`).join('');
+}
+
 
 // ---------- render ----------
 const nameOf = (u) => u?.displayName || u?.username || "…";
@@ -246,11 +309,12 @@ const avatarHTML = (u, big) => {
 };
 function renderChats() {
   const box = $("#chatList");
+  renderStoryRail();
   if (!chats.length) { box.innerHTML = `<div class="card center muted">No chats yet.<br>Open <b>Connect</b> and swap codes with a friend.</div>`; return; }
   box.innerHTML = [...chats].sort(byLast).map((c) => {
-    if (c.group) return `<div class="row" data-chat="${esc(c.id)}"><div class="avwrap">${avatarHTML({ username: "@" + c.name })}</div><div class="grow"><b>👥 ${esc(c.name)}</b><span class="muted">${c.members.length} members</span></div>${isUnread(c) ? '<span class="dot"></span>' : ""}›</div>`;
+    if (c.group) return `<div class="row" data-chat="${esc(c.id)}"><div class="avwrap">${avatarHTML({ username: "@" + c.name })}</div><div class="grow"><b>👥 ${esc(c.name)}</b><span class="muted">${c.members.length} members</span></div>${isUnread(c) ? '<span class="dot"></span>' : ""}</div>`;
     const f = friends[c.members.find((m) => m !== uid)];
-    return `<div class="row" data-chat="${esc(c.id)}">${avWithDot(f)}<div class="grow"><b>${esc(nameOf(f))}${vb(f)}</b><span class="muted">${isOnline(f) ? '<span class="on">● Active now</span>' : esc(f?.username || "") + " · Lv " + (f?.level || 1)}</span></div>${isUnread(c) ? '<span class="dot"></span>' : ""}›</div>`;
+    return `<div class="row" data-chat="${esc(c.id)}">${avWithDot(f)}<div class="grow"><b>${esc(nameOf(f))}${vb(f)}</b><span class="muted">${isOnline(f) ? '<span class="on">● Active now</span>' : esc(f?.username || "") + " · Lv " + (f?.level || 1)}</span></div>${isUnread(c) ? '<span class="dot"></span>' : ""}</div>`;
   }).join("");
 }
 $("#chatList").addEventListener("click", (e) => { const r = e.target.closest("[data-chat]"); if (r) openChat(chats.find((c) => c.id === r.dataset.chat)); });
@@ -580,6 +644,7 @@ function renderStatus() {
   $("#friendStatus").innerHTML = owners.length ? owners.map((o) => `<div class="row" data-owner="${esc(o)}">${avatarHTML(friends[o])}<div class="grow"><b>${esc(nameOf(friends[o]))}${vb(friends[o])}</b><span class="muted">${g[o].length} update${g[o].length > 1 ? "s" : ""} · ${esc(ago(stTime(g[o].at(-1))))}</span></div>›</div>`).join("")
     : `<div class="card center muted">No friend updates right now.</div>`;
   loadStatCounts(mine);
+  renderStoryRail();
 }
 $("#tab-status").addEventListener("click", (e) => {
   const del = e.target.closest("[data-del]");
@@ -592,15 +657,17 @@ $("#tab-status").addEventListener("click", (e) => {
 
 let sv = { list: [], i: 0, t: null };
 function openSV(list, i = 0) { if (!list.length) return; sv = { list, i, t: null }; $("#statusView").classList.remove("hidden"); drawSV(); }
-function closeSV() { clearTimeout(sv.t); $("#statusView").classList.add("hidden"); }
+function closeSV() { stopWordiiStoryAudio(); clearTimeout(sv.t); $("#statusView").classList.add("hidden"); }
 function drawSV() {
+  stopWordiiStoryAudio();
   clearTimeout(sv.t);
   const st = sv.list[sv.i]; if (!st) { closeSV(); return; }
   const owner = st.ownerUid === uid ? me : friends[st.ownerUid];
   $("#svTop").innerHTML = `${avatarHTML(owner)}<div><b>${esc(nameOf(owner))}${vb(owner)}</b><br><small>${esc(ago(stTime(st)))} · ${sv.i + 1}/${sv.list.length}</small></div>`;
   const body = $("#svBody"); body.textContent = "";
-  if (stIsPhoto(st)) { const im = new Image(); im.src = st.img; im.className = "sv-img"; body.append(im); body.style.background = "#000"; }
+  if (stIsPhoto(st)) { const im = new Image(); im.src = st.img; im.className = "sv-img"; body.append(im); body.style.background = "#000"; if(st.overlayText){const d=document.createElement("div");d.className="story-view-caption";d.textContent=st.overlayText;d.style.color=/^#[0-9a-fA-F]{6}$/.test(st.overlayColor||"")?st.overlayColor:"#ffffff";body.append(d);} }
   else { body.style.background = ST_BG[st.bg] || ST_BG[0]; const d = document.createElement("div"); d.className = "sv-text"; d.textContent = st.text || ""; body.append(d); }
+  playWordiiStoryAudio(st, body);
   drawSVBar(st);
   sv.t = setTimeout(() => { sv.i++; drawSV(); }, 6000);
 }
@@ -622,15 +689,7 @@ $("#stPost").onclick = (e) => act(async () => {
   $("#statusCompose").classList.add("hidden"); toast("Status posted"); clearMentions();
 }, e.currentTarget);
 $("#stPhotoBtn").onclick = () => $("#stFile").click();
-$("#stFile").addEventListener("change", (e) => {
-  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
-  act(async () => {
-    toast("Posting…");
-    const img = await compress(f, { max: 1024, quality: 0.7, limitLen: 350000 });
-    await addDoc(collection(db, "statuses"), { ownerUid: uid, ...stAudience(), img, createdAt: serverTimestamp() });
-    toast("Status posted"); clearMentions();
-  });
-});
+$("#stFile").addEventListener("change", async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;if(!f.type.startsWith("image/")){toast("Choose an image. Video needs storage integration.");return;}try{const img=await compress(f,{max:1024,quality:0.7,limitLen:350000});openStoryEdit(img);}catch(err){toast(friendly(err));}});
 
 // ---------- password + log out (Profile tab) ----------
 document.addEventListener("click", (e) => {
@@ -916,6 +975,7 @@ function renderSettings(force) {
         ? `<div class="card"><b>🔐 Protect your account</b><p class="tiny">Add your Gmail and a password. If you delete the app, change phone or forget your password, you can get this account back.</p>
            <input id="emInput" type="email" placeholder="Your Gmail" autocomplete="email" autocapitalize="none"><input id="pwInput" type="password" placeholder="New password (6+ characters)" autocomplete="new-password"><button id="pwBtn" class="btn">Save</button></div>`
         : `<div class="card tiny">✅ Account protected. On a new phone choose <b>Log in</b>. ${isFakeEmail(u?.email) ? "This is an old-style account: log in with your @username + password." : "Forgot your password? Tap <b>Forgot password?</b> on the Log in screen."}</div>`}
+      ${!u?.isAnonymous && !isFakeEmail(u?.email) ? `<div class="card"><b>✉️ Change email</b><p class="tiny">A verification link will be sent to the new address. You may need to log in again first.</p><input id="changeEmailInput" type="email" placeholder="New email address" autocomplete="email"><button id="changeEmailBtn" class="btn">Send verification link</button><button id="resendEmailBtn" class="btn ghost">Verify current email</button></div>` : ""}
       <div class="card"><button class="btn ghost" id="setLogout">Log out</button></div>`,
     privacy: () => `<div class="card"><label class="setrow"><span><b>Public account</b></span><input type="checkbox" id="setPublic" ${me.isPublic ? "checked" : ""}></label>
         <p class="tiny">Public: anyone who finds your username can message you directly. Private: they must send a request and you accept it. Anyone with your 6-digit code can always connect.</p></div>
@@ -975,7 +1035,7 @@ $("#settingsBody").addEventListener("click", (e) => {
       })
       .then(release => {
         const apk = release.assets?.find(a => a.name.endsWith(".apk"));
-        const currentVersion = "1.2";
+        const currentVersion = "1.3";
         const latestVersion = release.tag_name.replace(/^v/i, "");
         const compareVersions = (a, b) => {
           const x = a.split(".").map(Number);
@@ -1004,6 +1064,22 @@ $("#settingsBody").addEventListener("click", (e) => {
         }
       })
       .catch(err => { result.textContent = err.message; });
+    return;
+  }
+  if (e.target.closest("#changeEmailBtn")) {
+    const newEmail = $("#changeEmailInput")?.value.trim().toLowerCase();
+    if (!newEmail || !EMAIL_RE.test(newEmail)) { toast("Enter a valid email address"); return; }
+    act(async () => {
+      await verifyBeforeUpdateEmail(auth.currentUser, newEmail);
+      toast("Verification sent. Check the new email inbox and follow the link.");
+    }, e.target.closest("#changeEmailBtn"));
+    return;
+  }
+  if (e.target.closest("#resendEmailBtn")) {
+    act(async () => {
+      await sendEmailVerification(auth.currentUser);
+      toast("Verification email sent. Check your inbox.");
+    }, e.target.closest("#resendEmailBtn"));
     return;
   }
   const bgb = e.target.closest("[data-bg]");
@@ -1529,29 +1605,188 @@ document.addEventListener("click", (e) => {
   register();
 })();
 
-// ---------- Wordii Music Search UI ----------
-const wordiiMusicBtn = document.getElementById("stMusicBtn");
-const wordiiMusicPanel = document.getElementById("stMusicPanel");
-const wordiiMusicClose = document.getElementById("stMusicClose");
-const wordiiMusicSearch = document.getElementById("stMusicSearch");
-const wordiiMusicResults = document.getElementById("stMusicResults");
-
-if (wordiiMusicBtn && wordiiMusicPanel) {
-  wordiiMusicBtn.addEventListener("click", () => {
-    wordiiMusicPanel.classList.remove("hidden");
-    wordiiMusicSearch?.focus();
+// ---------- Wordii original music library and phone audio ----------
+const wordiiTracks = [
+  {id:'aurora',title:'Aurora Drift'}, {id:'midnight',title:'Midnight Pulse'},
+  {id:'sunrise',title:'Sunrise Bloom'}, {id:'nebula',title:'Nebula Nights'}
+];
+const wordiiEffects = [
+  {name:'Normal',css:'none'}, {name:'Black & White',css:'grayscale(1)'},
+  {name:'Vintage',css:'sepia(.75) contrast(.92)'}, {name:'Cinematic',css:'contrast(1.22) saturate(.75) brightness(.9)'},
+  {name:'Glow',css:'brightness(1.16) saturate(1.35)'}, {name:'Dream Blur',css:'blur(2px) saturate(1.2)'}
+];
+let wordiiSelectedMusic=null, wordiiAudioPreview=null, wordiiEffect=0, wordiiStatusAudio=null, wordiiStatusAudioUrl=null;
+const wordiiMusicPanel=document.getElementById('stMusicPanel');
+function wordiiStopPreview(){if(wordiiAudioPreview){wordiiAudioPreview.pause();wordiiAudioPreview.src='';wordiiAudioPreview=null;}}
+function wordiiMusicLabel(){document.getElementById('wordiiMusicSelected').textContent=wordiiSelectedMusic?('Selected: '+wordiiSelectedMusic.title):'No music selected';}
+function wordiiRenderMusic(){
+  const q=document.getElementById('stMusicSearch').value.trim().toLowerCase();
+  const results=document.getElementById('stMusicResults');results.textContent='';
+  wordiiTracks.filter(t=>t.title.toLowerCase().includes(q)).forEach(t=>{
+    const b=document.createElement('button');b.type='button';b.textContent='♫ '+t.title+' · Original instrumental';
+    if(wordiiSelectedMusic?.id===t.id)b.classList.add('selected');
+    b.onclick=()=>{wordiiStopPreview();wordiiSelectedMusic={type:'library',id:t.id,title:t.title};wordiiMusicLabel();wordiiRenderMusic();wordiiAudioPreview=new Audio('wordii-music/'+t.id+'.wav');wordiiAudioPreview.volume=.45;wordiiAudioPreview.play().catch(()=>{});};
+    results.append(b);
   });
-
-  wordiiMusicClose?.addEventListener("click", () => {
-    wordiiMusicPanel.classList.add("hidden");
-  });
-
-  wordiiMusicSearch?.addEventListener("input", () => {
-    const q = wordiiMusicSearch.value.trim();
-
-    wordiiMusicResults.textContent = q
-      ? "Searching for \"" + q + "\" — music provider not connected yet."
-      : "";
-  });
+  if(!results.children.length)results.textContent='No matching original tracks.';
 }
+function wordiiOpenMusic(){wordiiMusicPanel.classList.remove('hidden');wordiiRenderMusic();wordiiMusicLabel();}
+function wordiiCloseMusic(){wordiiStopPreview();wordiiMusicPanel.classList.add('hidden');}
+document.getElementById('stMusicBtn').onclick=wordiiOpenMusic;
+document.getElementById('stMusicClose').onclick=wordiiCloseMusic;
+document.getElementById('stMusicSearch').addEventListener('input',wordiiRenderMusic);
+document.getElementById('wordiiAudioFile').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  if(f.size>8*1024*1024){toast('Choose audio under 8 MB');e.target.value='';return;}
+  if(!/^audio\/(mpeg|mp4|x-m4a|wav|x-wav|aac)$/.test(f.type)){toast('Use MP3, M4A or WAV audio');e.target.value='';return;}
+  wordiiStopPreview();wordiiSelectedMusic={type:'phone',file:f,title:f.name};wordiiMusicLabel();wordiiRenderMusic();
+};
+document.getElementById('wordiiMusicClear').onclick=()=>{wordiiStopPreview();wordiiSelectedMusic=null;document.getElementById('wordiiAudioFile').value='';wordiiMusicLabel();wordiiRenderMusic();};
+function wordiiOpenEffects(){
+  const list=document.getElementById('wordiiEffectsList');list.textContent='';
+  wordiiEffects.forEach((effect,i)=>{const b=document.createElement('button');b.textContent=effect.name;if(i===wordiiEffect)b.classList.add('selected');b.onclick=()=>{wordiiEffect=i;document.getElementById('seImage').style.filter=effect.css;wordiiOpenEffects();};list.append(b);});
+  document.getElementById('wordiiEffects').classList.remove('hidden');
+}
+document.getElementById('wordiiEffectsClose').onclick=()=>document.getElementById('wordiiEffects').classList.add('hidden');
+function stopWordiiStoryAudio(){if(wordiiStatusAudio){wordiiStatusAudio.pause();wordiiStatusAudio.remove();wordiiStatusAudio=null;}if(wordiiStatusAudioUrl){URL.revokeObjectURL(wordiiStatusAudioUrl);wordiiStatusAudioUrl=null;}}
+async function playWordiiStoryAudio(st,body){
+  if(!st.musicId&&!st.audioPath)return;
+  const expected=st.id;
+  const audio=document.createElement('audio');audio.className='wordii-status-audio';audio.controls=true;audio.loop=true;audio.volume=.55;body.append(audio);wordiiStatusAudio=audio;
+  try{
+    if(st.musicId&&wordiiTracks.some(t=>t.id===st.musicId))audio.src='wordii-music/'+st.musicId+'.wav';
+    else if(st.audioPath){const blob=await getBlob(storageRef(getStorage(),st.audioPath));if(sv.list[sv.i]?.id!==expected||wordiiStatusAudio!==audio)return;wordiiStatusAudioUrl=URL.createObjectURL(blob);audio.src=wordiiStatusAudioUrl;}
+    else return;
+    if(sv.list[sv.i]?.id===expected)audio.play().catch(()=>{});
+  }catch(e){if(wordiiStatusAudio===audio){audio.replaceWith(document.createTextNode('Audio unavailable'));}}
+}
+// Wordii Story Creator: My Status is the only visible entry point.
+let wordiiStoryStream = null;
+let wordiiStoryFacing = 'user';
+const wsc = document.getElementById('wordiiStoryCamera');
+async function startWordiiCamera(){
+  const video=document.getElementById('wscVideo');
+  const fallback=document.getElementById('wscFallback');
+  if(wordiiStoryStream) wordiiStoryStream.getTracks().forEach(t=>t.stop());
+  wordiiStoryStream=null;
+  try {
+    if(!navigator.mediaDevices?.getUserMedia) throw new Error('Camera unavailable');
+    wordiiStoryStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:wordiiStoryFacing},audio:false});
+    if(wsc.classList.contains('hidden')) { wordiiStoryStream.getTracks().forEach(t=>t.stop()); wordiiStoryStream=null; return; }
+    video.srcObject=wordiiStoryStream;
+    video.hidden=false; fallback.hidden=true;
+    document.getElementById('wscNote').textContent='Tap the shutter to capture a photo.';
+  } catch(err) {
+    video.hidden=true; fallback.hidden=false;
+    document.getElementById('wscNote').textContent='Camera unavailable or permission denied. Gallery and text stories still work.';
+  }
+}
+function closeWordiiStory(){
+  wsc.classList.add('hidden');
+  if(wordiiStoryStream) wordiiStoryStream.getTracks().forEach(t=>t.stop());
+  wordiiStoryStream=null;
+  document.getElementById('wscVideo').srcObject=null;
+}
+function openWordiiStory(){wsc.classList.remove('hidden');startWordiiCamera();}
+document.getElementById('wscClose').onclick=closeWordiiStory;
+document.getElementById('wscSwitch').onclick=()=>{wordiiStoryFacing=wordiiStoryFacing==='user'?'environment':'user';startWordiiCamera();};
+document.getElementById('wscCamera').onclick=startWordiiCamera;
+document.getElementById('wscGallery').onclick=()=>{closeWordiiStory();document.getElementById('stFile').click();};
+document.getElementById('wscText').onclick=()=>{closeWordiiStory();document.getElementById('stTextBtn').click();};
+document.getElementById('wscMusic').onclick=()=>{closeWordiiStory();wordiiOpenMusic();};
+document.getElementById('wscPrivacy').onclick=()=>{document.getElementById('wscNote').textContent='Audience settings: Close Friends and mentions are available in the existing story settings. Full editor integration is pending.';};
+document.getElementById('wscShutter').onclick=()=>{
+  const video=document.getElementById('wscVideo');
+  if(!wordiiStoryStream || !video.videoWidth){document.getElementById('wscGallery').click();return;}
+  const canvas=document.createElement('canvas');
+  const scale=Math.min(1,1024/Math.max(video.videoWidth,video.videoHeight));
+  canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
+  canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+  canvas.toBlob(blob=>{
+    if(!blob)return;
+    const file=new File([blob],'wordii-story.jpg',{type:'image/jpeg'});
+    const dt=new DataTransfer();dt.items.add(file);
+    const input=document.getElementById('stFile');input.files=dt.files;
+    closeWordiiStory();input.dispatchEvent(new Event('change',{bubbles:true}));
+  },'image/jpeg',0.75);
+};
 
+// Story editor: photo and text are one published status.
+let storyEditImage=null,storyEditColor=0;
+const storyColors=["#ffffff","#ff4864","#ffe36c","#72eaff"];
+function storyEditRefresh(){const c=document.getElementById("seCaption");c.textContent=document.getElementById("seText").value;c.style.color=storyColors[storyEditColor];}
+function openStoryEdit(img){storyEditImage=img;storyEditColor=0;wordiiEffect=0;document.getElementById("seImage").style.filter="none";document.getElementById("seImage").src=img;document.getElementById("seText").value="";document.getElementById("storyEdit").classList.remove("hidden");storyEditRefresh();}
+function closeStoryEdit(){document.getElementById("storyEdit").classList.add("hidden");storyEditImage=null;}
+document.getElementById("seClose").onclick=closeStoryEdit;
+document.getElementById("seText").addEventListener("input",storyEditRefresh);
+document.getElementById("seColor").onclick=()=>{storyEditColor=(storyEditColor+1)%storyColors.length;storyEditRefresh();};
+document.getElementById("seMusic").onclick=wordiiOpenMusic;
+document.getElementById("seEffect").onclick=wordiiOpenEffects;
+// Render the caption into the JPEG itself: existing Firestore rules only allow
+// ownerUid, viewers, img, close, mentions, via, createdAt for photo stories.
+async function storyPhotoWithCaption(src, caption, color, effectCss="none") {
+  if (!caption && effectCss === "none") return src;
+  const im = new Image();
+  await new Promise((resolve, reject) => { im.onload = resolve; im.onerror = reject; im.src = src; });
+  const canvas = document.createElement('canvas');
+  canvas.width = im.naturalWidth; canvas.height = im.naturalHeight;
+  const ctx = canvas.getContext('2d'); ctx.filter=effectCss;ctx.drawImage(im, 0, 0);ctx.filter="none";
+  const size = Math.max(18, Math.round(canvas.width * .052));
+  ctx.font = `bold ${size}px sans-serif`; ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  const words = caption.split(/\s+/); const lines = []; let line = '';
+  for (const word of words) {
+    const next = line ? line + ' ' + word : word;
+    if (ctx.measureText(next).width > canvas.width * .84 && line) { lines.push(line); line = word; }
+    else line = next;
+  }
+  if (line) lines.push(line);
+  const shown = lines.slice(0, 7);
+  const lineHeight = size * 1.28;
+  const centerY = canvas.height * .68;
+  shown.forEach((text, i) => {
+    const y = centerY + (i - (shown.length - 1) / 2) * lineHeight;
+    ctx.lineWidth = Math.max(3, size * .16); ctx.strokeStyle = 'rgba(0,0,0,.85)';
+    ctx.strokeText(text, canvas.width / 2, y);
+    ctx.fillStyle = color; ctx.fillText(text, canvas.width / 2, y);
+  });
+  for (const quality of [.8,.7,.6,.5,.4]) {
+    const out = canvas.toDataURL('image/jpeg', quality);
+    if (out.length <= 350000) return out;
+  }
+  throw new Error('Story image is too large. Choose a smaller photo.');
+}
+document.getElementById("seShare").onclick=e=>act(async()=>{
+  if(!storyEditImage)throw new Error("Choose a photo first.");
+  const overlayText=document.getElementById("seText").value.trim();
+  const img=await storyPhotoWithCaption(storyEditImage,overlayText,storyColors[storyEditColor],wordiiEffects[wordiiEffect].css);
+  const statusRef=doc(collection(db,"statuses"));
+  const data={ownerUid:uid,...stAudience(),img,createdAt:serverTimestamp()};
+  if(wordiiSelectedMusic?.type==='library')data.musicId=wordiiSelectedMusic.id;
+  if(wordiiSelectedMusic?.type==='phone'){
+    const f=wordiiSelectedMusic.file;
+    const ext=f.type==='audio/mpeg'?'mp3':f.type==='audio/mp4'||f.type==='audio/x-m4a'?'m4a':f.type==='audio/aac'?'aac':'wav';
+    const path=`status-audio/${uid}/${statusRef.id}/track.${ext}`;
+    try{await uploadBytes(storageRef(getStorage(),path),f,{contentType:f.type});}
+    catch(err){throw new Error('Audio upload failed. Enable Firebase Storage and deploy storage.rules first. '+(err.message||''));}
+    data.audioPath=path;
+  }
+  await setDoc(statusRef,data);
+  closeStoryEdit();wordiiSelectedMusic=null;wordiiMusicLabel();toast("Story posted. Tap My status to view.");
+},e.currentTarget);
+
+// Wordii home actions: use existing account search, group picker, and settings.
+(function setupWordiiHomeActions(){
+  const menu=document.getElementById('homeMenu'), menuBtn=document.getElementById('homeMenuBtn');
+  const searchBtn=document.getElementById('quickSearchBtn'), searchPanel=document.getElementById('hiddenSearchPanel');
+  function closeMenu(){menu.classList.add('hidden');menuBtn.setAttribute('aria-expanded','false');}
+  function closeSearch(){searchPanel.classList.add('hidden');searchBtn.setAttribute('aria-expanded','false');}
+  menuBtn.addEventListener('click',e=>{e.stopPropagation();closeSearch();const opening=menu.classList.contains('hidden');menu.classList.toggle('hidden',!opening);menuBtn.setAttribute('aria-expanded',String(opening));});
+  searchBtn.addEventListener('click',e=>{e.stopPropagation();closeMenu();const opening=searchPanel.classList.contains('hidden');if(opening)showTab('chats');searchPanel.classList.toggle('hidden',!opening);searchBtn.setAttribute('aria-expanded',String(opening));if(opening)document.getElementById('searchInput').focus();});
+  document.getElementById('menuCreateGroup').addEventListener('click',()=>{closeMenu();document.getElementById('newGroupBtn').click();});
+  document.getElementById('menuMyCode').addEventListener('click',()=>{closeMenu();showTab('connect');document.getElementById('myCode').scrollIntoView({block:'center',behavior:'smooth'});});
+  document.getElementById('menuSettings').addEventListener('click',()=>{closeMenu();document.getElementById('settings').classList.remove('hidden');renderSettings();});
+  document.addEventListener('click',e=>{if(!menu.contains(e.target)&&!menuBtn.contains(e.target))closeMenu();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeMenu();closeSearch();}});
+  document.querySelectorAll('.bottom button').forEach(b=>b.addEventListener('click',()=>{closeMenu();closeSearch();}));
+})();

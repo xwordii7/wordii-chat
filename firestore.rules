@@ -9,7 +9,10 @@ service cloud.firestore {
         && (d.level - 1) * 10 <= d.points && d.points < d.level * 10;
     }
     function okStatus(d) {
-      return d.keys().hasOnly(['ownerUid', 'viewers', 'text', 'bg', 'img', 'close', 'mentions', 'via', 'createdAt'])
+      return d.keys().hasOnly(['ownerUid', 'viewers', 'text', 'bg', 'img', 'close', 'mentions', 'via', 'createdAt', 'musicId', 'audioPath'])
+        && (!('musicId' in d) || (d.musicId is string && d.musicId in ['aurora','midnight','sunrise','nebula']))
+        && (!('audioPath' in d) || (d.audioPath is string && d.audioPath.matches('^status-audio/[A-Za-z0-9_-]+/[A-Za-z0-9]+/track[.](mp3|m4a|aac|wav)$') && d.audioPath.size() <= 180))
+        && !('musicId' in d && 'audioPath' in d)
         && (!('close' in d) || d.close is bool)
         && (!('mentions' in d) || (d.mentions is list && d.mentions.size() <= 10))
         && (!('via' in d) || (d.via is string && d.via.size() <= 60))
@@ -36,17 +39,18 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time
         && getAfter(/databases/$(database)/documents/usernames/$(request.resource.data.usernameKey)).data.uid == uid
         && (
-          // normal user: name + 3-digit tag, never verified
-          (request.resource.data.usernameKey.matches('^[a-z0-9_]{3,15}-[0-9]{3}$')
-            && !('verified' in request.resource.data) && !('admin' in request.resource.data)
-            && request.resource.data.username ==
-                 '@' + request.resource.data.usernameKey.split('-')[0] + '#' + request.resource.data.usernameKey.split('-')[1])
-          ||
-          // admin: reserved name without a tag, verified (needs the admin key, see usernames below)
-          (request.resource.data.usernameKey.matches('^[a-z0-9_]{3,15}$')
-            && request.resource.data.verified == true
-            && request.resource.data.admin == true
-            && request.resource.data.username == '@' + request.resource.data.usernameKey)
+          // Normal users: new usernames or legacy tagged usernames.
+          (!('verified' in request.resource.data)
+            && !('admin' in request.resource.data)
+            && (
+              (request.resource.data.usernameKey.matches('^[a-z0-9_]{3,15}$')
+                && request.resource.data.username == '@' + request.resource.data.usernameKey)
+              ||
+              (request.resource.data.usernameKey.matches('^[a-z0-9_]{3,15}-[0-9]{3}$')
+                && request.resource.data.username ==
+                   '@' + request.resource.data.usernameKey.split('-')[0] + '#' + request.resource.data.usernameKey.split('-')[1])
+            ))
+
         );
       // Owner may change only displayName and avatar (small JPEG as text).
       allow update: if signedIn() && request.auth.uid == uid
@@ -113,26 +117,21 @@ service cloud.firestore {
 
     // Reserves a username. A second create on the same name fails, so no duplicates.
     match /usernames/{key} {
-      allow read: if false;
-      // Names with a tag are open to everyone. Untagged (reserved) names need the secret admin key.
-      // This collection can never be read by the app, so the key stays private.
+      allow get: if request.auth != null;
+      allow list: if false;
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.createdAt == request.time
+        && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
         && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.usernameKey == key
         && (
-          (key.matches('^[a-z0-9_]{3,15}-[0-9]{3}$')
-            && request.resource.data.keys().hasOnly(['uid', 'createdAt']))
-          ||
-          (key.matches('^[a-z0-9_]{3,15}$')
-            && request.resource.data.keys().hasOnly(['uid', 'createdAt', 'adminKey'])
-            && request.resource.data.adminKey in ['1e402e693c6e7d8a', 'fe1ce365b657fcd2', '5338085b6e3fec8f', 'f707a8bc9b3b7172', '1cd5754368598615'])
+          key.matches('^[a-z0-9_]{3,15}$')
+          || key.matches('^[a-z0-9_]{3,15}-[0-9]{3}$')
         );
       allow update, delete: if false;
     }
 
-
-    // Level Gifts: everyone signed in can view; only Admin can manage.
+        // Level Gifts: everyone signed in can view; only Admin can manage.
     match /levelRewards/{giftId} {
       allow read: if signedIn();
       allow create, update: if isAdmin()
@@ -140,7 +139,7 @@ service cloud.firestore {
         && request.resource.data.level is int
         && request.resource.data.level >= 1
         && request.resource.data.level <= 10000
-        && giftId == request.resource.data.level.toString()
+        && giftId == string(request.resource.data.level)
         && request.resource.data.gift is string
         && request.resource.data.gift.size() > 0
         && request.resource.data.gift.size() <= 120

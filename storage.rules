@@ -1,0 +1,16 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /status-audio/{userId}/{statusId}/{fileName} {
+      allow create: if request.auth != null && request.auth.uid == userId
+        && fileName.matches('^track[.](mp3|m4a|aac|wav)$')
+        && request.resource.size <= 8 * 1024 * 1024
+        && request.resource.contentType.matches('audio/(mpeg|mp4|x-m4a|wav|x-wav|aac)');
+      allow update, delete: if false;
+      allow read: if request.auth != null
+        && firestore.exists(/databases/(default)/documents/statuses/$(statusId))
+        && (firestore.get(/databases/(default)/documents/statuses/$(statusId)).data.ownerUid == request.auth.uid
+          || request.auth.uid in firestore.get(/databases/(default)/documents/statuses/$(statusId)).data.viewers);
+    }
+  }
+}
