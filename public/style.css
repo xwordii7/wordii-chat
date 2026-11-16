@@ -529,3 +529,451 @@ html,body,#app{background:#050506!important;color:#f5f5f7!important}
 #inboxBody .tiny {
   color: #d1c5ce !important;
 }
+
+
+/* Wordii Story draggable text alignment */
+.story-edit-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.story-edit-preview #seCaption {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 84%;
+  transform: translate(-50%, -50%);
+  touch-action: none;
+  pointer-events: auto;
+  user-select: none;
+  cursor: grab;
+  z-index: 3;
+}
+
+.story-edit-preview #seCaption:active {
+  cursor: grabbing;
+}
+
+
+/* Wordii Story exact photo alignment */
+.story-edit-preview {
+  position: relative;
+}
+
+.story-edit-preview #seImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.story-edit-preview #seCaption {
+  max-width: 84%;
+  box-sizing: border-box;
+}
+
+
+/* WORDII INSTAGRAM STYLE STORY EDITOR V2 */
+#storyEdit {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  background: #080808;
+  color: white;
+}
+
+#storyEdit.hidden {
+  display: none !important;
+}
+
+#storyEdit .story-edit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  min-height: 52px;
+  background: #080808;
+}
+
+#storyEdit .story-edit-head button {
+  border: 0;
+  border-radius: 24px;
+  padding: 10px 15px;
+  background: #242424;
+  color: white;
+  font-weight: 700;
+}
+
+#storyEdit #seShare {
+  background: #e73571;
+}
+
+#storyEdit .story-edit-preview {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  border-radius: 0;
+  overflow: hidden;
+  background: #151515;
+}
+
+#storyEdit #seImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+#storyEdit #seCaption {
+  z-index: 5;
+  color: white;
+  text-align: center;
+  touch-action: none;
+  user-select: none;
+}
+
+#storyEdit .story-edit-tools {
+  padding: 12px;
+  background: #080808;
+}
+
+#storyEdit #seText {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px;
+  border-radius: 24px;
+  background: #242424;
+  color: white;
+  border: 1px solid #444;
+}
+
+#storyEdit .story-edit-tools > div {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 12px 0 5px;
+}
+
+#storyEdit .story-edit-tools > div button,
+#storyEdit #seFont {
+  flex-shrink: 0;
+  border-radius: 20px;
+  padding: 10px 12px;
+  background: #252525;
+  color: white;
+  border: 1px solid #444;
+}
+
+#storyEdit #seNote {
+  display: none;
+}
+
+/* WORDII TEXT SIZE CONTROL */
+#storyEdit .wordii-size-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  color: white;
+  font-weight: bold;
+}
+
+#storyEdit #seTextSize {
+  flex: 1;
+  min-width: 0;
+  accent-color: #e73571;
+}
+
+
+/* WORDII MUSIC COVER STICKER V1 */
+#storyEdit .wordii-music-cover {
+  position: absolute;
+  left: 50%;
+  top: 25%;
+  transform: translate(-50%, -50%);
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 220px;
+  max-width: 75%;
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(20, 20, 25, .78);
+  color: white;
+  box-shadow: 0 8px 28px rgba(0,0,0,.35);
+  backdrop-filter: blur(16px);
+  touch-action: none;
+  user-select: none;
+}
+
+#storyEdit .wordii-music-art {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ff3978, #7439e8);
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+}
+
+#storyEdit .wordii-music-info {
+  min-width: 0;
+  flex: 1;
+}
+
+#storyEdit .wordii-music-title {
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#storyEdit .wordii-music-artist {
+  font-size: 11px;
+  opacity: .7;
+  margin-top: 4px;
+}
+
+/* WORDII CLEAN STORY AUDIO V1 */
+.wordii-status-audio {
+  display: none !important;
+}
+
+.wordii-audio-play-btn {
+  position: absolute;
+  right: 14px;
+  bottom: 75px;
+  z-index: 30;
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 24px;
+  padding: 10px 15px;
+  background: rgba(0,0,0,.65);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* WORDII OPTIONAL MUSIC COVER CSS */
+#storyEdit .wordii-music-cover[hidden],
+#wordiiCoverToggle[hidden] { display:none!important; }
+
+.wordii-cover-toggle {
+  position:absolute;
+  right:12px;
+  top:75px;
+  z-index:50;
+  border:1px solid #ff4d91;
+  border-radius:22px;
+  background:#24151e;
+  color:white;
+  padding:9px 13px;
+  font-weight:700;
+}
+
+/* WORDII STORY FONT FIX V1 */
+
+
+#storyEdit .story-edit-preview,
+#storyEdit #seText {
+  font-synthesis: none;
+}
+
+#storyEdit .story-edit-preview {
+  overflow: hidden;
+}
+
+#storyEdit .wordii-music-cover[hidden],
+#wordiiCoverToggle[hidden] {
+  display: none !important;
+}
+
+/* Story fixes */
+#storyEdit .wordii-music-cover[hidden],#wordiiCoverToggle[hidden]{display:none!important}
+#storyEdit #seCaption{max-width:84%;overflow-wrap:anywhere}
+
+/* WORDII REFERENCE HOME REDESIGN V1 */
+:root{--wordii-red:#ed002d}
+body,#app{background:#030304!important;color:#f5f5f6!important}
+#app{min-height:100dvh;padding-bottom:10px!important}
+#app>.top{position:sticky!important;top:0;z-index:40;background:#030304!important;display:flex;align-items:center;justify-content:space-between;padding:calc(13px + env(safe-area-inset-top,0px)) 18px 14px!important;min-height:86px}
+#app .brand{display:flex;align-items:center;gap:9px;font-size:clamp(21px,5vw,27px)!important;letter-spacing:-.5px;font-weight:800;white-space:nowrap}
+#app .brand span{color:#f0002d}
+#app .brand-logo{width:45px!important;height:45px!important;object-fit:cover;border:1px solid #d8002d;border-radius:50%;background:#09090a}
+#app .topright{display:flex;align-items:center;gap:6px}
+#app .topright .wd-action,#homeCameraBtn{width:39px;height:42px;display:grid;place-items:center;background:transparent!important;border:0!important;padding:6px;color:#f7f7f7!important}
+#app .topright .wd-action svg{width:27px;height:27px}
+#app #bellBtn,#app #socials,#app #topStats{display:none!important}
+#app>.premium-tabs{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));position:sticky;top:85px;z-index:35;background:#030304!important;border-bottom:1px solid #101013;padding:0 8px!important}
+#app>.premium-tabs button{display:flex;align-items:center;justify-content:center;min-height:57px;font-size:15px!important;font-weight:600;color:#a5a5aa!important;border:0;border-bottom:3px solid transparent;background:transparent;padding:10px 0!important;white-space:nowrap}
+#app>.premium-tabs button.on{color:#f0002d!important;border-bottom-color:#e9002d!important}
+#app>.bottom{display:none!important}
+#app #tab-chats{padding:0 15px 105px!important}
+#app #tab-chats .story-rail{gap:19px;padding:20px 0 21px;min-height:132px;border-bottom:0!important}
+#app #tab-chats .story{min-width:70px;flex-basis:70px;font-size:13px!important}
+#app #tab-chats .story .avatar{width:64px!important;height:64px!important;border:2px solid #f0002d!important;border-radius:50%!important}
+#app #chatList .row{min-height:88px;padding:15px 2px!important;border-bottom:1px solid #141416!important;background:transparent!important}
+#app #chatList .avatar{width:57px!important;height:57px!important}
+#app #chatList .row b{font-size:17px!important}
+#app #chatList .row .muted{font-size:13px!important;color:#99999f!important}
+#app #chatList .dot{background:#e6002e!important}
+#app #tab-status,#app #tab-calls{padding:18px 16px 100px}
+.wordii-fab-wrap{position:fixed;right:20px;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:80;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.wordii-fab{height:64px;width:64px;border:0;border-radius:19px;background:#e5002b;color:#fff;display:grid;place-items:center;box-shadow:0 8px 24px #0009}
+.wordii-fab svg{width:29px;height:29px}
+.wordii-fab-menu{display:flex;flex-direction:column;gap:3px;background:#141215;border:1px solid #492029;border-radius:15px;padding:7px;box-shadow:0 12px 35px #000b;min-width:210px}
+.wordii-fab-menu.hidden{display:none!important}
+.wordii-fab-menu button{color:#fff;border:0;background:transparent;text-align:left;font-size:15px;padding:13px;border-radius:9px}
+.wordii-fab-menu button:active{background:#40111d}
+#homeMenu{position:fixed!important;right:12px!important;top:calc(72px + env(safe-area-inset-top,0px))!important;z-index:95!important}
+#app #hiddenSearchPanel{margin:9px 0!important}
+#app .tab.hidden{display:none!important}
+#chat{background:#030304!important}
+#chat #msgs{background-color:#070608!important}
+#chat #composer{background:#030304!important}
+@media(max-width:365px){#app .brand{font-size:20px!important}#app .brand-logo{width:37px!important;height:37px!important}#app .topright .wd-action{width:32px}}
+
+/* WORDII REFERENCE CHAT WALLPAPER PATCH */
+#chat #msgs, #chat[data-bg] #msgs, #chat[data-bg="1"] #msgs, #chat[data-bg="2"] #msgs, #chat[data-bg="3"] #msgs, #chat[data-bg="4"] #msgs {background: #050506 url("cinematic-wallpaper.jpg") center center / cover no-repeat !important;}
+
+/* WORDII SCREEN FIX 2026-11 */
+#hideBtn{display:none!important}
+#chat{position:fixed!important}
+#chatMoreBtn{font-size:28px;color:#fff}
+#chatMoreMenu{position:fixed;top:66px;right:9px;z-index:10006;width:min(275px,85vw)}
+#chatMoreMenu.hidden{display:none!important}
+#picker{position:fixed!important;inset:0!important;z-index:13000!important;background:#000b!important;display:flex!important;align-items:center;justify-content:center;padding:18px}
+#picker.hidden{display:none!important}
+#picker .card{width:min(460px,100%);max-height:80dvh;overflow-y:auto;background:#171419!important;color:#fff!important;border:1px solid #5a2834!important;border-radius:22px}
+#picker .row,#picker .row *{color:#f8f6f7!important}
+#picker .row{background:#242027!important;border-radius:12px;margin:7px 0;padding:12px}
+#picker input[type=checkbox]{accent-color:#e90035}
+#inbox{position:fixed!important;inset:0!important;z-index:12050!important;background:#0d0b0e!important;color:white!important}
+#inbox.hidden{display:none!important}
+#inbox .inbox-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:18px;background:#151116!important}
+#inboxClose{display:grid!important;place-items:center!important;color:white!important;background:#3b1824!important;min-width:44px;min-height:44px;border-radius:50%;font-size:23px}
+#wordiiContacts{position:fixed;inset:0;z-index:10020;background:#070708;color:#fff;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+#wordiiContacts.hidden{display:none!important}
+#wordiiContacts .chat-top{flex-shrink:0;background:#09090b;color:#fff;border-bottom:1px solid #252126}
+#wordiiContacts .wc-title{flex:1;display:flex;flex-direction:column;gap:4px}
+#wordiiContacts .wc-title small{color:#a9a4a9;font-size:12px}
+#wordiiContacts .wc-scroll{overflow-y:auto;flex:1;padding:12px 18px 45px}
+#wordiiContacts .wc-action,#wordiiContacts .wc-contact{display:flex;align-items:center;gap:16px;width:100%;padding:14px 4px;color:#fff;background:transparent;border:0;text-align:left;font-size:17px}
+#wordiiContacts .wc-action span{background:#c70032;color:white;border-radius:50%;width:46px;height:46px;display:grid;place-items:center;font-size:23px}
+#wordiiContacts .wc-avatar{background:#2a1d24;border:1px solid #d11c43;color:#fff;border-radius:50%;width:46px;height:46px;display:grid;place-items:center}
+#wordiiContacts .wc-heading{color:#999;margin:18px 0 8px}
+#wordiiContacts .wc-empty{color:#aaa;padding:20px}
+#wordiiContacts #wcSearchArea{padding:10px 16px}
+#wordiiContacts #wcQuery{width:100%;padding:12px;border-radius:14px;background:#1e1b20;color:white;border:1px solid #5e3440}
+
+/* WORDII V2 LEVEL, SELECT, THEMES */
+.wd-level-pill{background:#b31931;color:#fff;border:1px solid #ff5567;border-radius:100px;min-width:48px;height:39px;padding:0 8px;font-weight:800;cursor:pointer}
+#wdLevelScreen{position:fixed;inset:0;background:var(--bg);z-index:35;overflow:auto;color:var(--text)}
+.wd-level-content{padding:24px 18px;text-align:center}.wd-level-orb{display:grid;place-items:center;width:126px;height:126px;margin:28px auto 16px;border-radius:50%;border:4px solid #f43f5e;box-shadow:0 0 36px #d7194577;background:var(--panel);font-size:38px;font-weight:900}.wd-xp-track{height:14px;background:var(--line);border-radius:30px;overflow:hidden;margin:24px auto 10px;max-width:350px}.wd-xp-track i{display:block;height:100%;background:#ef294b}.wd-level-content p{color:var(--muted)}
+#wdSelectionBar{display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--bar);color:var(--text);z-index:3}#wdSelectionBar strong{flex:1}#wdSelectionBar button{background:var(--panel);color:var(--text);border:1px solid var(--line);padding:9px 15px;border-radius:12px}#msgs .msg.wd-selected .bubble{outline:3px solid #ff3459;outline-offset:2px}#msgs.wd-selecting .msg{cursor:pointer}#chat #hideBtn{display:none!important}
+html[data-wd-theme="light"]{--panel:#f2f3f7;--input:#fff;--bar:#ffffffee;--hdr:#ffffffee;--bggrad:#f7f8fc;--bg:#f7f8fc;--card:#fff;--line:#d7dce7;--text:#161925;--muted:#596274;--accent:#c51c39;--neon:#a90d2b;color-scheme:light}
+html[data-wd-theme="light"] body{background:var(--bggrad);color:var(--text)}
+html[data-wd-theme="light"] .bubble.open{color:#161925!important;box-shadow:none}html[data-wd-theme="light"] .mine .bubble.open{color:#fff!important}html[data-wd-theme="light"] .theirs .bubble{background:#e9edf4}html[data-wd-theme="light"] input,html[data-wd-theme="light"] select,html[data-wd-theme="light"] textarea{color:var(--text);background:var(--input)}
+html[data-wd-theme="light"] .wd-popup,html[data-wd-theme="light"] .card,html[data-wd-theme="light"] .row{color:var(--text);background:var(--card)}
+html[data-wd-theme="light"] #chat{background:var(--bg)!important}html[data-wd-theme="light"] .wc-scroll,html[data-wd-theme="light"] #wordiiContacts{background:var(--bg);color:var(--text)}
+html[data-wd-theme="light"] #wordiiContacts button,html[data-wd-theme="light"] #wordiiContacts input{color:var(--text)}
+
+/* Wordii V3: restore true white light mode and reliable navigation */
+#quickSearchBtn{display:none!important}
+#wdLevelScreen{z-index:10010!important;padding-top:env(safe-area-inset-top);background:var(--bg)!important}
+#wdLevelScreen.hidden{display:none!important}
+#wdLevelScreen .chat-top{position:sticky;top:0;z-index:2;display:flex!important;align-items:center;gap:12px;min-height:65px;padding:12px 18px!important;background:var(--card)!important;color:var(--text)!important;border-bottom:1px solid var(--line)}
+#wdLevelScreen .chat-top b{flex:1}
+#wdLevelBack,.wd-level-home{display:inline-flex!important;align-items:center;justify-content:center;min-height:42px;border-radius:12px;background:var(--panel)!important;color:var(--text)!important;border:1px solid var(--line)!important;padding:8px 14px;font-weight:700}
+html[data-wd-theme="light"]{--bg:#ffffff!important;--bggrad:#ffffff!important;--card:#ffffff!important;--panel:#f3f4f6!important;--input:#f5f6f8!important;--line:#d9dde4!important;--text:#111827!important;--muted:#4b5563!important;--bar:#ffffff!important;--hdr:#ffffff!important;color-scheme:light!important}
+html[data-wd-theme="light"] body,html[data-wd-theme="light"] #app,html[data-wd-theme="light"] #tab-chats,html[data-wd-theme="light"] #tab-calls,html[data-wd-theme="light"] #tab-connect,html[data-wd-theme="light"] #tab-profile,html[data-wd-theme="light"] #wdLevelScreen,html[data-wd-theme="light"] #wordiiContacts{background:#fff!important;color:#111827!important}
+html[data-wd-theme="light"] .top,html[data-wd-theme="light"] .bottom,html[data-wd-theme="light"] .chat-top,html[data-wd-theme="light"] #composer,html[data-wd-theme="light"] #chatHint,html[data-wd-theme="light"] #wdSelectionBar{background:#fff!important;color:#111827!important;border-color:#d9dde4!important}
+html[data-wd-theme="light"] .brand,html[data-wd-theme="light"] .top button,html[data-wd-theme="light"] .bottom button,html[data-wd-theme="light"] .chat-top button,html[data-wd-theme="light"] .chat-top #chatTitle,html[data-wd-theme="light"] .wc-heading{color:#111827!important}
+html[data-wd-theme="light"] .brand span{color:#ce1439!important}
+html[data-wd-theme="light"] .wd-level-pill,html[data-wd-theme="light"] .send,html[data-wd-theme="light"] .wordii-fab{color:#fff!important}
+html[data-wd-theme="light"] .wd-popup,html[data-wd-theme="light"] #homeMenu,html[data-wd-theme="light"] #chatMoreMenu{background:#fff!important;color:#111827!important;border:1px solid #d9dde4!important;box-shadow:0 12px 28px #0002!important}
+html[data-wd-theme="light"] .wd-popup button,html[data-wd-theme="light"] #homeMenu button,html[data-wd-theme="light"] #chatMoreMenu button{color:#111827!important;background:transparent!important}
+html[data-wd-theme="light"] .wd-popup button:active{background:#f3f4f6!important}
+html[data-wd-theme="light"] .card,html[data-wd-theme="light"] .row,html[data-wd-theme="light"] .wc-scroll,html[data-wd-theme="light"] .wc-action,html[data-wd-theme="light"] #chatList{background:#fff!important;color:#111827!important;border-color:#e5e7eb!important}
+html[data-wd-theme="light"] .muted,html[data-wd-theme="light"] .tiny,html[data-wd-theme="light"] small,html[data-wd-theme="light"] .wd-level-content p{color:#4b5563!important}
+html[data-wd-theme="light"] input,html[data-wd-theme="light"] textarea,html[data-wd-theme="light"] select,html[data-wd-theme="light"] #msgInput{background:#f5f6f8!important;color:#111827!important;-webkit-text-fill-color:#111827!important;border-color:#d9dde4!important}
+html[data-wd-theme="light"] input::placeholder,html[data-wd-theme="light"] textarea::placeholder{color:#6b7280!important;-webkit-text-fill-color:#6b7280!important}
+html[data-wd-theme="light"] #chat{background:#fff!important;color:#111827!important}
+html[data-wd-theme="light"] #chat #msgs,html[data-wd-theme="light"] #chat[data-bg] #msgs{background:#f4f5f7!important;color:#111827!important}
+html[data-wd-theme="light"] #chat #msgs .theirs .bubble{background:#fff!important;color:#111827!important;border:1px solid #e5e7eb!important}
+html[data-wd-theme="light"] #chat #msgs .mine .bubble{background:#b81236!important;color:#fff!important}
+html[data-wd-theme="light"] #chat .icon,html[data-wd-theme="light"] #composer .icon{color:#111827!important;background:transparent!important}
+html[data-wd-theme="light"] #wordiiContacts .wc-heading,html[data-wd-theme="light"] #wordiiContacts button,html[data-wd-theme="light"] #wordiiContacts .wc-title{color:#111827!important}
+html[data-wd-theme="light"] .wd-xp-track{background:#e5e7eb!important}
+
+/* Wordii V4: full-contrast theme and usable settings */
+#app>.premium-tabs{display:none!important} /* Stories stay accessible in Chats */
+html[data-wd-theme="light"] body,html[data-wd-theme="light"] #app,html[data-wd-theme="light"] #settings,html[data-wd-theme="light"] #profileView,html[data-wd-theme="light"] #tab-profile,html[data-wd-theme="light"] #tab-status,html[data-wd-theme="light"] #tab-connect,html[data-wd-theme="light"] #tab-calls,html[data-wd-theme="light"] #tab-chats{background:#fff!important;color:#161b25!important}
+html[data-wd-theme="light"] #app>.top,html[data-wd-theme="light"] #app>.premium-tabs,html[data-wd-theme="light"] #settings>.chat-top,html[data-wd-theme="light"] #profileView>.chat-top,html[data-wd-theme="light"] #chat>.chat-top,html[data-wd-theme="light"] #chat>#composer,html[data-wd-theme="light"] #chatHint{background:#fff!important;color:#161b25!important;border-color:#e1e4e9!important}
+html[data-wd-theme="light"] .brand,html[data-wd-theme="light"] .brand:not(span),html[data-wd-theme="light"] .brand span:not(:last-child),html[data-wd-theme="light"] .chat-top b,html[data-wd-theme="light"] .chat-top .icon,html[data-wd-theme="light"] #chatTitle,html[data-wd-theme="light"] #tab-profile .you-top,html[data-wd-theme="light"] #tab-profile .you-top b,html[data-wd-theme="light"] #tab-profile .you-top .muted,html[data-wd-theme="light"] #tab-profile .wrow,html[data-wd-theme="light"] #tab-profile .wrow b,html[data-wd-theme="light"] #tab-profile .wrow span,html[data-wd-theme="light"] #settings .card,html[data-wd-theme="light"] #settings .card b,html[data-wd-theme="light"] #settings .card p,html[data-wd-theme="light"] #profileView .card,html[data-wd-theme="light"] #svTop .tiny{color:#161b25!important}
+html[data-wd-theme="light"] .brand span:last-child{color:#d5123c!important}
+html[data-wd-theme="light"] #tab-profile .you-top,html[data-wd-theme="light"] #tab-profile .wrow,html[data-wd-theme="light"] #settings .card,html[data-wd-theme="light"] #profileView .card,html[data-wd-theme="light"] #tab-status .card,html[data-wd-theme="light"] #tab-connect .card,html[data-wd-theme="light"] #tab-calls .call-friend{background:#fff!important;color:#161b25!important;border-color:#e3e5eb!important}
+html[data-wd-theme="light"] #chatList .row,html[data-wd-theme="light"] #tab-chats .story-rail,html[data-wd-theme="light"] #tab-chats .story{background:#fff!important;color:#161b25!important;border-color:#e5e7eb!important}
+html[data-wd-theme="light"] #chatList .row b,html[data-wd-theme="light"] #chatList .row .grow,html[data-wd-theme="light"] #tab-profile .you-top .tiny,html[data-wd-theme="light"] #settingsBody .tiny,html[data-wd-theme="light"] #settingsBody small,html[data-wd-theme="light"] #tab-calls .muted{color:#4b5563!important}
+html[data-wd-theme="light"] #settings input,html[data-wd-theme="light"] #settings select,html[data-wd-theme="light"] #settings textarea,html[data-wd-theme="light"] #chat #composer input{background:#f3f4f6!important;color:#111827!important;-webkit-text-fill-color:#111827!important;border:1px solid #d1d5db!important}
+html[data-wd-theme="light"] #chat #msgs{background:#f3f4f6!important}
+html[data-wd-theme="light"] #chat #msgs .mine .bubble{background:#b81038!important;color:white!important}
+html[data-wd-theme="light"] #chat #msgs .theirs .bubble{background:#fff!important;color:#111827!important}
+html[data-wd-theme="light"] #chat #composer .icon{color:#111827!important}
+html[data-wd-theme="light"] #chat #composer .send{color:#fff!important}
+html[data-wd-theme="light"] #wdLevelScreen .chat-top,html[data-wd-theme="light"] #wdLevelScreen .wd-level-content{background:#fff!important;color:#111827!important}
+/* Story viewer stays cinematic dark so image captions and close button remain readable. */
+#statusView,#statusView #svTop,#statusView #svBar{background:#050506!important;color:#fff!important}
+#statusView #svTop *,#statusView #svBar *,#statusView #svClose{color:#fff!important}
+#statusView #svClose{background:#222!important}
+.wd-settings-overview{padding:0 0 28px;background:var(--bg);color:var(--text)}
+.wd-settings-person{display:flex;align-items:center;gap:16px;padding:24px 20px;border-bottom:1px solid var(--line)}
+.wd-settings-person strong{font-size:20px}.wd-settings-person .tiny{margin:5px 0;color:var(--muted)}
+.wd-settings-link{display:flex;align-items:center;gap:18px;width:100%;text-align:left;padding:16px 20px;background:transparent;color:var(--text);border:0;border-bottom:1px solid var(--line);min-height:74px}
+.wd-settings-link>span:nth-child(2){flex:1}.wd-settings-link b{display:block;font-size:16px;font-weight:600}.wd-settings-link small{display:block;font-size:13px;color:var(--muted);margin-top:5px}.wd-settings-ico{font-size:22px;width:32px}.wd-settings-arrow{font-size:25px;color:var(--muted)}
+html[data-wd-theme="light"] .wd-settings-overview,html[data-wd-theme="light"] .wd-settings-link{background:#fff!important;color:#111827!important;border-color:#e5e7eb!important}
+html[data-wd-theme="light"] .wd-settings-link small,html[data-wd-theme="light"] .wd-settings-person .tiny{color:#566172!important}
+html[data-wd-theme="light"] #wdLevelScreen .wd-level-orb{color:#111827!important}
+
+/* WORDII V4.1 — light mode icon contrast and original chat wallpaper */
+html[data-wd-theme="light"] #app .topright .wd-action,
+html[data-wd-theme="light"] #app #homeCameraBtn,
+html[data-wd-theme="light"] #app #homeMenuBtn {
+  color:#18202d!important;
+  opacity:1!important;
+  background:#f3f4f6!important;
+  border:1px solid #e5e7eb!important;
+  border-radius:50%!important;
+}
+html[data-wd-theme="light"] #app .topright .wd-action svg,
+html[data-wd-theme="light"] #app #homeCameraBtn svg,
+html[data-wd-theme="light"] #app #homeMenuBtn svg {
+  color:#18202d!important;
+  stroke:currentColor!important;
+  opacity:1!important;
+}
+html[data-wd-theme="light"] #app #homeMenuBtn svg {fill:currentColor!important;stroke:none!important}
+html[data-wd-theme="light"] #app .topright .wd-action:focus-visible {outline:2px solid #bf1239!important;outline-offset:2px}
+html[data-wd-theme="light"] #chat #msgs,
+html[data-wd-theme="light"] #chat[data-bg] #msgs,
+html[data-wd-theme="light"] #chat[data-bg="1"] #msgs,
+html[data-wd-theme="light"] #chat[data-bg="2"] #msgs,
+html[data-wd-theme="light"] #chat[data-bg="3"] #msgs,
+html[data-wd-theme="light"] #chat[data-bg="4"] #msgs {
+  background:#050506 url("cinematic-wallpaper.jpg") center center / cover no-repeat!important;
+  color:#fff!important;
+}
+html[data-wd-theme="light"] #chat #msgs .msg time {color:#d2cbd0!important;text-shadow:0 1px 3px #000}
+html[data-wd-theme="light"] #chat #msgs .theirs .bubble {background:#fff!important;color:#111827!important}
+html[data-wd-theme="light"] #chat #msgs .mine .bubble {background:#b81038!important;color:#fff!important}

@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#08080b">
 <title>Wordii Chat</title>
-<link rel="icon" href="icon-192.png">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192-v7.png">
+<link rel="manifest" href="manifest.webmanifest?v=7">
+<link rel="apple-touch-icon" href="icon-192-v7.png">
 <link rel="stylesheet" href="style.css">
-</head>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Caveat:wght@700&family=Dancing+Script:wght@700&family=Great+Vibes&family=Oswald:wght@700&family=Pacifico&family=Playfair+Display:wght@700&family=Poppins:wght@700&family=Roboto+Mono:wght@700&display=swap" rel="stylesheet"></head>
 <body>
 <div id="splash" role="status" aria-live="polite"><div class="splash-aura"></div><div class="splash-content"><div class="splash-logo-wrap"><img class="logo-img" src="wordii-mark.png" alt="Wordii Chat"></div><h1 class="splash-name">Wordii <span>Chat</span></h1><p class="splash-tagline">Chat beyond words</p><div class="splash-progress" aria-label="Starting Wordii Chat"><i></i></div><p class="splash-wait">Getting things ready</p></div><div class="splash-footer">CHAT BEYOND WORDS</div></div>
 
@@ -49,19 +49,19 @@
 </section>
 
 <main id="app" class="hidden">
-  <header class="top"><div class="brand"><img class="brand-logo" src="wordii-mark.png" alt="">Wordii <span>Chat</span></div><div class="topright"><button id="bellBtn" class="bell" aria-label="Inbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><i id="bellCount" class="hidden"></i></button><div id="socials"></div><div id="topStats" class="chip"></div><button id="quickSearchBtn" class="wd-action" type="button" aria-label="Search accounts" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button><button id="homeMenuBtn" class="wd-action" type="button" aria-label="More options" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button></div></header>
-  <div id="homeMenu" class="wd-popup hidden" role="menu"><button type="button" id="menuCreateGroup" role="menuitem">👥 Create Group</button><button type="button" id="menuMyCode" role="menuitem">🔗 My Code</button><button type="button" id="menuSettings" role="menuitem">⚙ Settings</button></div><div class="premium-tabs"><button type="button" class="on" data-premium-tab="chats">▣ Chats</button><button type="button" data-premium-tab="calls">♧ Calls</button></div>
-  <section id="tab-chats" class="tab"><div class="story-rail" id="storyRail"></div><div class="chat-section-title"><h2>Messages</h2></div>
+  <header class="top"><div class="brand"><img class="brand-logo" src="wordii-mark.png" alt="">Wordii <span>Chat</span></div><div class="topright"><button id="bellBtn" class="bell" aria-label="Inbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><i id="bellCount" class="hidden"></i></button><div id="socials" class="hidden"></div><div id="topStats" class="chip hidden"></div><button id="homeCameraBtn" class="wd-action" type="button" aria-label="Camera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-3h6l2 3h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="14" r="4"/></svg></button><button id="quickSearchBtn" class="wd-action hidden" type="button" aria-label="Search accounts" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button><button id="wdLevelBtn" type="button" class="wd-level-pill" aria-label="Level and XP">Lv 1</button><button id="homeMenuBtn" class="wd-action" type="button" aria-label="More options" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button></div></header>
+  <div id="homeMenu" class="wd-popup hidden" role="menu"><button type="button" id="menuFindUsers" role="menuitem">🔎 Search all users</button><button type="button" id="menuCreateGroup" role="menuitem">👥 Create Group</button><button type="button" id="menuMyCode" role="menuitem">🔗 My Code</button><button type="button" id="menuSettings" role="menuitem">⚙ Settings</button><button type="button" id="menuProfile" role="menuitem">👤 Profile</button><button type="button" id="menuNotifications" role="menuitem">🔔 Notifications</button></div><div class="premium-tabs"><button type="button" class="on" data-premium-tab="chats">▣ Chats</button><button type="button" data-premium-tab="status">◉ Updates</button><button type="button" data-premium-tab="calls">♧ Calls</button></div>
+  <section id="tab-chats" class="tab"><div class="story-rail" id="storyRail"></div><div class="chat-section-title hidden"><h2>Messages</h2></div>
     <button id="newGroupBtn" class="hidden" type="button" aria-hidden="true" tabindex="-1">New group</button>
     <div class="card hidden" id="hiddenSearchPanel"><b>🔍 Find someone</b>
-      <input id="searchInput" placeholder="Search by username, e.g. @xwordii" autocomplete="off" autocapitalize="none">
+      <input id="searchInput" placeholder="Find any registered @username or @name#123" autocomplete="off" autocapitalize="none">
       <div id="searchResults"></div></div>
     <div id="chatList"></div></section>
   <section id="tab-calls" class="tab hidden"><h2>Calls</h2><p class="muted">Call a connected friend. Audio and video use your existing Wordii calling system.</p><div id="callFriends"></div></section>
   <section id="tab-status" class="tab hidden">
     <h2>Updates</h2>
     <div class="card status-create"><b>My status</b><p class="tiny">Friends can see it for 24 hours.</p>
-      <div class="row-btns"><button id="stTextBtn" class="btn sm">✏️ Text</button><button id="stPhotoBtn" class="btn sm ghost">📷 Photo</button><button id="stMusicBtn" class="btn sm ghost">🎵 Add Music</button><input id="stFile" type="file" accept="image/*" hidden></div>
+      <div class="row-btns"><button id="stTextBtn" class="btn sm">✏️ Text</button><button id="stPhotoBtn" class="btn sm ghost">📷 Photo</button><button id="stVideoBtn" class="btn sm ghost" type="button">🎬 Video</button><button id="stMusicBtn" class="btn sm ghost">🎵 Add Music</button><input id="stFile" type="file" accept="image/*" hidden></div>
       <div class="closebox"><label class="tiny"><input type="checkbox" id="stClose"> Close friends only</label><button id="stPick" class="btn sm ghost">Choose people</button><span id="stCloseCount" class="tiny"></span><button id="stMention" class="btn sm ghost">@ Mention</button><span id="stMentionCount" class="tiny"></span></div>
       <div id="myStatusList"></div></div>
     <h3 class="sec">Friends' updates</h3><div id="friendStatus"></div>
@@ -81,6 +81,7 @@
     </div>
   </section>
   <section id="tab-profile" class="tab hidden"><div id="profile"></div></section>
+  <div id="wordiiFabWrap" class="wordii-fab-wrap"><div id="wordiiFabMenu" class="wordii-fab-menu hidden" role="menu"><button type="button" id="fabNewChat">✎ New Chat</button><button type="button" id="fabConnect">🔗 Connect by Code</button><button type="button" id="fabGroup">👥 Create Group</button></div><button type="button" id="wordiiFab" class="wordii-fab" aria-label="New chat" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h10"/><path d="m13 15 7-7 2 2-7 7-4 1 1-4Z"/></svg></button></div>
   <nav class="bottom">
     <button data-tab="chats" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5 8 8 0 0 1-3.2-.7L4 20l1.7-5.1a8 8 0 1 1 14.3-3.4Z"/></svg><span>Chats</span></button>
     <button data-tab="calls"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 16.4v3a2 2 0 0 1-2.2 2A18.6 18.6 0 0 1 2.6 5.2 2 2 0 0 1 4.6 3h3a2 2 0 0 1 2 1.7l.4 2.7a2 2 0 0 1-.6 1.7L7.8 10.7a14 14 0 0 0 5.5 5.5l1.6-1.6a2 2 0 0 1 1.7-.6l2.7.4a2 2 0 0 1 1.7 2Z"/></svg><span>Calls</span></button>
@@ -89,9 +90,11 @@
   </nav>
 </main>
 
+<section id="wdLevelScreen" class="hidden" role="dialog" aria-modal="true"><header class="chat-top"><button id="wdLevelBack" class="icon" type="button" aria-label="Back to chats">←</button><b>LEVEL & XP</b><button id="wdLevelHome" type="button" class="wd-level-home">⌂ Home</button></header><div class="wd-level-content" id="wdLevelContent"></div></section><section id="wordiiContacts" class="hidden" role="dialog" aria-modal="true" aria-label="Select contact"><header class="chat-top"><button id="wcBack" class="icon" type="button" aria-label="Back">←</button><div class="wc-title"><b>Select contact</b><small id="wcCount">Wordii contacts</small></div><button id="wcSearch" class="icon" type="button" aria-label="Search">⌕</button><button id="wcMore" class="icon" type="button" aria-label="More">⋮</button></header><div id="wcSearchArea" class="hidden"><input id="wcQuery" placeholder="Search Wordii contacts" autocomplete="off"></div><div class="wc-scroll"><button class="wc-action" id="wcGroup" type="button"><span>👥</span>New group</button><button class="wc-action" id="wcConnect" type="button"><span>🔗</span>Connect by code</button><p class="wc-heading">Contacts on Wordii</p><div id="wcList"></div></div></section>
 <section id="chat" class="hidden">
-  <header class="chat-top"><button id="backBtn" class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><div id="chatTitle"></div><button id="hideBtn" class="icon" aria-label="Symbol hiding"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Z"/><circle cx="12" cy="12" r="2"/><path d="M3 3l18 18"/></svg></button><button id="callBtn" class="icon" aria-label="Voice call"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16.4v3a2 2 0 0 1-2.2 2A18.6 18.6 0 0 1 2.6 5.2 2 2 0 0 1 4.6 3h3a2 2 0 0 1 2 1.7l.4 2.7a2 2 0 0 1-.6 1.7L7.8 10.7a14 14 0 0 0 5.5 5.5l1.6-1.6a2 2 0 0 1 1.7-.6l2.7.4a2 2 0 0 1 1.7 2Z"/></svg></button><button id="vidBtn" class="icon" aria-label="Video call"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3"/></svg></button></header>
-  <div id="msgs"></div>
+  <header class="chat-top"><button id="backBtn" class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><div id="chatTitle"></div><button id="hideBtn" class="icon" aria-label="Symbol hiding"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Z"/><circle cx="12" cy="12" r="2"/><path d="M3 3l18 18"/></svg></button><button id="callBtn" class="icon" aria-label="Voice call"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16.4v3a2 2 0 0 1-2.2 2A18.6 18.6 0 0 1 2.6 5.2 2 2 0 0 1 4.6 3h3a2 2 0 0 1 2 1.7l.4 2.7a2 2 0 0 1-.6 1.7L7.8 10.7a14 14 0 0 0 5.5 5.5l1.6-1.6a2 2 0 0 1 1.7-.6l2.7.4a2 2 0 0 1 1.7 2Z"/></svg></button><button id="vidBtn" class="icon" aria-label="Video call"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3"/></svg></button><button id="chatMoreBtn" class="icon" type="button" aria-label="Chat options" aria-expanded="false">⋮</button></header>
+  <div id="chatMoreMenu" class="wd-popup hidden" role="menu"><button type="button" id="chatMenuHide">Hide/Unhide messages</button><button type="button" id="chatMenuDelete">Select messages</button><button type="button" id="chatMenuClear">Clear chat for me</button><button type="button" id="chatMenuBlock">Block / Unblock</button></div>
+  <div id="wdSelectionBar" class="hidden"><button id="wdSelectionCancel" type="button">✕</button><strong id="wdSelectedCount">0 selected</strong><button id="wdSelectionDelete" type="button" aria-label="Delete selected messages">🗑</button></div><div id="msgs"></div>
   <p id="typingBar" class="tiny typing"></p>
   <p class="tiny center-t" id="chatHint">Tap to read for 10 s · Hold to copy symbols</p>
   <form id="composer"><button type="button" id="attachBtn" class="icon" aria-label="Send photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11.5-8.8 8.8a6 6 0 0 1-8.5-8.5l9.5-9.5a4 4 0 0 1 5.7 5.7l-9.6 9.6a2 2 0 0 1-2.8-2.8l8.8-8.8"/></svg></button><input id="fileInput" type="file" accept="image/*" hidden><button type="button" id="micBtn" class="icon" aria-label="Voice message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8"/></svg></button><button type="button" id="recCancel" class="icon hidden" aria-label="Cancel recording">✕</button><input id="msgInput" maxlength="800" placeholder="Message…" autocomplete="off"><button class="send" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 20 18-8L3 4l3 8-3 8Z"/><path d="M6 12h15"/></svg></button></form>
@@ -103,7 +106,33 @@
   <div class="wsc-bottom"><button id="wscGallery">▧<small>Gallery</small></button><button id="wscShutter" aria-label="Take photo"><span></span></button><button id="wscCamera">◉<small>Camera</small></button></div>
   <p class="wsc-note" id="wscNote">Camera access requires permission. Choose Gallery to post an image.</p>
 </section>
-<section id="storyEdit" class="hidden" role="dialog" aria-modal="true" aria-label="Edit photo story"><header class="story-edit-head"><button id="seClose">✕</button><b>EDIT STORY</b><button id="seShare">Share →</button></header><div class="story-edit-preview"><img id="seImage" alt="Story photo"><div id="seCaption"></div></div><div class="story-edit-tools"><input id="seText" maxlength="160" placeholder="Add text to your photo..."><div><button id="seColor">🎨 Color</button><button id="seMusic">♫ Music</button><button id="seEffect">✨ Effects</button></div><small id="seNote">Choose music and effects, then share. Phone audio needs Firebase Storage enabled.</small></div></section><section id="statusCompose" class="hidden"><div class="card center">
+<section id="storyEdit" class="hidden" role="dialog" aria-modal="true" aria-label="Edit photo story"><header class="story-edit-head"><button id="seClose">✕</button><b>EDIT STORY</b><button id="seShare">Share →</button></header><div class="story-edit-preview"><img id="seImage" alt="Story photo"><div id="seCaption"></div>
+<button type="button" id="wordiiCoverToggle" class="wordii-cover-toggle" hidden>♫ Hide Cover</button>
+    <div id="wordiiMusicCover" class="wordii-music-cover" hidden>
+  <div class="wordii-music-art">♫</div>
+  <div class="wordii-music-info">
+    <div id="wordiiMusicCoverTitle" class="wordii-music-title">Music</div>
+    <div class="wordii-music-artist">Wordii Music</div>
+  </div>
+</div></div><div class="story-edit-tools"><label class="wordii-size-control" for="seTextSize">
+  <span>ᴀᴀ</span>
+  <input id="seTextSize" type="range" min="16" max="64" value="32" step="1">
+  <span>AA</span>
+</label>
+<input id="seText" maxlength="160" placeholder="Add text to your photo..."><div><button id="seColor">🎨 Color</button><select id="seFont" aria-label="Story text font" style="max-width:145px;background:#20151d;color:white;border:1px solid #85384b;border-radius:10px;padding:9px">
+<option value="Arial">Classic</option>
+<option value="Playfair Display">Elegant</option>
+<option value="Poppins">Modern</option>
+<option value="Oswald">Clean</option>
+<option value="Caveat">Rounded</option>
+<option value="Georgia">Serif</option>
+<option value="Roboto Mono">Typewriter</option>
+<option value="Anton">Gaming</option>
+<option value="Pacifico">Playful</option>
+<option value="Great Vibes">Literary</option>
+<option value="Bebas Neue">Digital</option>
+<option value="Dancing Script">Handwriting</option>
+</select><button id="seMusic">♫ Music</button><button id="seEffect">✨ Effects</button></div><small id="seNote">Choose music and effects, then share. Phone audio needs Firebase Storage enabled.</small></div></section><section id="statusCompose" class="hidden"><div class="card center">
   <b>New status</b>
   <div id="stPreview" class="st-preview"><textarea id="stText" maxlength="300" placeholder="What's on your mind?"></textarea></div>
   <div id="stColors" class="colors"></div>

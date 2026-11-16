@@ -1,5 +1,5 @@
 // Minimal service worker: network first, cached copy if offline.
-const CACHE = "wordii-cinematic-20261116";
+const CACHE = "wordii-premium-icon-v7-20261116";
 self.addEventListener("install", (e) => { self.skipWaiting(); });
 self.addEventListener("activate", (e) => { e.waitUntil(self.clients.claim()); });
 self.addEventListener("fetch", (e) => {

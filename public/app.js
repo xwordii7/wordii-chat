@@ -22,7 +22,7 @@ function authMsg(c) {
 }
 function friendly(e) {
   if (String(e.code || "").startsWith("auth/")) return authMsg(e.code);
-  return e.code === "permission-denied" ? "Not allowed (check the code or try again)." : e.message || "Something went wrong";
+  return e.code === "permission-denied" ? "Firebase permission denied. Check Story rules and login." : (e.code ? "[" + e.code + "] " : "") + (e.message || "Something went wrong");
 }
 const vb = (u) => (u?.admin === true ? '<span class="abadge" title="Admin">★</span>' : "") + (u?.verified === true ? '<span class="vbadge" title="Verified">✔</span>' : "");
 async function act(fn, btn) { if (btn) btn.disabled = true; try { await fn(); } catch (e) { toast(friendly(e)); } finally { if (btn) btn.disabled = false; } }
@@ -320,6 +320,7 @@ function renderChats() {
 $("#chatList").addEventListener("click", (e) => { const r = e.target.closest("[data-chat]"); if (r) openChat(chats.find((c) => c.id === r.dataset.chat)); });
 function renderProfile() {
   if (!me) return;
+  const levelBadge=document.getElementById("wdLevelBtn"); if(levelBadge)levelBadge.textContent=`Lv ${me.level || 1}`;
   $("#topStats").textContent = `Lv ${me.level || 1} · ${me.points || 0} pts`;
   if (!$("#settings").classList.contains("hidden")) renderSettings();
   const row = (go, icon, title, sub) => `<div class="wrow" data-go="${go}"><div class="wi">${icon}</div><div><b>${title}</b><span>${sub}</span></div></div>`;
@@ -415,7 +416,7 @@ function openChat(c) {
     renderMessages();
   }, (e) => toast(friendly(e)));
 }
-function closeChat() { if (rec) { recCancelled = true; rec.stop(); } if (unsubTyping) unsubTyping(); unsubTyping = null; typingAt = {}; if (unsubMsgs) unsubMsgs(); unsubMsgs = null; activeChat = null; $("#chat").classList.add("hidden"); }
+function closeChat() { if(typeof wdSelectionStop === "function")wdSelectionStop(); if (rec) { recCancelled = true; rec.stop(); } if (unsubTyping) unsubTyping(); unsubTyping = null; typingAt = {}; if (unsubMsgs) unsubMsgs(); unsubMsgs = null; activeChat = null; $("#chat").classList.add("hidden"); }
 $("#backBtn").onclick = closeChat;
 function renderChatTitle() {
   if (!activeChat) return;
@@ -443,11 +444,12 @@ document.addEventListener("visibilitychange", () => {
 });
 function renderMessages() {
   const box = $("#msgs");
-  box.innerHTML = msgs.map((m) => {
+  box.innerHTML = msgs.filter(m=>!wdHiddenIds().has(m.id)).map((m) => {
     const t = m.createdAt?.toDate?.().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) || "";
     return `<div class="msg ${m.senderId === uid ? "mine" : "theirs"}" data-id="${esc(m.id)}">${activeChat?.group && m.senderId !== uid ? `<small class="sname">${esc(nameOf(person(m.senderId)))}${vb(person(m.senderId))}</small>` : ""}<div class="bubble ${m.img ? "imgmsg" : m.aud ? "audmsg" : ""}"></div><time>${t}${m.senderId === uid && m.seenAt ? " · Seen" : ""}</time></div>`;
   }).join("");
   tickMessages();
+  wdSelectionSync();
   box.scrollTop = box.scrollHeight;
 }
 const plain = (m) => (decoded[m.id] ??= decodeMessage(m.text) ?? "⚠ unreadable message");
@@ -485,15 +487,14 @@ mbox.addEventListener("contextmenu", (e) => e.preventDefault());
 mbox.addEventListener("pointerdown", (e) => {
   const el = e.target.closest(".msg"); if (!el) return; longDone = false;
   lp = setTimeout(() => {
-    longDone = true; const m = msgMap[el.dataset.id];
-    if (m.img !== undefined) { toast("Photos can't be copied as symbols"); return; }
-    copy(m.text); toast("Symbol message copied");
+    longDone = true; wdSelectionStart(el.dataset.id);
   }, 600);
 });
 ["pointerup", "pointerleave", "pointercancel", "pointermove"].forEach((ev) => mbox.addEventListener(ev, () => clearTimeout(lp)));
 mbox.addEventListener("click", (e) => {
   if (longDone) { longDone = false; return; }
   const el = e.target.closest(".msg"); if (!el) return;
+  if(wdSelectionMode){wdSelected.has(el.dataset.id)?wdSelected.delete(el.dataset.id):wdSelected.add(el.dataset.id);wdSelectionSync();return;}
   const m = msgMap[el.dataset.id];
   if (m.senderId !== uid) { toast("Received messages show only once"); return; }
   reveal[el.dataset.id] = Date.now() + 10000; tickMessages();
@@ -689,6 +690,7 @@ $("#stPost").onclick = (e) => act(async () => {
   $("#statusCompose").classList.add("hidden"); toast("Status posted"); clearMentions();
 }, e.currentTarget);
 $("#stPhotoBtn").onclick = () => $("#stFile").click();
+$("#stVideoBtn").onclick = () => toast("Video sharing needs a video hosting service. Photos and music work now.");
 $("#stFile").addEventListener("change", async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;if(!f.type.startsWith("image/")){toast("Choose an image. Video needs storage integration.");return;}try{const img=await compress(f,{max:1024,quality:0.7,limitLen:350000});openStoryEdit(img);}catch(err){toast(friendly(err));}});
 
 // ---------- password + log out (Profile tab) ----------
@@ -708,6 +710,8 @@ document.addEventListener("click", (e) => {
 
 // ---------- sending (stamps the chat so the other person gets an unread dot + notification) ----------
 async function sendMsg(payload) {
+  if(activeChat && !activeChat.group){const other=activeChat.members.find(x=>x!==uid);if((me?.blockedUsers||[]).includes(other))throw new Error("Unblock this contact before sending");}
+
   const b = writeBatch(db);
   b.set(doc(collection(db, "chats", activeChat.id, "messages")), { senderId: uid, ...payload, createdAt: serverTimestamp() });
   b.update(doc(db, "chats", activeChat.id), { lastAt: serverTimestamp(), lastBy: uid });
@@ -810,25 +814,55 @@ $("#inboxBody").addEventListener("click", (e) => {
 });
 
 // ---------- username search ----------
-let lastResults = [], searchTimer;
+let lastResults = [], searchTimer, searchSequence = 0, searchBusy = false, searchError = "";
 async function searchPeople(text) {
-  const q = text.trim().toLowerCase().replace(/^@/, "").replace("#", "-");
-  if (q.length < 2) return [];
-  const snap = await getDocs(query(collection(db, "users"), where("usernameKey", ">=", q), where("usernameKey", "<=", q + "\uf8ff"), limit(10)));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((u) => u.id !== uid);
+  const raw = text.trim().toLowerCase().replace(/^@/, "");
+  if (raw.length < 2) return [];
+  // Username documents are indexed with usernameKey. Legacy @name#123
+  // accounts use name-123, while newer accounts use just name.
+  const key = raw.replace(/#(\d{1,3})$/, "-$1");
+  const usersRef = collection(db, "users");
+  const results = new Map();
+  const snap = await getDocs(query(usersRef, where("usernameKey", ">=", key), where("usernameKey", "<=", key + "\uf8ff"), limit(25)));
+  snap.docs.forEach(d => { if (d.id !== uid) results.set(d.id, {id:d.id, ...d.data()}); });
+  // Exact tagged username may be in older profiles without a usernameKey.
+  if (raw.includes("#") && results.size === 0) {
+    const old = await getDocs(query(usersRef, where("username", "==", "@" + raw), limit(10)));
+    old.docs.forEach(d => { if (d.id !== uid) results.set(d.id, {id:d.id, ...d.data()}); });
+  }
+  return [...results.values()].sort((x,y) => (x.username || "").localeCompare(y.username || "")).slice(0,25);
+}
+async function performUserSearch() {
+  const value = $("#searchInput").value;
+  const seq = ++searchSequence;
+  if (value.trim().length < 2) { lastResults=[]; searchBusy=false; searchError=""; renderSearch(); return; }
+  searchBusy=true; searchError=""; renderSearch();
+  try {
+    const results = await searchPeople(value);
+    if (seq !== searchSequence) return;
+    lastResults=results;
+  } catch(e) {
+    if (seq !== searchSequence) return;
+    lastResults=[]; searchError=friendly(e);
+  } finally {
+    if (seq === searchSequence) { searchBusy=false; renderSearch(); }
+  }
 }
 $("#searchInput").addEventListener("input", () => {
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(async () => {
-    try { lastResults = await searchPeople($("#searchInput").value); } catch (e) { toast(friendly(e)); lastResults = []; }
-    renderSearch();
-  }, 350);
+  const seq = ++searchSequence;
+  if ($("#searchInput").value.trim().length < 2) { lastResults=[]; searchBusy=false; searchError=""; renderSearch(); return; }
+  searchBusy=true; searchError=""; renderSearch();
+  searchTimer=setTimeout(() => { if (seq === searchSequence) performUserSearch(); }, 350);
 });
+$("#searchInput").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); clearTimeout(searchTimer); performUserSearch(); } });
 function renderSearch() {
   renderPV();
   const box = $("#searchResults"); if (!box) return;
   if ($("#searchInput").value.trim().length < 2) { box.innerHTML = ""; return; }
-  if (!lastResults.length) { box.innerHTML = `<p class="tiny">No one found.</p>`; return; }
+  if (searchBusy) { box.innerHTML = `<p class="tiny" role="status">Searching all Wordii users…</p>`; return; }
+  if (searchError) { box.innerHTML = `<p class="tiny" role="alert">${esc(searchError)}</p>`; return; }
+  if (!lastResults.length) { box.innerHTML = `<p class="tiny">No registered username found. Check spelling or type the full @name#123.</p>`; return; }
   box.innerHTML = lastResults.map((u) => {
     const id = pairId(u.id);
     const btn = chats.some((c) => c.id === id) ? `<button class="btn sm ghost" data-sopen="${esc(id)}">Open</button>`
@@ -949,7 +983,7 @@ $("#searchResults").addEventListener("click", (e) => {
 const BG_SW = ["#2a1b4d", "radial-gradient(#7b2cff,#1d1040)", "linear-gradient(160deg,#064e5c,#0b1b3a)", "linear-gradient(160deg,#7c2d12,#4c1d95)", "#000"];
 let admList = [], admTimer;
 let subKey = "";
-const SUB_TITLES = { points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "Admin tools", dash: "Admin dashboard", gifts: "Level gifts", updates: "App Updates" };
+const SUB_TITLES = { overview: "Settings", appearance: "Appearance", points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "Admin tools", dash: "Admin dashboard", gifts: "Level gifts", updates: "App Updates" };
 function openSub(k) { subKey = k; $("#setTitle").textContent = SUB_TITLES[k] || "Settings"; $("#settings").classList.remove("hidden"); renderSettings(true); }
 function shareInvite() {
   const d = { title: "Wordii Chat", text: `Chat with me on Wordii Chat! Find me: ${me.username}`, url: location.origin };
@@ -962,6 +996,9 @@ function renderSettings(force) {
   const u = auth.currentUser, email = u?.email && !isFakeEmail(u.email) ? u.email : "";
   const t = pref("theme", "auto"), bg = pref("chatbg", "0"), nOn = pref("notif", "on") === "on";
   const pages = {
+    overview: () => `<div class="wd-settings-overview"><div class="wd-settings-person"><div class="wd-settings-avatar">${avatarHTML(me)}</div><div><strong>${esc(me.displayName || me.username)}</strong><p class="tiny">${esc(me.username)} · Level ${me.level || 1}</p></div></div>
+      ${[['👤','edit','Edit profile','Name, bio, profile photo and banner'],['🏆','points','Points & level','XP, progress and streak'],['🔑','account','Account','Login, email and account security'],['🔒','privacy','Privacy','Online status, public account'],['💬','chats','Chats','Chat wallpaper and theme'],['🎨','appearance','Appearance','Light and dark app theme'],['🔔','notif','Notifications','Message and push alerts'],['🌐','lang','App language','Current language options'],['💎','subs','Subscriptions','Available plans'],['🚀','updates','App Updates','Check the app version']].map(([ico,k,label,desc])=>`<button type="button" class="wd-settings-link" data-wd-settings="${k}"><span class="wd-settings-ico">${ico}</span><span><b>${label}</b><small>${desc}</small></span><span class="wd-settings-arrow">›</span></button>`).join('')}</div>`,
+    appearance: () => `<div class="card"><b>App theme</b><p class="tiny">Choose a theme for all screens.</p><select id="setTheme"><option value="dark" ${t==='dark'?'selected':''}>Dark</option><option value="light" ${t==='light'?'selected':''}>Light</option><option value="auto" ${t==='auto'?'selected':''}>System default</option></select></div>`,
     points: () => `<div class="card center"><div class="stats"><div><b>${me.level || 1}</b><span>Level</span></div><div><b>${me.points || 0}</b><span>Points</span></div><div><b>🔥 ${me.streak || 0}</b><span>Streak</span></div></div>
       <div class="bar"><i style="width:${((me.points || 0) % 10) * 10}%"></i></div><p class="tiny">${10 - ((me.points || 0) % 10)} more points to Level ${(me.level || 1) + 1}</p></div>
       <div class="card tiny">Earn points: +4 once a day (streak) and +1 for every active minute. Every 10 points = 1 level.</div>`,
@@ -1010,11 +1047,12 @@ function renderAdm() {
   const box = $("#admResults"); if (!box) return;
   box.innerHTML = admList.length ? admList.map((u) => `<div class="row nopoint">${avatarHTML(u)}<div class="grow"><b>${esc(nameOf(u))}${vb(u)}</b><span class="muted">${esc(u.username)}</span></div><button class="btn sm ${u.verified ? "ghost" : ""}" data-adm="${esc(u.id)}">${u.verified ? "Remove ✔" : "Give ✔"}</button></div>`).join("") : `<p class="tiny">Type at least 2 letters.</p>`;
 }
-$("#setBack").onclick = () => $("#settings").classList.add("hidden");
+$("#setBack").onclick = () => { if(subKey!=="overview") openSub("overview"); else $("#settings").classList.add("hidden"); };
+$("#settingsBody").addEventListener("click", e => { const b=e.target.closest("[data-wd-settings]"); if(b) openSub(b.dataset.wdSettings); });
 $("#settingsBody").addEventListener("change", (e) => {
   const t = e.target;
   if (t.id === "setPublic") act(async () => { await updateDoc(doc(db, "users", uid), { isPublic: t.checked }); toast(t.checked ? "Account is public" : "Account is private"); });
-  else if (t.id === "setTheme") { setPref("theme", t.value); applyTheme(); }
+  else if (t.id === "setTheme") { const theme=t.value === "auto" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : t.value; setPref("theme",t.value); document.documentElement.dataset.wdTheme=theme; document.documentElement.dataset.theme=theme; document.querySelector('meta[name="theme-color"]')?.setAttribute("content",theme==="light"?"#ffffff":"#08080b"); }
   else if (t.id === "setNotif") setPref("notif", t.checked ? "on" : "off");
   else if (t.id === "setShowOnline") act(async () => { await updateDoc(doc(db, "users", uid), { showOnline: t.checked }); toast(t.checked ? "Others can see when you are online" : "Your online status is hidden"); });
 });
@@ -1618,7 +1656,110 @@ const wordiiEffects = [
 let wordiiSelectedMusic=null, wordiiAudioPreview=null, wordiiEffect=0, wordiiStatusAudio=null, wordiiStatusAudioUrl=null;
 const wordiiMusicPanel=document.getElementById('stMusicPanel');
 function wordiiStopPreview(){if(wordiiAudioPreview){wordiiAudioPreview.pause();const oldUrl=wordiiAudioPreview.src;wordiiAudioPreview.removeAttribute('src');wordiiAudioPreview.load();if(oldUrl.startsWith('blob:'))URL.revokeObjectURL(oldUrl);wordiiAudioPreview=null;}}
-function wordiiMusicLabel(){document.getElementById('wordiiMusicSelected').textContent=wordiiSelectedMusic?('Selected: '+wordiiSelectedMusic.title):'No music selected';}
+
+/* WORDII MUSIC COVER DISPLAY V1 */
+
+/* WORDII MUSIC COVER DRAG V1 */
+let wordiiCoverX = 50;
+let wordiiCoverY = 25;
+
+{
+  const cover = document.getElementById("wordiiMusicCover");
+  const preview = document.querySelector(".story-edit-preview");
+
+  if (cover && preview) {
+    let activePointer = null;
+
+    cover.addEventListener("pointerdown", e => {
+      if (activePointer !== null) return;
+      activePointer = e.pointerId;
+      cover.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+
+    cover.addEventListener("pointermove", e => {
+      if (activePointer !== e.pointerId) return;
+
+      const r = preview.getBoundingClientRect();
+
+      wordiiCoverX = Math.max(15, Math.min(85,
+        (e.clientX - r.left) / r.width * 100
+      ));
+
+      wordiiCoverY = Math.max(10, Math.min(90,
+        (e.clientY - r.top) / r.height * 100
+      ));
+
+      cover.style.left = wordiiCoverX + "%";
+      cover.style.top = wordiiCoverY + "%";
+    });
+
+    const stop = e => {
+      if (activePointer !== e.pointerId) return;
+      activePointer = null;
+      if (cover.hasPointerCapture(e.pointerId))
+        cover.releasePointerCapture(e.pointerId);
+    };
+
+    cover.addEventListener("pointerup", stop);
+    cover.addEventListener("pointercancel", stop);
+  }
+}
+
+
+/* WORDII MUSIC COVER RESET V1 */
+function wordiiResetMusicCover() {
+  wordiiCoverX = 50;
+  wordiiCoverY = 25;
+
+  const cover = document.getElementById("wordiiMusicCover");
+  if (!cover) return;
+
+  cover.style.left = "50%";
+  cover.style.top = "25%";
+  cover.hidden = true;
+}
+
+/* WORDII OPTIONAL MUSIC COVER V1 */
+let wordiiShowMusicCover = true;
+
+document.getElementById("wordiiCoverToggle").onclick = () => {
+  wordiiShowMusicCover = !wordiiShowMusicCover;
+  wordiiUpdateMusicCover();
+};
+
+function wordiiUpdateMusicCover() {
+  const cover = document.getElementById("wordiiMusicCover");
+  const title = document.getElementById("wordiiMusicCoverTitle");
+  if (!cover || !title) return;
+
+  const selected = wordiiSelectedMusic;
+
+  if (!selected) {
+    cover.hidden = true;
+    return;
+  }
+
+  title.textContent = selected.title || selected.name || "Music";
+  cover.hidden = false;
+}
+
+const wordiiOriginalUpdateMusicCover = wordiiUpdateMusicCover;
+wordiiUpdateMusicCover = function(){
+  wordiiOriginalUpdateMusicCover();
+  const toggle = document.getElementById("wordiiCoverToggle");
+  if(toggle){
+    toggle.hidden = wordiiSelectedMusic?.type !== "library";
+    toggle.textContent = wordiiShowMusicCover ? "♫ Hide Cover" : "♫ Show Cover";
+  }
+  const cover = document.getElementById("wordiiMusicCover");
+  if(cover && (!wordiiShowMusicCover || wordiiSelectedMusic?.type !== "library")) cover.hidden = true;
+};
+
+
+/* WORDII MUSIC COVER AUTO SYNC V1 */
+function wordiiMusicLabel(){
+  wordiiUpdateMusicCover();document.getElementById('wordiiMusicSelected').textContent=wordiiSelectedMusic?('Selected: '+wordiiSelectedMusic.title):'No music selected';}
 function wordiiRenderMusic(){
   const q=document.getElementById('stMusicSearch').value.trim().toLowerCase();
   const results=document.getElementById('stMusicResults');results.textContent='';
@@ -1652,12 +1793,28 @@ function stopWordiiStoryAudio(){if(wordiiStatusAudio){wordiiStatusAudio.pause();
 async function playWordiiStoryAudio(st,body){
   if(!st.musicId&&!st.audioPath)return;
   const expected=st.id;
-  const audio=document.createElement('audio');audio.className='wordii-status-audio';audio.controls=true;audio.loop=true;audio.volume=.55;body.append(audio);wordiiStatusAudio=audio;
+  const audio=document.createElement('audio');audio.className='wordii-status-audio';audio.controls=false;audio.loop=true;audio.volume=.55;body.append(audio);wordiiStatusAudio=audio;
   try{
     if(st.musicId&&wordiiTracks.some(t=>t.id===st.musicId))audio.src='wordii-music/'+st.musicId+'.wav';
     else if(st.audioPath){const blob=await getBlob(storageRef(getStorage(),st.audioPath));if(sv.list[sv.i]?.id!==expected||wordiiStatusAudio!==audio)return;wordiiStatusAudioUrl=URL.createObjectURL(blob);audio.src=wordiiStatusAudioUrl;}
     else return;
-    if(sv.list[sv.i]?.id===expected)audio.play().catch(()=>{});
+    if(sv.list[sv.i]?.id===expected)audio.play().catch(()=>{
+      if(wordiiStatusAudio!==audio)return;
+      audio.controls=false;
+      let playBtn = body.querySelector(".wordii-audio-play-btn");
+      if (!playBtn) {
+        playBtn = document.createElement("button");
+        playBtn.className = "wordii-audio-play-btn";
+        playBtn.textContent = "♫ Play Music";
+        playBtn.onclick = e => {
+          e.stopPropagation();
+          audio.play().then(() => playBtn.remove()).catch(() => {
+            toast("Music could not play");
+          });
+        };
+        body.append(playBtn);
+      }
+    });
   }catch(e){if(wordiiStatusAudio===audio){audio.replaceWith(document.createTextNode('Audio unavailable'));}}
 }
 // Wordii Story Creator: My Status is the only visible entry point.
@@ -1715,41 +1872,257 @@ document.getElementById('wscShutter').onclick=()=>{
 let storyEditImage=null,storyEditColor=0;
 const storyColors=["#ffffff","#ff4864","#ffe36c","#72eaff"];
 function storyEditRefresh(){const c=document.getElementById("seCaption");c.textContent=document.getElementById("seText").value;c.style.color=storyColors[storyEditColor];}
-function openStoryEdit(img){storyEditImage=img;storyEditColor=0;wordiiEffect=0;document.getElementById("seImage").style.filter="none";document.getElementById("seImage").src=img;document.getElementById("seText").value="";document.getElementById("storyEdit").classList.remove("hidden");storyEditRefresh();}
+function openStoryEdit(img){
+wordiiShowMusicCover=true;
+wordiiResetMusicCover();
+wordiiUpdateMusicCover();
+
+wordiiTextX=50;
+wordiiTextY=50;
+wordiiTextFont="Arial";
+const caption=document.getElementById("seCaption");
+caption.style.left="50%";
+caption.style.top="50%";
+caption.style.transform="translate(-50%,-50%)";
+caption.style.fontFamily="Arial";
+document.getElementById("seFont").value="Arial";
+storyEditImage=img;storyEditColor=0;wordiiEffect=0;document.getElementById("seImage").style.filter="none";document.getElementById("seImage").src=img;document.getElementById("seText").value="";document.getElementById("storyEdit").classList.remove("hidden");
+storyEditRefresh();
+requestAnimationFrame(() => {
+  const preview = document.querySelector(".story-edit-preview");
+  const caption = document.getElementById("seCaption");
+  const image = document.getElementById("seImage");
+
+  function centerCaption() {
+    if (!image.naturalWidth || !image.naturalHeight) return;
+    const r = preview.getBoundingClientRect();
+    const scale = Math.min(r.width / image.naturalWidth, r.height / image.naturalHeight);
+    const w = image.naturalWidth * scale;
+    const h = image.naturalHeight * scale;
+    caption.style.left = ((r.width - w) / 2 + w * wordiiTextX / 100) + "px";
+    caption.style.top = ((r.height - h) / 2 + h * wordiiTextY / 100) + "px";
+    caption.style.transform = "translate(-50%, -50%)";
+  }
+
+  if (image.complete) centerCaption();
+  else image.addEventListener("load", centerCaption, {once:true});
+});}
 function closeStoryEdit(){document.getElementById("storyEdit").classList.add("hidden");storyEditImage=null;}
 document.getElementById("seClose").onclick=closeStoryEdit;
 document.getElementById("seText").addEventListener("input",storyEditRefresh);
 document.getElementById("seColor").onclick=()=>{storyEditColor=(storyEditColor+1)%storyColors.length;storyEditRefresh();};
+
+// Wordii Story: draggable text and font preview
+
+/* WORDII STORY TEXT ZOOM V1 */
+let wordiiTextSize = 32;
+
+/* WORDII PINCH TEXT ZOOM V1 */
+{
+  const caption = document.getElementById("seCaption");
+  const slider = document.getElementById("seTextSize");
+  const touches = new Map();
+  let initialDistance = 0;
+  let initialSize = 32;
+
+  caption.addEventListener("pointerdown", e => {
+    if (e.pointerType !== "touch" || !caption.textContent.trim()) return;
+    touches.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if (touches.size === 2) {
+      const [a,b] = [...touches.values()];
+      initialDistance = Math.hypot(a.x-b.x, a.y-b.y);
+      initialSize = wordiiTextSize;
+    }
+  });
+
+  caption.addEventListener("pointermove", e => {
+    if (!touches.has(e.pointerId)) return;
+    touches.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if (touches.size !== 2 || initialDistance <= 0) return;
+
+    const [a,b] = [...touches.values()];
+    const distance = Math.hypot(a.x-b.x, a.y-b.y);
+    wordiiTextSize = Math.max(16, Math.min(64,
+      Math.round(initialSize * distance / initialDistance)
+    ));
+
+    caption.style.fontSize = wordiiTextSize + "px";
+    if (slider) slider.value = wordiiTextSize;
+  });
+
+  const end = e => {
+    touches.delete(e.pointerId);
+    if (touches.size < 2) initialDistance = 0;
+  };
+
+  caption.addEventListener("pointerup", end);
+  caption.addEventListener("pointercancel", end);
+}
+
+
+const wordiiSizeSlider = document.getElementById("seTextSize");
+
+if (wordiiSizeSlider) {
+  wordiiSizeSlider.addEventListener("input", () => {
+    wordiiTextSize = Number(wordiiSizeSlider.value);
+    const caption = document.getElementById("seCaption");
+    caption.style.fontSize = wordiiTextSize + "px";
+  });
+}
+
+let wordiiTextX = 50;
+let wordiiTextY = 50;
+let wordiiTextFont = "Arial";
+
+const wordiiCaption = document.getElementById("seCaption");
+const wordiiPreview = document.querySelector(".story-edit-preview");
+const wordiiFontSelect = document.getElementById("seFont");
+
+wordiiFontSelect.addEventListener("change", () => {
+  wordiiTextFont = wordiiFontSelect.value;
+  wordiiCaption.style.fontFamily = `"${wordiiTextFont}", sans-serif`;
+  document.fonts?.load(`700 ${wordiiTextSize}px "${wordiiTextFont}"`).catch(()=>{});
+});
+
+wordiiCaption.style.pointerEvents = "auto";
+wordiiCaption.style.touchAction = "none";
+
+wordiiCaption.addEventListener("pointerdown", e => {
+  if (!wordiiCaption.textContent.trim()) return;
+  e.preventDefault();
+  wordiiCaption.setPointerCapture(e.pointerId);
+});
+
+wordiiCaption.addEventListener("pointermove", e => {
+  if (!wordiiCaption.hasPointerCapture(e.pointerId)) return;
+  const r = wordiiPreview.getBoundingClientRect();
+  const im = document.getElementById("seImage");
+  const scale = Math.min(r.width / im.naturalWidth, r.height / im.naturalHeight);
+  const w = im.naturalWidth * scale;
+  const h = im.naturalHeight * scale;
+  const left = r.left + (r.width - w) / 2;
+  const top = r.top + (r.height - h) / 2;
+  wordiiTextX = Math.max(10, Math.min(90, (e.clientX-left)/w*100));
+  wordiiTextY = Math.max(10, Math.min(90, (e.clientY-top)/h*100));
+  const previewX = (left - r.left + w * wordiiTextX / 100) / r.width * 100;
+  const previewY = (top - r.top + h * wordiiTextY / 100) / r.height * 100;
+  wordiiCaption.style.left = (previewX * r.width / 100) + "px";
+  wordiiCaption.style.top = (previewY * r.height / 100) + "px";
+  wordiiCaption.style.transform = "translate(-50%, -50%)";
+});
+
+wordiiCaption.addEventListener("pointerup", e => {
+  if (wordiiCaption.hasPointerCapture(e.pointerId))
+    wordiiCaption.releasePointerCapture(e.pointerId);
+});
+
 document.getElementById("seMusic").onclick=wordiiOpenMusic;
 document.getElementById("seEffect").onclick=wordiiOpenEffects;
 // Render the caption into the JPEG itself: existing Firestore rules only allow
 // ownerUid, viewers, img, close, mentions, via, createdAt for photo stories.
 async function storyPhotoWithCaption(src, caption, color, effectCss="none") {
-  if (!caption && effectCss === "none") return src;
+  if (!caption && effectCss === "none" && !wordiiSelectedMusic) return src;
   const im = new Image();
   await new Promise((resolve, reject) => { im.onload = resolve; im.onerror = reject; im.src = src; });
   const canvas = document.createElement('canvas');
   canvas.width = im.naturalWidth; canvas.height = im.naturalHeight;
   const ctx = canvas.getContext('2d'); ctx.filter=effectCss;ctx.drawImage(im, 0, 0);ctx.filter="none";
-  const size = Math.max(18, Math.round(canvas.width * .052));
-  ctx.font = `bold ${size}px sans-serif`; ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-  const words = caption.split(/\s+/); const lines = []; let line = '';
-  for (const word of words) {
-    const next = line ? line + ' ' + word : word;
-    if (ctx.measureText(next).width > canvas.width * .84 && line) { lines.push(line); line = word; }
-    else line = next;
+  if (caption) {
+    const preview = document.querySelector('.story-edit-preview');
+    const pw = Math.max(1,preview.clientWidth), ph=Math.max(1,preview.clientHeight);
+    const scale = Math.min(pw/canvas.width, ph/canvas.height);
+    const size = Math.max(12,Math.round(wordiiTextSize/Math.max(scale,.001)));
+    const fontName = String(wordiiTextFont).replace(/["\\]/g,'');
+    ctx.font = `700 ${size}px "${fontName}", sans-serif`;
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';
+    const words=caption.split(/\s+/);const lines=[];let line='';
+    for(const word of words){
+      const next=line?line+' '+word:word;
+      if(ctx.measureText(next).width>canvas.width*.82 && line){lines.push(line);line=word;}else line=next;
+    }
+    if(line)lines.push(line);
+    const shown=lines.slice(0,7), lineHeight=size*1.18;
+    const centerX=canvas.width*wordiiTextX/100, centerY=canvas.height*wordiiTextY/100;
+    shown.forEach((text,i)=>{
+      const y=centerY+(i-(shown.length-1)/2)*lineHeight;
+      ctx.lineWidth=Math.max(2,size*.12);ctx.strokeStyle='rgba(0,0,0,.8)';
+      ctx.strokeText(text,centerX,y,canvas.width*.85);
+      ctx.fillStyle=color;ctx.fillText(text,centerX,y,canvas.width*.85);
+    });
   }
-  if (line) lines.push(line);
-  const shown = lines.slice(0, 7);
-  const lineHeight = size * 1.28;
-  const centerY = canvas.height * .68;
-  shown.forEach((text, i) => {
-    const y = centerY + (i - (shown.length - 1) / 2) * lineHeight;
-    ctx.lineWidth = Math.max(3, size * .16); ctx.strokeStyle = 'rgba(0,0,0,.85)';
-    ctx.strokeText(text, canvas.width / 2, y);
-    ctx.fillStyle = color; ctx.fillText(text, canvas.width / 2, y);
-  });
+
+  /* WORDII MUSIC COVER CANVAS V1 */
+  if (wordiiSelectedMusic?.type === "library" && wordiiShowMusicCover) {
+    const cover = document.getElementById("wordiiMusicCover");
+    const preview = document.querySelector(".story-edit-preview");
+
+    if (cover && preview) {
+      const scale = Math.min(
+        preview.clientWidth / canvas.width,
+        preview.clientHeight / canvas.height
+      );
+
+      const visibleW = canvas.width * scale;
+      const visibleH = canvas.height * scale;
+
+      const coverW = Math.min(canvas.width * .65, 220 / scale);
+      const coverH = Math.min(canvas.height * .15, 74 / scale);
+
+      const x = canvas.width / 2 +
+        ((wordiiCoverX - 50) / 100) * preview.clientWidth / scale;
+
+      const y = canvas.height / 2 +
+        ((wordiiCoverY - 50) / 100) * preview.clientHeight / scale;
+
+      const left = Math.max(0, Math.min(canvas.width - coverW, x - coverW / 2));
+      const top = Math.max(0, Math.min(canvas.height - coverH, y - coverH / 2));
+
+      ctx.fillStyle = "rgba(20,20,28,.88)";
+      ctx.beginPath();
+      ctx.roundRect(left, top, coverW, coverH, 14 / scale);
+      ctx.fill();
+
+      const artSize = coverH * .72;
+      ctx.fillStyle = "#e73571";
+      ctx.beginPath();
+      ctx.roundRect(
+        left + coverH * .14,
+        top + coverH * .14,
+        artSize,
+        artSize,
+        9 / scale
+      );
+      ctx.fill();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "bold " + Math.round(artSize * .55) + "px sans-serif";
+      ctx.fillText("♫", left + coverH * .14 + artSize / 2, top + coverH / 2);
+
+      const title = wordiiSelectedMusic.title || "Wordii Music";
+      const textX = left + coverH * 1.05;
+      const maxTextW = Math.max(1, coverW - coverH * 1.2);
+
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold " + Math.max(12, Math.round(15 / scale)) + "px sans-serif";
+
+      let shownTitle = title;
+      while (shownTitle.length > 1 &&
+             ctx.measureText(shownTitle).width > maxTextW) {
+        shownTitle = shownTitle.slice(0, -1);
+      }
+      if (shownTitle !== title) shownTitle += "…";
+
+      ctx.fillText(shownTitle, textX, top + coverH * .4, maxTextW);
+
+      ctx.font = Math.max(10, Math.round(11 / scale)) + "px sans-serif";
+      ctx.fillStyle = "#dddddd";
+      ctx.fillText("Wordii Music", textX, top + coverH * .7, maxTextW);
+    }
+  }
+
   for (const quality of [.8,.7,.6,.5,.4]) {
     const out = canvas.toDataURL('image/jpeg', quality);
     if (out.length <= 350000) return out;
@@ -1759,13 +2132,24 @@ async function storyPhotoWithCaption(src, caption, color, effectCss="none") {
 document.getElementById("seShare").onclick=e=>act(async()=>{
   if(!storyEditImage)throw new Error("Choose a photo first.");
   const overlayText=document.getElementById("seText").value.trim();
-  const img=await storyPhotoWithCaption(storyEditImage,overlayText,storyColors[storyEditColor],wordiiEffects[wordiiEffect].css);
+  /* WORDII FONT EXPORT FIX V1 */
+    if (document.fonts && overlayText) {
+      try {
+        await document.fonts.load(
+          `700 ${wordiiTextSize}px "${wordiiTextFont}"`
+        );
+        await document.fonts.ready;
+      } catch(e) {
+        console.warn("Font loading:", e);
+      }
+    }
+    const img=await storyPhotoWithCaption(storyEditImage,overlayText,storyColors[storyEditColor],wordiiEffects[wordiiEffect].css);
   const statusRef=doc(collection(db,"statuses"));
   const data={ownerUid:uid,...stAudience(),img,createdAt:serverTimestamp()};
   if(wordiiSelectedMusic?.type==='library')data.musicId=wordiiSelectedMusic.id;
   if(wordiiSelectedMusic?.type==='phone'){
-    toast('Phone MP3 sharing is not available yet. Choose Wordii music or clear music.');
-    return;
+    const proceed=confirm('Device music cannot be shared with other users yet. Post this Story without music?');
+    if(!proceed)return;
   }
   await setDoc(statusRef,data);
   closeStoryEdit();wordiiSelectedMusic=null;wordiiMusicLabel();toast("Story posted. Tap My status to view.");
@@ -1779,10 +2163,145 @@ document.getElementById("seShare").onclick=e=>act(async()=>{
   function closeSearch(){searchPanel.classList.add('hidden');searchBtn.setAttribute('aria-expanded','false');}
   menuBtn.addEventListener('click',e=>{e.stopPropagation();closeSearch();const opening=menu.classList.contains('hidden');menu.classList.toggle('hidden',!opening);menuBtn.setAttribute('aria-expanded',String(opening));});
   searchBtn.addEventListener('click',e=>{e.stopPropagation();closeMenu();const opening=searchPanel.classList.contains('hidden');if(opening)showTab('chats');searchPanel.classList.toggle('hidden',!opening);searchBtn.setAttribute('aria-expanded',String(opening));if(opening)document.getElementById('searchInput').focus();});
+  document.getElementById('menuFindUsers').addEventListener('click',()=>{
+    closeMenu();
+    showTab('chats');
+    searchPanel.classList.remove('hidden');
+    searchBtn.setAttribute('aria-expanded','true');
+    searchPanel.scrollIntoView({block:'start',behavior:'smooth'});
+    const field=document.getElementById('searchInput');
+    field.focus();
+    if(field.value.trim().length>=2)performUserSearch();
+  });
   document.getElementById('menuCreateGroup').addEventListener('click',()=>{closeMenu();document.getElementById('newGroupBtn').click();});
   document.getElementById('menuMyCode').addEventListener('click',()=>{closeMenu();showTab('connect');document.getElementById('myCode').scrollIntoView({block:'center',behavior:'smooth'});});
-  document.getElementById('menuSettings').addEventListener('click',()=>{closeMenu();document.getElementById('settings').classList.remove('hidden');renderSettings();});
+  document.getElementById('menuSettings').addEventListener('click',()=>{closeMenu();openSub('overview');});
   document.addEventListener('click',e=>{if(!menu.contains(e.target)&&!menuBtn.contains(e.target))closeMenu();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeMenu();closeSearch();}});
   document.querySelectorAll('.bottom button').forEach(b=>b.addEventListener('click',()=>{closeMenu();closeSearch();}));
+})();
+
+/* WORDII REFERENCE HOME CONTROLS V1 */
+(function(){
+  const $id=id=>document.getElementById(id);
+  const fab=$id('wordiiFab'),menu=$id('wordiiFabMenu');
+  const close=()=>{menu.classList.add('hidden');fab.setAttribute('aria-expanded','false');};
+  fab.addEventListener('click',e=>{e.stopPropagation();close();wordiiOpenContacts();});
+  $id('fabConnect').addEventListener('click',()=>{close();showTab('connect');$id('friendCode')?.focus();});
+  $id('fabGroup').addEventListener('click',()=>{close();$id('newGroupBtn').click();});
+  $id('fabNewChat').addEventListener('click',()=>{close();showTab('chats');document.getElementById('wordiiContacts').classList.remove('hidden');wordiiRenderContacts();});
+  $id('homeCameraBtn').addEventListener('click',()=>{close();const camera=$id('wordiiStoryCamera');if(camera&&typeof openWordiiStory==='function')openWordiiStory();else if($id('stPhotoBtn')){showTab('status');$id('stPhotoBtn').click();}else showTab('status');});
+  $id('menuProfile').addEventListener('click',()=>{showTab('profile');$id('homeMenu').classList.add('hidden');});
+  $id('menuNotifications').addEventListener('click',()=>{$id('homeMenu').classList.add('hidden');$id('bellBtn').click();});
+  document.addEventListener('click',e=>{if(!menu.contains(e.target)&&!fab.contains(e.target))close();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
+  const origSync=syncPremiumTabs;
+  syncPremiumTabs=function(name){origSync(name);};
+  document.querySelectorAll('.premium-tabs button').forEach(b=>{if(b.dataset.premiumTab==='status')b.addEventListener('click',()=>{showTab('status');syncPremiumTabs('status');});});
+  const nav=document.querySelector('.bottom');
+  nav?.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{close();const current=b.dataset.tab;fab.closest('.wordii-fab-wrap').style.display=current==='chats'?'flex':'none';}));
+  document.querySelectorAll('.premium-tabs button').forEach(b=>b.addEventListener('click',()=>{fab.closest('.wordii-fab-wrap').style.display=b.dataset.premiumTab==='chats'?'flex':'none';}));
+})();
+
+/* WORDII CONTACT PICKER AND CHAT MENU FIX 2026-11 */
+function wordiiOpenContacts(){
+  const panel=document.getElementById('wordiiContacts');
+  panel.classList.remove('hidden');
+  document.getElementById('wcQuery').value='';
+  document.getElementById('wcSearchArea').classList.add('hidden');
+  wordiiRenderContacts();
+}
+function wordiiRenderContacts(){
+  const q=document.getElementById('wcQuery').value.toLowerCase().trim();
+  const ids=friendIds().filter(id=>nameOf(friends[id]).toLowerCase().includes(q));
+  document.getElementById('wcCount').textContent=ids.length+' connected contacts';
+  const list=document.getElementById('wcList');
+  list.replaceChildren();
+  for(const id of ids){
+    const f=friends[id];const b=document.createElement('button');b.type='button';b.className='wc-contact';
+    const ava=document.createElement('span');ava.className='wc-avatar';ava.textContent=(nameOf(f)||'?').slice(0,1).toUpperCase();
+    const label=document.createElement('span');label.textContent=nameOf(f);
+    b.append(ava,label);
+    b.addEventListener('click',()=>act(async()=>{
+      document.getElementById('wordiiContacts').classList.add('hidden');
+      const chat=await startPublicChat(id);openChat(chat);
+    },b));list.append(b);
+  }
+  if(!ids.length){const p=document.createElement('p');p.className='wc-empty';p.textContent=q?'No matching contacts':'No connected contacts yet. Use Connect by code.';list.append(p);}
+}
+document.getElementById('wcBack').onclick=()=>document.getElementById('wordiiContacts').classList.add('hidden');
+document.getElementById('wcSearch').onclick=()=>{document.getElementById('wcSearchArea').classList.toggle('hidden');document.getElementById('wcQuery').focus();};
+document.getElementById('wcMore').onclick=()=>document.getElementById('wcSearchArea').classList.toggle('hidden');
+document.getElementById('wcQuery').addEventListener('input',wordiiRenderContacts);
+document.getElementById('wcGroup').onclick=()=>{document.getElementById('wordiiContacts').classList.add('hidden');document.getElementById('newGroupBtn').click();};
+document.getElementById('wcConnect').onclick=()=>{document.getElementById('wordiiContacts').classList.add('hidden');showTab('connect');document.getElementById('friendCode').focus();};
+const wdChatMore=document.getElementById('chatMoreMenu');
+function wdCloseChatMenu(){wdChatMore.classList.add('hidden');document.getElementById('chatMoreBtn').setAttribute('aria-expanded','false');}
+document.getElementById('chatMoreBtn').onclick=e=>{wdBlockLabel();e.stopPropagation();const opening=wdChatMore.classList.contains('hidden');wdChatMore.classList.toggle('hidden',!opening);document.getElementById('chatMoreBtn').setAttribute('aria-expanded',String(opening));};
+document.getElementById('chatMenuHide').onclick=()=>{wdCloseChatMenu();document.getElementById('hideBtn').click();};
+// Wordii V2: selection is per chat. Deleting for everyone is sender-only.
+let wdSelected=new Set(),wdSelectionMode=false;
+function wdSelectionSync(){
+  const bar=document.getElementById('wdSelectionBar');bar.classList.toggle('hidden',!wdSelectionMode);
+  document.getElementById('wdSelectedCount').textContent=wdSelected.size+' selected';
+  document.getElementById('msgs').classList.toggle('wd-selecting',wdSelectionMode);
+  document.querySelectorAll('#msgs .msg').forEach(el=>el.classList.toggle('wd-selected',wdSelected.has(el.dataset.id)));
+}
+function wdSelectionStart(id){wdSelectionMode=true;if(id)wdSelected.add(id);wdSelectionSync();}
+function wdSelectionStop(){wdSelected.clear();wdSelectionMode=false;wdSelectionSync();}
+document.getElementById('chatMenuDelete').onclick=()=>{wdCloseChatMenu();if(!activeChat)return;wdSelectionStart();toast('Tap messages to select');};
+document.getElementById('wdSelectionCancel').onclick=wdSelectionStop;
+document.getElementById('wdSelectionDelete').onclick=()=>act(async()=>{
+  if(!activeChat||!wdSelected.size)return toast('Select messages first');
+  const selected=[...wdSelected].map(id=>msgMap[id]).filter(Boolean);
+  const own=selected.every(m=>m.senderId===uid);
+  const choice=own?confirm('OK: Delete for everyone (permanently). Cancel: Choose local delete.') : false;
+  if(choice){
+    const chatId=activeChat.id;
+    const batch=writeBatch(db);selected.forEach(m=>batch.delete(doc(db,'chats',chatId,'messages',m.id)));
+    await batch.commit();
+    // Keep successfully deleted IDs hidden in the current session while Firestore listeners settle.
+    const hidden=wdHiddenIds();selected.forEach(m=>hidden.add(m.id));
+    setPref('hiddenmsgs_'+chatId,JSON.stringify([...hidden]));
+    renderMessages();toast('Deleted for everyone. Verify on your friend’s phone after rules deployment.');
+  }else{
+    if(!confirm('Hide selected messages only on this device?'))return;
+    const hidden=wdHiddenIds();selected.forEach(m=>hidden.add(m.id));setPref('hiddenmsgs_'+activeChat.id,JSON.stringify([...hidden]));renderMessages();toast('Messages hidden on this device');
+  }
+  wdSelectionStop();
+});
+function wdHiddenIds(){if(!activeChat)return new Set();try{return new Set(JSON.parse(pref('hiddenmsgs_'+activeChat.id,'[]')));}catch{return new Set();}}
+document.getElementById('chatMenuClear').onclick=()=>{
+  wdCloseChatMenu();if(!activeChat||!confirm('Clear loaded messages on this device only?'))return;
+  const hidden=wdHiddenIds();msgs.forEach(m=>hidden.add(m.id));setPref('hiddenmsgs_'+activeChat.id,JSON.stringify([...hidden]));renderMessages();toast('Chat cleared on this device');
+};
+function wdBlockLabel(){if(!activeChat||activeChat.group)return;const other=activeChat.members.find(x=>x!==uid);document.getElementById('chatMenuBlock').textContent=(me?.blockedUsers||[]).includes(other)?'Unblock contact':'Block contact';}
+document.getElementById('chatMenuBlock').onclick=e=>act(async()=>{
+  wdCloseChatMenu();if(!activeChat||activeChat.group)return toast('Only available for individual chats');
+  const other=activeChat.members.find(x=>x!==uid);const ids=new Set(me?.blockedUsers||[]);const blocking=!ids.has(other);
+  if(blocking)ids.add(other);else ids.delete(other);
+  await updateDoc(doc(db,'users',uid),{blockedUsers:[...ids]});
+  toast(blocking?'Contact blocked':'Contact unblocked');
+},document.getElementById('chatMenuBlock'));
+document.addEventListener('click',e=>{if(!wdChatMore.contains(e.target)&&!document.getElementById('chatMoreBtn').contains(e.target))wdCloseChatMenu();});
+document.getElementById('backBtn').addEventListener('click',wdCloseChatMenu);
+// Notifications must have a visible close button above the scrollable body.
+
+// Wordii V2: level page and light/dark theme
+(function(){
+  const btn=document.getElementById('wdLevelBtn'),page=document.getElementById('wdLevelScreen');
+  btn.onclick=()=>{const lv=Number(me?.level)||1,pts=Number(me?.points)||0,progress=pts%10;
+    document.getElementById('wdLevelContent').innerHTML=`<div class="wd-level-orb">${lv}</div><h2>Level ${lv}</h2><p>${pts} XP total · ${Number(me?.streak)||0} day streak</p><div class="wd-xp-track"><i style="width:${progress*10}%"></i></div><p>${progress}/10 XP toward Level ${lv+1}</p><p>+1 XP per active minute, +4 XP daily</p>`;
+    page.classList.remove('hidden');};
+  function closeLevel(){page.classList.add('hidden');showTab('chats');}
+  document.getElementById('wdLevelBack').onclick=closeLevel;
+  document.getElementById('wdLevelHome').onclick=closeLevel;
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!page.classList.contains('hidden'))closeLevel();});
+  function setTheme(v){document.documentElement.dataset.wdTheme=v;document.documentElement.dataset.theme=v;setPref('theme',v);document.querySelector('meta[name="theme-color"]')?.setAttribute('content',v==='light'?'#f7f8fc':'#08080b');}
+  setTheme(pref('theme','dark')==='auto'?(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'):pref('theme','dark'));
+  const menu=document.getElementById('homeMenu');
+  const themeBtn=document.createElement('button');themeBtn.type='button';themeBtn.id='wdThemeToggle';themeBtn.textContent='☀ Light / Dark mode';
+  themeBtn.onclick=()=>{const next=document.documentElement.dataset.wdTheme==='light'?'dark':'light';setTheme(next);themeBtn.textContent=next==='light'?'🌙 Switch to Dark mode':'☀ Switch to Light mode';menu.classList.add('hidden');toast(next==='light'?'Light mode enabled':'Dark mode enabled');};
+  themeBtn.textContent=pref('theme','dark')==='light'?'🌙 Switch to Dark mode':'☀ Switch to Light mode';
+  if(menu)menu.append(themeBtn);else{document.getElementById('homeMenuBtn').addEventListener('click',()=>{if(!document.getElementById('wdThemeToggle').isConnected){const pop=document.getElementById('homeMenuBtn').parentElement;pop.append(themeBtn);}});}
 })();
