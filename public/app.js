@@ -1035,7 +1035,7 @@ $("#settingsBody").addEventListener("click", (e) => {
       })
       .then(release => {
         const apk = release.assets?.find(a => a.name.endsWith(".apk"));
-        const currentVersion = "1.3";
+        const currentVersion = "1.3.1";
         const latestVersion = release.tag_name.replace(/^v/i, "");
         const compareVersions = (a, b) => {
           const x = a.split(".").map(Number);
