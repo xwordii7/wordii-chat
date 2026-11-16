@@ -1569,78 +1569,51 @@ document.addEventListener("click", (e) => {
   if (off) act(async () => { await disablePush(); toast("Alerts when closed: OFF"); renderSettings(true); }, off);
 });
 
-// Wordii Chat - Android Back Button Navigation
-(function setupAndroidBackButton() {
+// Wordii Chat: centralized Android hardware back navigation.
+// Requires @capacitor/app to be installed and synced into the Android project.
+(function setupWordiiBackNavigation() {
   let lastBack = 0;
-
-  function visible(id) {
-    const el = document.getElementById(id);
-    return el && !el.classList.contains("hidden");
-  }
-
-  function handleBack() {
-    if (visible("callUI")) {
-      document.getElementById("cEnd")?.click();
-      return;
+  const visible = (id) => { const el = document.getElementById(id); return !!el && !el.classList.contains("hidden"); };
+  function goBack() {
+    // Close transient overlays before navigating away from the current screen.
+    const overlays = ["homeMenu", "chatMoreMenu", "wdGlobalSearch", "wordiiContacts"];
+    for (const id of overlays) {
+      if (visible(id)) { document.getElementById(id).classList.add("hidden"); return; }
     }
-
-    if (visible("picker")) {
-      document.getElementById("pkCancel")?.click();
-      return;
+    if (visible("wdLevelScreen")) { document.getElementById("wdLevelBack")?.click(); return; }
+    if (visible("callUI")) { document.getElementById("cEnd")?.click(); return; }
+    if (visible("picker")) { document.getElementById("pkCancel")?.click(); return; }
+    if (visible("statusView")) { closeSV(); return; }
+    if (visible("profileView")) { closePV(); return; }
+    if (visible("settings")) { document.getElementById("setBack")?.click(); return; }
+    if (visible("inbox")) { document.getElementById("inboxClose")?.click(); return; }
+    if (visible("chat")) { closeChat(); showTab("chats"); return; }
+    for (const id of ["tab-profile", "tab-calls", "tab-status", "tab-connect"]) {
+      if (visible(id)) { showTab("chats"); return; }
     }
-
-    if (visible("statusView")) {
-      closeSV();
-      return;
-    }
-
-    if (visible("profileView")) {
-      closePV();
-      return;
-    }
-
-    if (visible("settings")) {
-      document.getElementById("setBack")?.click();
-      return;
-    }
-
-    if (visible("inbox")) {
-      document.getElementById("inboxClose")?.click();
-      return;
-    }
-
-    if (visible("chat")) {
-      closeChat();
-      showTab("chats");
-      return;
-    }
-
     if (visible("app")) {
       const now = Date.now();
-
       if (now - lastBack < 2000) {
-        window.Capacitor?.Plugins?.App?.exitApp();
-      } else {
-        lastBack = now;
-        toast("Press back again to exit");
-      }
+        window.Capacitor?.Plugins?.App?.exitApp?.();
+      } else { lastBack = now; toast("Press back again to exit"); }
       return;
     }
-
     toast("Please finish signing in");
   }
-
+  // Capacitor's native event must be subscribed to via @capacitor/app.
   function register() {
-    const nativeApp = window.Capacitor?.Plugins?.App;
-
-    if (nativeApp?.addListener) {
-      nativeApp.addListener("backButton", handleBack);
+    const app = window.Capacitor?.Plugins?.App;
+    if (app?.addListener) {
+      app.addListener("backButton", () => goBack()).catch?.((e) => console.warn("Wordii back listener:", e));
     } else {
-      window.addEventListener("popstate", handleBack);
+      console.warn("Capacitor App plugin unavailable: install @capacitor/app and sync Android");
     }
   }
-
-  register();
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", register, { once: true });
+  else register();
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); goBack(); }
+  });
 })();
 
 // ---------- Wordii original music library and phone audio ----------
@@ -2304,4 +2277,14 @@ document.getElementById('backBtn').addEventListener('click',wdCloseChatMenu);
   themeBtn.onclick=()=>{const next=document.documentElement.dataset.wdTheme==='light'?'dark':'light';setTheme(next);themeBtn.textContent=next==='light'?'🌙 Switch to Dark mode':'☀ Switch to Light mode';menu.classList.add('hidden');toast(next==='light'?'Light mode enabled':'Dark mode enabled');};
   themeBtn.textContent=pref('theme','dark')==='light'?'🌙 Switch to Dark mode':'☀ Switch to Light mode';
   if(menu)menu.append(themeBtn);else{document.getElementById('homeMenuBtn').addEventListener('click',()=>{if(!document.getElementById('wdThemeToggle').isConnected){const pop=document.getElementById('homeMenuBtn').parentElement;pop.append(themeBtn);}});}
+})();
+
+// Wordii v1.4.1: explicit Profile -> Chats navigation for APK and web.
+(function () {
+  const back = document.getElementById("wordiiProfileHome");
+  if (back) back.addEventListener("click", () => {
+    document.getElementById("settings")?.classList.add("hidden");
+    showTab("chats");
+    document.getElementById("app")?.scrollTo({ top: 0, behavior: "instant" });
+  });
 })();

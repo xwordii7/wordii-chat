@@ -977,3 +977,8 @@ html[data-wd-theme="light"] #chat[data-bg="4"] #msgs {
 html[data-wd-theme="light"] #chat #msgs .msg time {color:#d2cbd0!important;text-shadow:0 1px 3px #000}
 html[data-wd-theme="light"] #chat #msgs .theirs .bubble {background:#fff!important;color:#111827!important}
 html[data-wd-theme="light"] #chat #msgs .mine .bubble {background:#b81038!important;color:#fff!important}
+
+/* Wordii v1.4.1 - visible return navigation on Profile */
+.wordii-profile-nav { position: sticky; top: 0; z-index: 12; padding: 10px 16px; background: var(--bg, #0a090d); }
+.wordii-profile-nav button { display: inline-flex; align-items: center; gap: 8px; background: #b90d32; color: #fff; border: 0; border-radius: 13px; padding: 11px 16px; font: inherit; font-weight: 700; cursor: pointer; }
+body.light .wordii-profile-nav, body[data-theme="light"] .wordii-profile-nav { background: #fff; }
