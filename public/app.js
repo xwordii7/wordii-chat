@@ -277,6 +277,7 @@ function renderProfile() {
       ${row("notif", "🔔", "Notifications", "Message alerts on or off")}
       ${row("lang", "🌐", "App language", "English")}
       ${row("subs", "💎", "Subscriptions", "Explore premium benefits")}
+      ${row("updates", "🚀", "App Updates", "Check for new versions")}
       ${row("invite", "👥", "Invite a friend", "Share Wordii Chat")}
       ${me.admin ? row("admin", "🛡️", "Admin tools", "Give or remove blue ✔ badges") + row("dash", "📊", "Admin dashboard", "See who is using the app") + row("gifts", "🎁", "Level gifts", "Add, edit or remove rewards") : ""}
     </div>
@@ -889,7 +890,7 @@ $("#searchResults").addEventListener("click", (e) => {
 const BG_SW = ["#2a1b4d", "radial-gradient(#7b2cff,#1d1040)", "linear-gradient(160deg,#064e5c,#0b1b3a)", "linear-gradient(160deg,#7c2d12,#4c1d95)", "#000"];
 let admList = [], admTimer;
 let subKey = "";
-const SUB_TITLES = { points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "Admin tools", dash: "Admin dashboard", gifts: "Level gifts" };
+const SUB_TITLES = { points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "Admin tools", dash: "Admin dashboard", gifts: "Level gifts", updates: "App Updates" };
 function openSub(k) { subKey = k; $("#setTitle").textContent = SUB_TITLES[k] || "Settings"; $("#settings").classList.remove("hidden"); renderSettings(true); }
 function shareInvite() {
   const d = { title: "Wordii Chat", text: `Chat with me on Wordii Chat! Find me: ${me.username}`, url: location.origin };
@@ -930,6 +931,12 @@ function renderSettings(force) {
         <button class="btn" id="${pushOn() ? "pushOff" : "pushOn"}">${pushOn() ? "Turn off" : "Turn on"}</button></div>`,
     dash: () => `<div class="card center" id="dashStats">Loading…</div><div class="seg"><button data-dtab="active" class="on">Active</button><button data-dtab="new">New</button><button data-dtab="top">Top points</button></div><div id="dashList"></div>`,
     gifts: () => me.admin === true ? `<div class="card"><b>🎁 Manage level gifts</b><p class="tiny">Set a gift name for any level. You can edit or remove it later. Gifts are announcements, not automatically delivered items.</p><label for="giftLevel">Level</label><input id="giftLevel" type="number" min="1" max="10000" placeholder="e.g. 5"><label for="giftName">Gift</label><input id="giftName" maxlength="100" placeholder="e.g. VIP badge"><button id="giftSave" class="btn">Save level gift</button></div><div id="giftList" class="card">Loading gifts…</div>` : `<div class="card">Admin only.</div>`,
+    updates: () => `<div class="card">
+      <h3>🚀 Wordii Chat Updates</h3>
+      <p class="tiny">Check for the latest version of Wordii Chat.</p>
+      <button class="btn" id="checkWordiiUpdate">Check for Updates</button>
+      <div id="wordiiUpdateResult" style="margin-top:14px"></div>
+    </div>`,
     lang: () => `<div class="card tiny">English. Hindi is coming soon.</div>`,
     subs: () => `<div class="card tiny">No paid plans. Everything is free right now.</div>`,
     admin: () => `<div class="card"><b>Give blue ✔ badges</b><p class="tiny">Search a username, then give or remove the verified badge.</p><input id="admSearch" placeholder="Search username" autocapitalize="none" autocomplete="off"><div id="admResults"></div></div>`,
@@ -957,6 +964,36 @@ $("#settingsBody").addEventListener("input", (e) => {
   admTimer = setTimeout(async () => { try { admList = await searchPeople($("#admSearch").value); } catch (err) { toast(friendly(err)); admList = []; } renderAdm(); }, 350);
 });
 $("#settingsBody").addEventListener("click", (e) => {
+  if (e.target.closest("#checkWordiiUpdate")) {
+    const result = document.getElementById("wordiiUpdateResult");
+    if (!result) return;
+    result.textContent = "Checking for updates...";
+    fetch("https://api.github.com/repos/xwordii7/wordii-chat/releases/latest")
+      .then(async r => {
+        if (!r.ok) throw new Error("No published update found yet.");
+        return r.json();
+      })
+      .then(release => {
+        const apk = release.assets?.find(a => a.name.endsWith(".apk"));
+        result.innerHTML = "";
+        const info = document.createElement("p");
+        info.textContent = "Latest published version: " + release.tag_name;
+        result.appendChild(info);
+        if (apk) {
+          const link = document.createElement("a");
+          link.className = "btn";
+          link.href = apk.browser_download_url;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          link.textContent = "Download Update";
+          result.appendChild(link);
+        } else {
+          result.append(" APK not available yet.");
+        }
+      })
+      .catch(err => { result.textContent = err.message; });
+    return;
+  }
   const bgb = e.target.closest("[data-bg]");
   if (bgb) { setPref("chatbg", bgb.dataset.bg); applyChatBg(); renderSettings(); return; }
   const adm = e.target.closest("[data-adm]");
