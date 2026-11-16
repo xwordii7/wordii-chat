@@ -1155,7 +1155,21 @@ function setRecUI(on) { $("#micBtn").textContent = on ? "⏹" : "🎤"; $("#recC
 async function startRec() {
   if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") throw new Error("Voice messages are not supported on this phone or browser.");
   let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch { throw new Error("Allow the microphone to send voice messages."); }
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (err) {
+    const open = confirm(
+      "Microphone permission is required. Open Wordii Chat App Settings to allow it?"
+    );
+    if (open) {
+      const appId = "com.wordii.chat";
+      const url = "intent://settings/#Intent;action=android.settings.APPLICATION_DETAILS_SETTINGS;scheme=package;package=" + appId + ";end";
+      try {
+        window.location.href = url;
+      } catch (_) {
+        alert("Open Android Settings > Apps > Wordii Chat > Permissions > Microphone.");
+      }
+    }
+    throw new Error("Microphone permission is not available. Allow it in App Settings.");
+  }
   const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((t) => MediaRecorder.isTypeSupported(t)) || "";
   rec = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: 16000 });
   recChunks = []; recCancelled = false;
@@ -1514,3 +1528,30 @@ document.addEventListener("click", (e) => {
 
   register();
 })();
+
+// ---------- Wordii Music Search UI ----------
+const wordiiMusicBtn = document.getElementById("stMusicBtn");
+const wordiiMusicPanel = document.getElementById("stMusicPanel");
+const wordiiMusicClose = document.getElementById("stMusicClose");
+const wordiiMusicSearch = document.getElementById("stMusicSearch");
+const wordiiMusicResults = document.getElementById("stMusicResults");
+
+if (wordiiMusicBtn && wordiiMusicPanel) {
+  wordiiMusicBtn.addEventListener("click", () => {
+    wordiiMusicPanel.classList.remove("hidden");
+    wordiiMusicSearch?.focus();
+  });
+
+  wordiiMusicClose?.addEventListener("click", () => {
+    wordiiMusicPanel.classList.add("hidden");
+  });
+
+  wordiiMusicSearch?.addEventListener("input", () => {
+    const q = wordiiMusicSearch.value.trim();
+
+    wordiiMusicResults.textContent = q
+      ? "Searching for \"" + q + "\" — music provider not connected yet."
+      : "";
+  });
+}
+
