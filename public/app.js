@@ -975,11 +975,23 @@ $("#settingsBody").addEventListener("click", (e) => {
       })
       .then(release => {
         const apk = release.assets?.find(a => a.name.endsWith(".apk"));
+        const currentVersion = "1.2";
+        const latestVersion = release.tag_name.replace(/^v/i, "");
+        const compareVersions = (a, b) => {
+          const x = a.split(".").map(Number);
+          const y = b.split(".").map(Number);
+          for (let i = 0; i < Math.max(x.length, y.length); i++) {
+            const diff = (x[i] || 0) - (y[i] || 0);
+            if (diff) return diff;
+          }
+          return 0;
+        };
+        const updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
         result.innerHTML = "";
         const info = document.createElement("p");
-        info.textContent = "Latest published version: " + release.tag_name;
+        info.textContent = updateAvailable ? "New version available: " + release.tag_name : "✅ You are up to date (v" + currentVersion + ")";
         result.appendChild(info);
-        if (apk) {
+        if (apk && updateAvailable) {
           const link = document.createElement("a");
           link.className = "btn";
           link.href = apk.browser_download_url;
