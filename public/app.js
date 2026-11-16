@@ -1035,7 +1035,7 @@ $("#settingsBody").addEventListener("click", (e) => {
       })
       .then(release => {
         const apk = release.assets?.find(a => a.name.endsWith(".apk"));
-        const currentVersion = "1.3.1";
+        const currentVersion = "1.3.2";
         const latestVersion = release.tag_name.replace(/^v/i, "");
         const compareVersions = (a, b) => {
           const x = a.split(".").map(Number);
@@ -1617,7 +1617,7 @@ const wordiiEffects = [
 ];
 let wordiiSelectedMusic=null, wordiiAudioPreview=null, wordiiEffect=0, wordiiStatusAudio=null, wordiiStatusAudioUrl=null;
 const wordiiMusicPanel=document.getElementById('stMusicPanel');
-function wordiiStopPreview(){if(wordiiAudioPreview){wordiiAudioPreview.pause();wordiiAudioPreview.src='';wordiiAudioPreview=null;}}
+function wordiiStopPreview(){if(wordiiAudioPreview){wordiiAudioPreview.pause();const oldUrl=wordiiAudioPreview.src;wordiiAudioPreview.removeAttribute('src');wordiiAudioPreview.load();if(oldUrl.startsWith('blob:'))URL.revokeObjectURL(oldUrl);wordiiAudioPreview=null;}}
 function wordiiMusicLabel(){document.getElementById('wordiiMusicSelected').textContent=wordiiSelectedMusic?('Selected: '+wordiiSelectedMusic.title):'No music selected';}
 function wordiiRenderMusic(){
   const q=document.getElementById('stMusicSearch').value.trim().toLowerCase();
@@ -1639,7 +1639,7 @@ document.getElementById('wordiiAudioFile').onchange=e=>{
   const f=e.target.files[0];if(!f)return;
   if(f.size>8*1024*1024){toast('Choose audio under 8 MB');e.target.value='';return;}
   if(!/^audio\/(mpeg|mp4|x-m4a|wav|x-wav|aac)$/.test(f.type)){toast('Use MP3, M4A or WAV audio');e.target.value='';return;}
-  wordiiStopPreview();wordiiSelectedMusic={type:'phone',file:f,title:f.name};wordiiMusicLabel();wordiiRenderMusic();
+  wordiiStopPreview();wordiiSelectedMusic={type:'phone',file:f,title:f.name};wordiiMusicLabel();wordiiRenderMusic();wordiiAudioPreview=new Audio(URL.createObjectURL(f));wordiiAudioPreview.volume=.45;wordiiAudioPreview.play().catch(()=>toast('Audio preview could not play'));
 };
 document.getElementById('wordiiMusicClear').onclick=()=>{wordiiStopPreview();wordiiSelectedMusic=null;document.getElementById('wordiiAudioFile').value='';wordiiMusicLabel();wordiiRenderMusic();};
 function wordiiOpenEffects(){
@@ -1764,12 +1764,8 @@ document.getElementById("seShare").onclick=e=>act(async()=>{
   const data={ownerUid:uid,...stAudience(),img,createdAt:serverTimestamp()};
   if(wordiiSelectedMusic?.type==='library')data.musicId=wordiiSelectedMusic.id;
   if(wordiiSelectedMusic?.type==='phone'){
-    const f=wordiiSelectedMusic.file;
-    const ext=f.type==='audio/mpeg'?'mp3':f.type==='audio/mp4'||f.type==='audio/x-m4a'?'m4a':f.type==='audio/aac'?'aac':'wav';
-    const path=`status-audio/${uid}/${statusRef.id}/track.${ext}`;
-    try{await uploadBytes(storageRef(getStorage(),path),f,{contentType:f.type});}
-    catch(err){throw new Error('Audio upload failed. Enable Firebase Storage and deploy storage.rules first. '+(err.message||''));}
-    data.audioPath=path;
+    toast('Phone MP3 sharing is not available yet. Choose Wordii music or clear music.');
+    return;
   }
   await setDoc(statusRef,data);
   closeStoryEdit();wordiiSelectedMusic=null;wordiiMusicLabel();toast("Story posted. Tap My status to view.");

@@ -485,3 +485,47 @@ html,body,#app{background:#050506!important;color:#f5f5f7!important}
 
 /* Music popup above Story editor */
 #stMusicPanel:not(.hidden){z-index:12020!important}
+
+/* Wordii notification text visibility */
+.inbox-head,
+#inbox,
+#inbox .card,
+#inbox button {
+  color: #f5f5f7;
+}
+
+/* Add Music screen: keep content below Android status bar */
+#stMusicPanel:not(.hidden) {
+  padding-top: max(44px, calc(20px + env(safe-area-inset-top, 24px))) !important;
+}
+
+/* Wordii notification inbox readability */
+#inbox {
+  background: #101015 !important;
+  color: #ffffff !important;
+}
+
+#inboxBody .row {
+  background: #201820 !important;
+  border: 1px solid #49313e !important;
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 9px;
+  color: #ffffff !important;
+}
+
+#inboxBody .row b {
+  color: #ffffff !important;
+}
+
+#inboxBody .row .muted {
+  color: #c8bbc5 !important;
+}
+
+#inboxBody .sec {
+  color: #ff638c !important;
+}
+
+#inboxBody .tiny {
+  color: #d1c5ce !important;
+}
