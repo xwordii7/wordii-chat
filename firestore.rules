@@ -339,6 +339,14 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastAt', 'lastBy'])
         && request.resource.data.lastBy == request.auth.uid
         && request.resource.data.lastAt == request.time;
+      // Group creator may update only group photo and banner; no member/owner changes.
+      allow update: if signedIn() && resource.data.group == true
+        && resource.data.owner == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatar','banner'])
+        && (!('avatar' in request.resource.data) || (request.resource.data.avatar is string
+          && (request.resource.data.avatar == '' || (request.resource.data.avatar.matches('^data:image/jpeg;base64,.*') && request.resource.data.avatar.size() <= 40000))))
+        && (!('banner' in request.resource.data) || (request.resource.data.banner is string
+          && (request.resource.data.banner == '' || (request.resource.data.banner.matches('^data:image/jpeg;base64,.*') && request.resource.data.banner.size() <= 90000))));
       allow delete: if false;
 
       // "typing..." marker: each member writes only their own record.

@@ -221,6 +221,8 @@ function startApp() {
     firstChats = false;
     if (activeChat && document.visibilityState === "visible") markRead(activeChat.id);
     renderChats(); renderBadges(); renderPV();
+    if (activeChat) renderChatTitle();
+    renderWordiiGroupInfo();
   }, (e) => toast(friendly(e)));
   myCode = loadCode();
   if (!myCode) maybeNewCode();
@@ -312,7 +314,7 @@ function renderChats() {
   renderStoryRail();
   if (!chats.length) { box.innerHTML = `<div class="card center muted">No chats yet.<br>Open <b>Connect</b> and swap codes with a friend.</div>`; return; }
   box.innerHTML = [...chats].sort(byLast).map((c) => {
-    if (c.group) return `<div class="row" data-chat="${esc(c.id)}"><div class="avwrap">${avatarHTML({ username: "@" + c.name })}</div><div class="grow"><b>👥 ${esc(c.name)}</b><span class="muted">${c.members.length} members</span></div>${isUnread(c) ? '<span class="dot"></span>' : ""}</div>`;
+    if (c.group) return `<div class="row" data-chat="${esc(c.id)}"><div class="avwrap">${avatarHTML({ username: "@" + c.name, avatar: c.avatar })}</div><div class="grow"><b>👥 ${esc(c.name)}</b><span class="muted">${c.members.length} members</span></div>${isUnread(c) ? '<span class="dot"></span>' : ""}</div>`;
     const f = friends[c.members.find((m) => m !== uid)];
     return `<div class="row" data-chat="${esc(c.id)}">${avWithDot(f)}<div class="grow"><b>${esc(nameOf(f))}${vb(f)}</b><span class="muted">${isOnline(f) ? '<span class="on">● Active now</span>' : esc(f?.username || "") + " · Lv " + (f?.level || 1)}</span></div>${isUnread(c) ? '<span class="dot"></span>' : ""}</div>`;
   }).join("");
@@ -420,8 +422,10 @@ function closeChat() { if(typeof wdSelectionStop === "function")wdSelectionStop(
 $("#backBtn").onclick = closeChat;
 function renderChatTitle() {
   if (!activeChat) return;
+  const latest = chats.find(c => c.id === activeChat.id);
+  if (latest) activeChat = latest;
   $("#callBtn").classList.toggle("hidden", !!activeChat.group); $("#vidBtn").classList.toggle("hidden", !!activeChat.group);
-  if (activeChat.group) { $("#chatTitle").innerHTML = `<div class="avwrap">${avatarHTML({ username: "@" + activeChat.name })}</div><span>${esc(activeChat.name)}<br><small class="presence">${activeChat.members.length} members</small></span>`; return; }
+  if (activeChat.group) { $("#chatTitle").innerHTML = `<div class="avwrap">${avatarHTML({ username: "@" + activeChat.name, avatar: activeChat.avatar })}</div><span>${esc(activeChat.name)}<br><small class="presence">${activeChat.members.length} members</small></span>`; return; }
   const f = friends[activeChat.members.find((m) => m !== uid)];
   $("#chatTitle").innerHTML = `${avWithDot(f)}<span>${esc(nameOf(f))}${vb(f)}<br><small class="presence ${isOnline(f) ? "on" : ""}">${esc(presenceText(f))}</small></span>`;
 }
@@ -912,6 +916,48 @@ document.addEventListener("change", (e) => {
 });
 
 // --- follow ---
+
+// v1.4.3: group information, owner-managed group picture and cover.
+function openWordiiGroupInfo() {
+  if (!activeChat?.group) return;
+  const el = document.getElementById('wordiiGroupInfo');
+  el.classList.remove('hidden');
+  renderWordiiGroupInfo();
+}
+function renderWordiiGroupInfo() {
+  const el = document.getElementById('wordiiGroupInfo');
+  if (el.classList.contains('hidden') || !activeChat?.group) return;
+  const c = chats.find(x => x.id === activeChat.id) || activeChat;
+  const owner = c.owner === uid;
+  document.getElementById('wordiiGroupBody').innerHTML = `
+    <div class="wg-banner" ${hasBanner(c) ? `style="background:${bannerCss(c)}"` : ''}></div>
+    <div class="wg-avatar">${avatarHTML({username:'@'+c.name,avatar:c.avatar},true)}</div>
+    <h2>${esc(c.name)}</h2><p class="tiny">${c.members.length} members</p>
+    ${owner ? `<div class="wg-actions"><button type="button" data-wg="avatar" class="btn">Change group DP</button><button type="button" data-wg="banner" class="btn ghost">Change banner</button><button type="button" data-wg="removeAvatar" class="btn ghost">Remove DP</button><button type="button" data-wg="removeBanner" class="btn ghost">Remove banner</button></div>` : '<p class="tiny">Only the group creator can change its pictures.</p>'}
+    <h3>Members</h3>${c.members.map(id => `<div class="row nopoint">${avatarHTML(person(id))}<div class="grow">${esc(id===uid?'You':nameOf(person(id)))}</div></div>`).join('')}`;
+}
+document.getElementById('wordiiGroupBack').addEventListener('click',()=>document.getElementById('wordiiGroupInfo').classList.add('hidden'));
+document.getElementById('wordiiGroupBody').addEventListener('click', e=>{
+  const action=e.target.closest('[data-wg]')?.dataset.wg;
+  if (!action || !activeChat?.group) return;
+  const c=chats.find(x=>x.id===activeChat.id)||activeChat;
+  if (c.owner!==uid) return toast('Only the group creator can edit this group');
+  if(action==='avatar'||action==='banner') {
+    const input=document.getElementById('wordiiGroupFile'); input.dataset.field=action; input.click();
+  } else if(action==='removeAvatar'||action==='removeBanner') {
+    act(async()=>{await updateDoc(doc(db,'chats',c.id),{[action==='removeAvatar'?'avatar':'banner']:''});toast('Group photo removed');});
+  }
+});
+document.getElementById('wordiiGroupFile').addEventListener('change',e=>{
+  const input=e.target, file=input.files?.[0], field=input.dataset.field; input.value='';
+  if(!file || !activeChat?.group || !['avatar','banner'].includes(field))return;
+  const id=activeChat.id;
+  act(async()=>{
+    const value=await compress(file,field==='avatar'?{max:128,square:true,quality:.8,limitLen:40000}:{max:720,quality:.6,limitLen:90000});
+    await updateDoc(doc(db,'chats',id),{[field]:value});toast('Group '+(field==='avatar'?'DP':'banner')+' updated');
+  });
+});
+
 const following = new Set();
 function startFollows() {
   onSnapshot(query(collection(db, "follows"), where("follower", "==", uid)), (s) => {
@@ -959,7 +1005,7 @@ function renderPV() {
 $("#pvBack").onclick = closePV;
 $("#chatTitle").addEventListener("click", () => {
   if (!activeChat) return;
-  if (activeChat.group) toast("Members: " + activeChat.members.map((m) => (m === uid ? "You" : nameOf(person(m)))).join(", "));
+  if (activeChat.group) openWordiiGroupInfo();
   else openProfileView(activeChat.members.find((m) => m !== uid));
 });
 $("#pvBody").addEventListener("click", (e) => {

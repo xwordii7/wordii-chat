@@ -985,3 +985,17 @@ body.light .wordii-profile-nav, body[data-theme="light"] .wordii-profile-nav { b
 
 /* Wordii Verified purchase and admin */
 .wordii-subscription{text-align:center}.wordii-sub-icon{margin:0 auto 8px;width:52px;height:52px;display:grid;place-items:center;border-radius:50%;background:#cf1539;color:white;font-size:30px;font-weight:900}.wordii-sub-price{font-size:32px;font-weight:900;color:#ed3151;margin:12px 0}.wordii-pay-qr{display:block;width:min(100%,320px);max-height:310px;object-fit:contain;margin:14px auto;background:white;border-radius:14px;padding:8px}.wordii-request{padding:12px;margin:12px 0;border:1px solid rgba(160,160,160,.3);border-radius:12px;overflow-wrap:anywhere;text-align:left}.wordii-proof-preview{width:min(100%,300px);max-height:360px;object-fit:contain;display:block;margin:8px 0}.wordii-subscription input{width:100%;margin:8px 0 14px}.wordii-subscription label{display:block;text-align:left;margin-top:12px}
+
+/* v1.4.3: overlays must appear ABOVE the chat (chat z-index 100). */
+#profileView:not(.hidden){z-index:120!important}
+#wordiiGroupInfo{position:fixed;inset:0;z-index:121;background:var(--bg,#08080b);color:var(--text,#fff);overflow-y:auto}
+#wordiiGroupInfo.hidden{display:none!important}
+#wordiiGroupInfo .chat-top{position:sticky;top:0;z-index:2}
+#wordiiGroupBody{text-align:center;padding-bottom:40px}
+.wg-banner{height:175px;background:linear-gradient(135deg,#3b0a17,#a41235) center/cover}
+.wg-avatar{display:flex;justify-content:center;margin:-38px auto 12px;position:relative}
+.wg-avatar .avatar{border:3px solid #ff3158}
+.wg-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:16px}
+#wordiiGroupBody h3{text-align:left;padding:8px 18px}
+#wordiiGroupBody .row{text-align:left;margin:8px 16px}
+#chatTitle{touch-action:manipulation;cursor:pointer}
