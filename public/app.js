@@ -1035,11 +1035,12 @@ function renderSettings(force) {
       <div id="wordiiUpdateResult" style="margin-top:14px"></div>
     </div>`,
     lang: () => `<div class="card tiny">English. Hindi is coming soon.</div>`,
-    subs: () => `<div class="card tiny">No paid plans. Everything is free right now.</div>`,
+    subs: () => wordiiSubscriptionHTML(),
     admin: () => `<div class="card"><b>Give blue ✔ badges</b><p class="tiny">Search a username, then give or remove the verified badge.</p><input id="admSearch" placeholder="Search username" autocapitalize="none" autocomplete="off"><div id="admResults"></div></div>`,
   };
   $("#settingsBody").innerHTML = (pages[subKey] || (() => ""))();
   if (subKey === "admin") renderAdm();
+  if (subKey === "subs") loadWordiiSubscription();
   if (subKey === "dash") loadDash();
   if (subKey === "gifts" && me.admin === true) loadLevelGifts();
 }
@@ -1061,7 +1062,7 @@ $("#settingsBody").addEventListener("input", (e) => {
   clearTimeout(admTimer);
   admTimer = setTimeout(async () => { try { admList = await searchPeople($("#admSearch").value); } catch (err) { toast(friendly(err)); admList = []; } renderAdm(); }, 350);
 });
-$("#settingsBody").addEventListener("click", (e) => {
+$("#settingsBody").addEventListener("click", async (e) => {
   if (e.target.closest("#checkWordiiUpdate")) {
     const result = document.getElementById("wordiiUpdateResult");
     if (!result) return;
@@ -1104,6 +1105,7 @@ $("#settingsBody").addEventListener("click", (e) => {
       .catch(err => { result.textContent = err.message; });
     return;
   }
+  if (await handleWordiiSubscriptionClick(e)) return;
   if (e.target.closest("#changeEmailBtn")) {
     const newEmail = $("#changeEmailInput")?.value.trim().toLowerCase();
     if (!newEmail || !EMAIL_RE.test(newEmail)) { toast("Enter a valid email address"); return; }
@@ -2288,3 +2290,58 @@ document.getElementById('backBtn').addEventListener('click',wdCloseChatMenu);
     document.getElementById("app")?.scrollTo({ top: 0, behavior: "instant" });
   });
 })();
+
+
+// Wordii Verified: manual UPI proof review. Screenshots are stored in private Firestore documents.
+let wordiiPlan = {price:30, enabled:false};
+function wordiiSubscriptionHTML(){
+  return `<div class="card wordii-subscription"><div class="wordii-sub-icon">✔</div><h3>Wordii Verified</h3><p class="tiny">Get a verified badge next to your username after payment is checked by an admin.</p><div class="wordii-sub-price" id="wordiiSubPrice">₹${wordiiPlan.price}</div><p class="tiny">One-time badge • Manual verification • No automatic payment confirmation</p>${me?.verified ? '<p>✅ Your account is verified.</p>' : ''}<button type="button" id="wordiiPurchase" class="btn" ${!wordiiPlan.enabled?'disabled':''}>${wordiiPlan.enabled?'Purchase':'Purchases not enabled yet'}</button><div id="wordiiPurchasePanel" class="hidden"><p class="tiny">Scan this FamPay QR and pay the exact amount shown above. Check the recipient before paying.</p><img class="wordii-pay-qr" src="wordii-payment-qr.jpg" alt="Payment QR supplied by Wordii developer"><p><b>Amount: ₹<span id="wordiiPayAmount">${wordiiPlan.price}</span></b></p><label>UTR / Transaction ID</label><input id="wordiiUtr" maxlength="45" placeholder="Enter payment reference" autocomplete="off"><label>Payment screenshot (required)</label><input id="wordiiProof" type="file" accept="image/*"><p class="tiny">Your username: <b>${esc(me?.username)}</b>. Only admins can view your submitted proof. Do not upload passwords, OTPs or unrelated personal information.</p><button type="button" class="btn" id="wordiiSubmitProof">Submit for Verification</button></div><div id="wordiiMyRequests" class="tiny"></div></div>${me?.admin===true?`<div class="card"><h3>🛡️ Verified Badge Admin</h3><label>Badge price (₹)</label><input id="wordiiAdminPrice" type="number" min="1" max="10000" step="1" value="${wordiiPlan.price}"><label class="setrow"><span>Enable purchases</span><input type="checkbox" id="wordiiAdminEnabled" ${wordiiPlan.enabled?'checked':''}></label><button class="btn" id="wordiiSavePlan">Save price & availability</button><p class="tiny">Changing the price does not change existing requests. Confirm payment in FamPay before approval.</p><div id="wordiiAdminRequests">Loading requests…</div></div>`:''}`;
+}
+async function loadWordiiSubscription(){
+  try {
+    const snap=await getDoc(doc(db,'wordiiConfig','verifiedPlan'));
+    wordiiPlan=snap.exists()?{price:snap.data().price,enabled:snap.data().enabled===true}:{price:30,enabled:false};
+    if(subKey!=='subs')return;
+    // Refresh content only after the initial plan load.
+    $('#settingsBody').innerHTML=wordiiSubscriptionHTML();
+    const mine=await getDocs(query(collection(db,'verifiedRequests'),where('uid','==',uid),limit(20)));
+    const mineBox=$('#wordiiMyRequests');
+    if(mineBox)mineBox.innerHTML=mine.docs.map(d=>`<div class="wordii-request">Request: ₹${d.data().price} — <b>${esc(d.data().status)}</b></div>`).join('');
+    if(me?.admin===true)await loadWordiiAdminRequests();
+  }catch(e){toast(friendly(e));}
+}
+async function loadWordiiAdminRequests(){
+  const box=$('#wordiiAdminRequests');if(!box||me?.admin!==true)return;
+  try{
+    const snap=await getDocs(query(collection(db,'verifiedRequests'),limit(100)));
+    const rows=snap.docs.filter(d=>d.data().status==='pending');
+    box.innerHTML=`<h4>Pending payments (${rows.length})</h4>`+(rows.length?rows.map(d=>{const v=d.data();return `<div class="wordii-request"><b>${esc(v.username)}</b> · ₹${v.price}<p class="tiny">UTR: ${esc(v.utr)}</p><img class="wordii-proof-preview" src="${esc(v.proof)}" alt="User payment screenshot"><div class="row-btns"><button class="btn sm" data-wordii-approve="${esc(d.id)}">Approve</button><button class="btn sm ghost" data-wordii-reject="${esc(d.id)}">Reject</button></div></div>`}).join(''):'<p class="tiny">No pending payments.</p>');
+  }catch(e){box.textContent=friendly(e);}
+}
+async function wordiiImageData(file){
+  if(!file||!file.type.startsWith('image/'))throw Error('Choose a payment screenshot.');
+  if(file.size>8*1024*1024)throw Error('Screenshot must be under 8 MB.');
+  const bitmap=await createImageBitmap(file);const scale=Math.min(1,850/Math.max(bitmap.width,bitmap.height));
+  const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+  canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close?.();
+  const result=canvas.toDataURL('image/jpeg',.55);
+  if(result.length>180000)throw Error('Screenshot is too large. Crop it and try again.');
+  return result;
+}
+async function handleWordiiSubscriptionClick(e){
+  const purchase=e.target.closest('#wordiiPurchase');if(purchase){if(!wordiiPlan.enabled)return true;$('#wordiiPurchasePanel')?.classList.remove('hidden');purchase.classList.add('hidden');return true;}
+  const save=e.target.closest('#wordiiSavePlan');if(save){
+    if(me?.admin!==true){toast('Admin only');return true;}
+    await act(async()=>{const price=Number($('#wordiiAdminPrice').value);if(!Number.isInteger(price)||price<1||price>10000)throw Error('Enter a whole-number price from ₹1 to ₹10000.');await setDoc(doc(db,'wordiiConfig','verifiedPlan'),{price,enabled:$('#wordiiAdminEnabled').checked,updatedAt:serverTimestamp(),updatedBy:uid});toast('Subscription settings saved');await loadWordiiSubscription();},save);return true;
+  }
+  const submit=e.target.closest('#wordiiSubmitProof');if(submit){
+    await act(async()=>{if(!wordiiPlan.enabled)throw Error('Purchases are disabled.');const utr=$('#wordiiUtr').value.trim();if(!/^[a-zA-Z0-9\-]{8,45}$/.test(utr))throw Error('Enter a valid UTR / transaction ID (8–45 characters).');const proof=await wordiiImageData($('#wordiiProof').files[0]);const snap=await getDoc(doc(db,'wordiiConfig','verifiedPlan'));if(!snap.exists()||snap.data().enabled!==true)throw Error('Purchases are disabled.');if(snap.data().price!==wordiiPlan.price)throw Error('Price changed. Reopen subscriptions before paying.');await addDoc(collection(db,'verifiedRequests'),{uid,username:me.username,utr,proof,price:wordiiPlan.price,status:'pending',createdAt:serverTimestamp()});toast('Request submitted. Await admin verification.');await loadWordiiSubscription();},submit);return true;
+  }
+  const approve=e.target.closest('[data-wordii-approve]');const reject=e.target.closest('[data-wordii-reject]');if(approve||reject){
+    if(me?.admin!==true){toast('Admin only');return true;}
+    const id=(approve||reject).dataset.wordiiApprove||(approve||reject).dataset.wordiiReject;const yes=!!approve;
+    if(!confirm(yes?'Have you independently confirmed this UTR and amount in FamPay? Approve badge?':'Reject this payment request?'))return true;
+    await act(async()=>{const requestRef=doc(db,'verifiedRequests',id);const snap=await getDoc(requestRef);if(!snap.exists()||snap.data().status!=='pending')throw Error('Request already handled.');const batch=writeBatch(db);batch.update(requestRef,{status:yes?'approved':'rejected',reviewedBy:uid,reviewedAt:serverTimestamp()});if(yes)batch.update(doc(db,'users',snap.data().uid),{verified:true});await batch.commit();toast(yes?'Badge approved':'Request rejected');await loadWordiiSubscription();},approve||reject);return true;
+  }
+  return false;
+}

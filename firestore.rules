@@ -31,6 +31,36 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/chats/$(chatId)).data.members;
     }
 
+    // Public plan settings, but only an existing admin can change the price or availability.
+    match /wordiiConfig/{configId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin() && configId == 'verifiedPlan'
+        && request.resource.data.keys().hasOnly(['price','enabled','updatedAt','updatedBy'])
+        && request.resource.data.price is int && request.resource.data.price >= 1 && request.resource.data.price <= 10000
+        && request.resource.data.enabled is bool && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+    match /verifiedRequests/{requestId} {
+      allow get, list: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid','username','utr','proof','price','status','createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.username == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username
+        && request.resource.data.status == 'pending' && request.resource.data.createdAt == request.time
+        && request.resource.data.utr is string && request.resource.data.utr.matches('^[A-Za-z0-9-]{8,45}$')
+        && request.resource.data.proof is string && request.resource.data.proof.matches('^data:image/jpeg;base64,.*')
+        && request.resource.data.proof.size() <= 180000
+        && get(/databases/$(database)/documents/wordiiConfig/verifiedPlan).data.enabled == true
+        && request.resource.data.price == get(/databases/$(database)/documents/wordiiConfig/verifiedPlan).data.price;
+      allow update: if isAdmin() && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','reviewedBy','reviewedAt'])
+        && request.resource.data.status in ['approved','rejected']
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewedAt == request.time;
+      allow delete: if false;
+    }
+
     // One profile per account, created once, never edited.
     match /users/{uid} {
       allow read: if signedIn();
@@ -54,7 +84,7 @@ service cloud.firestore {
         );
       // Owner may change only displayName and avatar (small JPEG as text).
       allow update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'avatar', 'banner', 'bio', 'isPublic', 'showOnline'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'avatar', 'banner', 'bio', 'isPublic', 'showOnline', 'blockedUsers'])
         && (!('displayName' in request.resource.data)
             || (request.resource.data.displayName is string && request.resource.data.displayName.size() <= 30))
         && (!('avatar' in request.resource.data)
@@ -64,7 +94,8 @@ service cloud.firestore {
         && (!('bio' in request.resource.data)
             || (request.resource.data.bio is string && request.resource.data.bio.size() <= 150))
         && (!('isPublic' in request.resource.data) || request.resource.data.isPublic is bool)
-        && (!('showOnline' in request.resource.data) || request.resource.data.showOnline is bool);
+        && (!('showOnline' in request.resource.data) || request.resource.data.showOnline is bool)
+        && (!('blockedUsers' in request.resource.data) || (request.resource.data.blockedUsers is list && request.resource.data.blockedUsers.size() <= 300));
       // +1 point per active minute. Pace is checked against the SERVER clock.
       allow update: if signedIn() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'level', 'lastMinuteAt'])
@@ -315,6 +346,7 @@ service cloud.firestore {
         allow read: if signedIn() && request.auth.uid in chatMembers(chatId);
         allow create, update: if signedIn() && typerId == request.auth.uid
           && request.auth.uid in chatMembers(chatId)
+          && (chatMembers(chatId).size() != 2 || (!(request.auth.uid in get(/databases/$(database)/documents/users/$(chatMembers(chatId)[0])).data.get('blockedUsers', [])) && !(request.auth.uid in get(/databases/$(database)/documents/users/$(chatMembers(chatId)[1])).data.get('blockedUsers', []))))
           && request.resource.data.keys().hasOnly(['at'])
           && request.resource.data.at == request.time;
         allow delete: if false;
@@ -352,7 +384,8 @@ service cloud.firestore {
           && !('seenAt' in resource.data)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seenAt'])
           && request.resource.data.seenAt == request.time;
-        allow delete: if false;
+        allow delete: if signedIn() && request.auth.uid in chatMembers(chatId)
+          && resource.data.senderId == request.auth.uid;
       }
     }
   }
