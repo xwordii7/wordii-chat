@@ -278,7 +278,7 @@ function renderProfile() {
       ${row("lang", "🌐", "App language", "English")}
       ${row("subs", "💎", "Subscriptions", "Explore premium benefits")}
       ${row("invite", "👥", "Invite a friend", "Share Wordii Chat")}
-      ${me.admin ? row("admin", "🛡️", "Admin tools", "Give or remove blue ✔ badges") + row("dash", "📊", "Admin dashboard", "See who is using the app") : ""}
+      ${me.admin ? row("admin", "🛡️", "Admin tools", "Give or remove blue ✔ badges") + row("dash", "📊", "Admin dashboard", "See who is using the app") + row("gifts", "🎁", "Level gifts", "Add, edit or remove rewards") : ""}
     </div>
     ${followCard()}
     <p class="tiny" style="padding:6px 10px">Symbol messages are <b>obfuscation, not encryption</b>.</p>`;
@@ -889,7 +889,7 @@ $("#searchResults").addEventListener("click", (e) => {
 const BG_SW = ["#2a1b4d", "radial-gradient(#7b2cff,#1d1040)", "linear-gradient(160deg,#064e5c,#0b1b3a)", "linear-gradient(160deg,#7c2d12,#4c1d95)", "#000"];
 let admList = [], admTimer;
 let subKey = "";
-const SUB_TITLES = { points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "Admin tools", dash: "Admin dashboard" };
+const SUB_TITLES = { points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "Admin tools", dash: "Admin dashboard", gifts: "Level gifts" };
 function openSub(k) { subKey = k; $("#setTitle").textContent = SUB_TITLES[k] || "Settings"; $("#settings").classList.remove("hidden"); renderSettings(true); }
 function shareInvite() {
   const d = { title: "Wordii Chat", text: `Chat with me on Wordii Chat! Find me: ${me.username}`, url: location.origin };
@@ -929,6 +929,7 @@ function renderSettings(force) {
         <p class="tiny">${pushOn() ? "✅ ON for this phone." : "OFF for this phone."} New messages, chat requests and incoming calls show a notification even if the app is fully closed. (Needs the Wordii push server, see PUSH-SETUP.md.)</p>
         <button class="btn" id="${pushOn() ? "pushOff" : "pushOn"}">${pushOn() ? "Turn off" : "Turn on"}</button></div>`,
     dash: () => `<div class="card center" id="dashStats">Loading…</div><div class="seg"><button data-dtab="active" class="on">Active</button><button data-dtab="new">New</button><button data-dtab="top">Top points</button></div><div id="dashList"></div>`,
+    gifts: () => me.admin === true ? `<div class="card"><b>🎁 Manage level gifts</b><p class="tiny">Set a gift name for any level. You can edit or remove it later. Gifts are announcements, not automatically delivered items.</p><label for="giftLevel">Level</label><input id="giftLevel" type="number" min="1" max="10000" placeholder="e.g. 5"><label for="giftName">Gift</label><input id="giftName" maxlength="100" placeholder="e.g. VIP badge"><button id="giftSave" class="btn">Save level gift</button></div><div id="giftList" class="card">Loading gifts…</div>` : `<div class="card">Admin only.</div>`,
     lang: () => `<div class="card tiny">English. Hindi is coming soon.</div>`,
     subs: () => `<div class="card tiny">No paid plans. Everything is free right now.</div>`,
     admin: () => `<div class="card"><b>Give blue ✔ badges</b><p class="tiny">Search a username, then give or remove the verified badge.</p><input id="admSearch" placeholder="Search username" autocapitalize="none" autocomplete="off"><div id="admResults"></div></div>`,
@@ -936,6 +937,7 @@ function renderSettings(force) {
   $("#settingsBody").innerHTML = (pages[subKey] || (() => ""))();
   if (subKey === "admin") renderAdm();
   if (subKey === "dash") loadDash();
+  if (subKey === "gifts" && me.admin === true) loadLevelGifts();
 }
 function renderAdm() {
   const box = $("#admResults"); if (!box) return;
@@ -962,6 +964,20 @@ $("#settingsBody").addEventListener("click", (e) => {
     const u = admList.find((x) => x.id === adm.dataset.adm); if (!u) return;
     act(async () => { await updateDoc(doc(db, "users", u.id), { verified: !u.verified }); u.verified = !u.verified; renderAdm(); toast(u.verified ? "Verified ✔ given" : "Badge removed"); }, adm);
     return;
+  }
+  if (e.target.closest("#giftSave")) {
+    if (me?.admin !== true) { toast("Admin only"); return; }
+    const level = Number($("#giftLevel")?.value), gift = $("#giftName")?.value.trim();
+    if (!Number.isInteger(level) || level < 1 || level > 10000 || !gift || gift.length > 100) { toast("Enter a valid level and gift"); return; }
+    act(async () => { await setDoc(doc(db, "levelRewards", String(level)), { level, gift, updatedAt: serverTimestamp(), updatedBy: uid }); toast("Gift saved"); loadLevelGifts(); }, e.target.closest("#giftSave")); return;
+  }
+  const giftEdit = e.target.closest("[data-gift-edit]");
+  if (giftEdit && me?.admin === true) { $("#giftLevel").value = giftEdit.dataset.giftEdit; $("#giftName").value = giftEdit.dataset.giftName; $("#giftName").focus(); return; }
+  const giftRemove = e.target.closest("[data-gift-remove]");
+  if (giftRemove && me?.admin === true) {
+    const level = giftRemove.dataset.giftRemove;
+    if (!confirm(`Remove the gift for level ${level}?`)) return;
+    act(async () => { await deleteDoc(doc(db, "levelRewards", level)); toast("Gift removed"); loadLevelGifts(); }, giftRemove); return;
   }
   if (e.target.closest("#setAllow")) Notification.requestPermission().then(() => renderSettings());
   if (e.target.closest("#setInvite")) {
@@ -1162,6 +1178,20 @@ async function loadStatCounts(list) {
       const el = document.getElementById("sc_" + st.id); if (el) el.textContent = t;
     } catch {}
   }
+}
+
+// Admin gift catalogue: authorization MUST also be enforced in Firestore rules.
+async function loadLevelGifts() {
+  const box = $("#giftList"); if (!box || me?.admin !== true) return;
+  try {
+    const snapshot = await getDocs(query(collection(db, "levelRewards"), orderBy("level", "asc"), limit(200)));
+    if (!box.isConnected) return;
+    box.innerHTML = snapshot.empty ? `<p class="muted">No level gifts yet.</p>` : snapshot.docs.map(d => {
+      const v = d.data(), level = Number(v.level);
+      if (!Number.isInteger(level) || level < 1) return "";
+      return `<div class="gift-row"><div><b>Level ${level}</b><p class="muted">${esc(v.gift)}</p></div><div class="gift-actions"><button type="button" class="btn sm ghost" data-gift-edit="${level}" data-gift-name="${esc(v.gift)}">Edit</button><button type="button" class="btn sm ghost" data-gift-remove="${level}">Remove</button></div></div>`;
+    }).join("");
+  } catch (e) { box.textContent = friendly(e); }
 }
 
 // --- admin dashboard ---

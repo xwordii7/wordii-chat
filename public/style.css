@@ -219,3 +219,19 @@ input{background:#1b1c25;border-color:#35323d;border-radius:14px}input:focus{bor
 #composer{background:#111219;border-top:1px solid #ffffff0c}.send{background:linear-gradient(135deg,#c81d43,#ed4563);border-radius:15px;box-shadow:none}
 .chip,.icon{background:#21202b}.icon{border-radius:13px}
 @media(prefers-reduced-motion:reduce){#splash,.splash-logo-wrap,.splash-progress i{animation:none!important}}
+
+/* Contrast fix: premium dark theme + genuinely light surfaces */
+:root[data-theme="light"]{--panel:#f0e8f7;--input:#f8f5fb;--bar:#fffffff5;--hdr:#f8f3ffef;--bggrad:radial-gradient(circle at 20% -10%,#e9dcff 0,#f6f1ff 55%);--bg:#f6f1ff;--card:#fff;--line:#e3d9e9;--text:#21152e;--muted:#655570;--accent:#cb2751;--neon:#bd254d}
+:root[data-theme="light"] .row{background:#fff;border-color:#e7deec;color:var(--text)}
+:root[data-theme="light"] .row:active{background:#f6eff9}
+:root[data-theme="light"] input,:root[data-theme="light"] select,:root[data-theme="light"] #bioInput{background:#faf7fc;border-color:#dcd1e4;color:#21152e}
+:root[data-theme="light"] .card{border-color:#e8e0ee}
+:root[data-theme="light"] .avatar{background:#f6e9f0;color:#602c44}
+:root[data-theme="light"] .chip,:root[data-theme="light"] .icon{background:#f0e8f7;color:#21152e}
+:root[data-theme="light"] .chat-top,:root[data-theme="light"] #composer{background:#fff;border-color:#e8e0ee}
+:root[data-theme="light"] #chat{background:#f6f1ff}
+:root[data-theme="light"] .theirs .bubble{background:#fff;border-color:#e8e0ee;color:#21152e}
+:root[data-theme="light"] .theirs .bubble.open{color:#21152e}
+:root[data-theme="light"] .bottom{border-color:#e8e0ee}
+@media(prefers-color-scheme:light){:root:not([data-theme]){--panel:#f0e8f7;--input:#f8f5fb;--bar:#fffffff5;--hdr:#f8f3ffef;--bggrad:radial-gradient(circle at 20% -10%,#e9dcff 0,#f6f1ff 55%);--bg:#f6f1ff;--card:#fff;--line:#e3d9e9;--text:#21152e;--muted:#655570;--accent:#cb2751;--neon:#bd254d} :root:not([data-theme]) .row{background:#fff;border-color:#e7deec;color:var(--text)} :root:not([data-theme]) input,:root:not([data-theme]) select{background:#faf7fc;border-color:#dcd1e4;color:#21152e} :root:not([data-theme]) .avatar{background:#f6e9f0;color:#602c44} :root:not([data-theme]) .chip,:root:not([data-theme]) .icon{background:#f0e8f7;color:#21152e} :root:not([data-theme]) .chat-top,:root:not([data-theme]) #composer{background:#fff} :root:not([data-theme]) #chat{background:#f6f1ff} :root:not([data-theme]) .theirs .bubble{background:#fff;color:#21152e} :root:not([data-theme]) .theirs .bubble.open{color:#21152e}}
+.gift-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}.gift-row:last-child{border-bottom:0}.gift-row p{margin:4px 0 0;overflow-wrap:anywhere}.gift-actions{display:flex;gap:5px;flex-shrink:0}.gift-actions .btn{font-size:12px;padding:8px}

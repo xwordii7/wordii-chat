@@ -131,6 +131,24 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+
+    // Level Gifts: everyone signed in can view; only Admin can manage.
+    match /levelRewards/{giftId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['level', 'gift', 'updatedAt', 'updatedBy'])
+        && request.resource.data.level is int
+        && request.resource.data.level >= 1
+        && request.resource.data.level <= 10000
+        && giftId == request.resource.data.level.toString()
+        && request.resource.data.gift is string
+        && request.resource.data.gift.size() > 0
+        && request.resource.data.gift.size() <= 120
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.updatedBy == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
     // Temporary 6-digit friend codes. Can be fetched by exact code only (no listing).
     match /connectCodes/{code} {
       allow get: if signedIn();
