@@ -150,6 +150,30 @@ $("#forgotLink").onclick = (e) => {
     toast("If this Gmail has an account, a reset link was sent. Check Spam too.");
   });
 };
+// Existing admins use their saved Firebase Gmail/password, never the creation key.
+$("#adminLoginBtn").onclick = (e) => act(async () => {
+  const email = $("#adminLoginEmail").value.trim().toLowerCase();
+  const password = $("#adminLoginPw").value;
+  if (!EMAIL_RE.test(email)) throw new Error("Enter your existing admin Gmail.");
+  if (!password) throw new Error("Enter your admin password.");
+  const result = await signInWithEmailAndPassword(auth, email, password);
+  const profile = await getDoc(doc(db, "users", result.user.uid));
+  if (!profile.exists() || profile.data().admin !== true) {
+    // Do not revoke a valid regular account; this screen only permits admins.
+    await signOut(auth);
+    throw new Error("This Gmail does not have an admin profile. Use regular Log in.");
+  }
+  location.reload();
+}, e.currentTarget);
+$("#adminForgotLink").onclick = (e) => {
+  e.preventDefault();
+  act(async () => {
+    const email = $("#adminLoginEmail").value.trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) throw new Error("Enter your admin Gmail above first.");
+    await sendPasswordResetEmail(auth, email);
+    toast("If the account exists, a reset email was sent. Check Spam too.");
+  });
+};
 $("#adminBtn").onclick = (e) => act(async () => {
   const key = $("#adminName").value.trim().toLowerCase().replace(/^@/, ""), adminKey = $("#adminKey").value.trim();
   const email = $("#adminEmail").value.trim().toLowerCase(), pw = $("#adminPw").value;

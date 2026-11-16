@@ -185,3 +185,6 @@ select{width:100%;padding:12px;margin:8px 0;border-radius:12px;border:1px solid 
 #wordiiLevelCelebration{display:none;position:fixed;inset:0;z-index:1000;background:#080316c9;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(8px)}
 #wordiiLevelCelebration.visible{display:flex}.wordii-level-card{width:min(100%,340px);border-radius:26px;padding:30px 22px;text-align:center;background:linear-gradient(145deg,#26104e,#0c0b22);border:1px solid #a88aff77;box-shadow:0 20px 75px #0008;color:white;animation:wordiiPop .35s ease-out}.wordii-level-spark{color:#ffdf88;font-size:23px;letter-spacing:10px}.wordii-level-trophy{font-size:58px;margin:12px}.wordii-level-title{font-size:28px;font-weight:900;letter-spacing:2px;color:#f9e2a1}.wordii-level-number{font-size:20px;font-weight:800;margin:12px 0}.wordii-level-card p{color:#d4cce9;font-size:14px}.wordii-level-close{margin-top:15px;min-width:170px}@keyframes wordiiPop{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
 @media(prefers-reduced-motion:reduce){.wordii-typing-dots i,.wordii-level-card{animation:none}}
+
+/* Admin login separation */
+.admin-login-separator { margin: 18px 0 12px; padding-top: 14px; border-top: 1px solid rgba(150,150,150,.3); font-weight: 700; text-align: center; }
