@@ -1391,3 +1391,77 @@ document.addEventListener("click", (e) => {
   if (on) act(async () => { await enablePush(); toast("Alerts when closed: ON ✅"); renderSettings(true); }, on);
   if (off) act(async () => { await disablePush(); toast("Alerts when closed: OFF"); renderSettings(true); }, off);
 });
+
+// Wordii Chat - Android Back Button Navigation
+(function setupAndroidBackButton() {
+  let lastBack = 0;
+
+  function visible(id) {
+    const el = document.getElementById(id);
+    return el && !el.classList.contains("hidden");
+  }
+
+  function handleBack() {
+    if (visible("callUI")) {
+      document.getElementById("cEnd")?.click();
+      return;
+    }
+
+    if (visible("picker")) {
+      document.getElementById("pkCancel")?.click();
+      return;
+    }
+
+    if (visible("statusView")) {
+      closeSV();
+      return;
+    }
+
+    if (visible("profileView")) {
+      closePV();
+      return;
+    }
+
+    if (visible("settings")) {
+      document.getElementById("setBack")?.click();
+      return;
+    }
+
+    if (visible("inbox")) {
+      document.getElementById("inboxClose")?.click();
+      return;
+    }
+
+    if (visible("chat")) {
+      closeChat();
+      showTab("chats");
+      return;
+    }
+
+    if (visible("app")) {
+      const now = Date.now();
+
+      if (now - lastBack < 2000) {
+        window.Capacitor?.Plugins?.App?.exitApp();
+      } else {
+        lastBack = now;
+        toast("Press back again to exit");
+      }
+      return;
+    }
+
+    toast("Please finish signing in");
+  }
+
+  function register() {
+    const nativeApp = window.Capacitor?.Plugins?.App;
+
+    if (nativeApp?.addListener) {
+      nativeApp.addListener("backButton", handleBack);
+    } else {
+      window.addEventListener("popstate", handleBack);
+    }
+  }
+
+  register();
+})();
