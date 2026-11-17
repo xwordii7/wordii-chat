@@ -999,3 +999,76 @@ body.light .wordii-profile-nav, body[data-theme="light"] .wordii-profile-nav { b
 #wordiiGroupBody h3{text-align:left;padding:8px 18px}
 #wordiiGroupBody .row{text-align:left;margin:8px 16px}
 #chatTitle{touch-action:manipulation;cursor:pointer}
+
+/* Wordii v1.5 BTP role badges */
+.btp-badge{display:inline-flex;align-items:center;justify-content:center;margin-left:4px;vertical-align:middle;font-size:12px;line-height:1;border-radius:50%;width:19px;height:19px;font-weight:800}
+.btp-pre{color:#fff;background:linear-gradient(140deg,#7c3aed,#4f46e5);box-shadow:0 0 8px #a78bfa88}
+.btp-premium{color:#593500;background:linear-gradient(145deg,#fff4a3,#eab308,#b45309);box-shadow:0 0 9px #eab30888}
+.btp-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;max-width:200px}
+.btp-actions .btn{font-size:11px;padding:7px 8px;min-height:32px}
+
+/* Wordii v1.5 — White + Green accessible theme */
+:root[data-theme="green"]{--bg:#f3fbf5;--card:#ffffff;--line:#c7e7d0;--text:#153523;--muted:#4d6b58;--panel:#e4f5e9;--input:#f7fcf8;--bar:#ffffffef;--hdr:#f3fbf5ef;--bggrad:linear-gradient(160deg,#e6f8ea,#f7fcf8 55%);--accent:#187c46;--neon:#14683b}
+:root[data-theme="green"] input,:root[data-theme="green"] select,:root[data-theme="green"] textarea{color:#153523;background:#f7fcf8;border-color:#badfc5}
+:root[data-theme="green"] .btn:not(.ghost),:root[data-theme="green"] .send{background:linear-gradient(135deg,#14683b,#21844e);color:#fff;box-shadow:none}
+:root[data-theme="green"] .btn.ghost{color:#14683b;background:#eaf7ee;border:1px solid #187c46}
+:root[data-theme="green"] .row,:root[data-theme="green"] .card{color:#153523;background:#fff}
+:root[data-theme="green"] .icon,:root[data-theme="green"] .chip{color:#153523;background:#e4f5e9}
+:root[data-theme="green"] .chat-top,:root[data-theme="green"] #composer{background:#fff}
+:root[data-theme="green"] .theirs .bubble{color:#153523;background:#e4f5e9}
+:root[data-theme="green"] .mine .bubble{background:#14683b;color:#fff}
+:root[data-theme="green"] .bubble.open{color:#fff}
+:root[data-theme="green"] .theirs .bubble.open{color:#153523}
+:root[data-theme="green"] .bottom button.on{color:#14683b;background:#e4f5e9;text-shadow:none}
+:root[data-theme="green"] .st-preview textarea{background:transparent;color:#fff}
+
+/* Wordii v1.5 Step 5 — Premium story treatment and local gallery wallpaper */
+.story-circle.story-premium { border: 2px solid #ffcf45 !important; box-shadow: 0 0 9px #ffb900a6, 0 0 20px #ff8a0040 !important; animation: wd-gold-glow 2.4s ease-in-out infinite; }
+.story-circle.story-premium::before { content: "✦"; position: absolute; top: -10px; right: 1px; z-index: 2; font-size: 15px; color: #ffe89a; text-shadow: 0 0 8px #ffae00; pointer-events: none; }
+@keyframes wd-gold-glow { 50% { box-shadow: 0 0 13px #ffd54acc, 0 0 27px #ff8a0080; } }
+@media (prefers-reduced-motion: reduce) { .story-circle.story-premium { animation: none; } }
+#chat.wd-gallery-wallpaper #msgs, #chat.wd-gallery-wallpaper[data-bg] #msgs { background-image: var(--wd-gallery-wallpaper) !important; background-size: cover !important; background-position: center center !important; }
+.wd-wallpaper-settings { margin-top: 16px; display: grid; gap: 10px; }
+.wd-wallpaper-settings input { max-width: 100%; }
+
+/* Wordii v1.5 Step 6 — photo story colour popup */
+.wordii-story-color-panel{position:absolute;left:12px;right:12px;bottom:72px;z-index:10002;background:#181b23;color:#fff;border:1px solid #505766;border-radius:16px;padding:16px;box-shadow:0 12px 32px #0009;max-height:65vh;overflow:auto}
+.wordii-story-color-heading{font-size:15px;font-weight:700;margin-bottom:12px}
+.wordii-story-color-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:15px}
+.wordii-story-color-swatch{width:100%;aspect-ratio:1;border:2px solid #ffffff90;border-radius:50%;min-height:30px;cursor:pointer}
+.wordii-story-color-swatch:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.wordii-story-color-label{display:flex;align-items:center;justify-content:space-between;font-weight:600;color:#fff}
+.wordii-story-color-label input{width:70px;height:40px;border:0;background:transparent}
+.wordii-story-color-done{display:block;margin-top:12px;width:100%;padding:11px;border:0;border-radius:9px;background:#247c52;color:#fff;font-weight:700}
+
+/* v1.5 suspension gate */
+#wordiiSuspended{position:fixed;inset:0;z-index:99999;background:var(--bg,#101116);display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;color:var(--text,#f8fafc)}
+.wd-suspend-card{width:min(100%,420px);background:var(--card,#22242c);border:1px solid #8885;border-radius:22px;padding:25px;text-align:center;box-shadow:0 18px 50px #0005}
+.wd-suspend-card p{line-height:1.5}.wd-suspend-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:20px 0}
+#wdAppealText{width:100%;box-sizing:border-box;min-height:110px;padding:12px;margin:10px 0;background:var(--bg,#16181d);color:var(--text,#fff);border:1px solid #9997;border-radius:12px}
+#wdAppealNotice{overflow-wrap:anywhere}
+
+.wordii-trim{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:10px 0;color:#fff}.wordii-trim input{padding:8px;border-radius:8px;background:#fff;color:#111}
+
+/* WORDII_AUTH_V15_DESIGN */
+#onboard.wordii-auth-screen{min-height:100dvh;padding:calc(28px + env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom));background:radial-gradient(ellipse 80% 45% at 50% 0%,#4c1125 0%,transparent 72%),linear-gradient(180deg,#100b10 0%,#070709 100%);color:#fff;align-items:center}
+#onboard .wordii-auth-card{width:100%;max-width:390px;margin:0 auto;padding:32px 24px 25px;border:1px solid #ffffff18;border-radius:24px;background:linear-gradient(160deg,#171319 0%,#0c0c10 78%);box-shadow:0 20px 60px #0009;animation:up .3s ease}
+#onboard .wordii-auth-kicker{font-size:10px;letter-spacing:3px;font-weight:800;color:#f99bae;margin-bottom:16px}
+#onboard .wordii-auth-card>.logo-img{width:78px;height:78px;object-fit:contain;margin:0 auto 10px;filter:drop-shadow(0 0 18px #f1245040)}
+#onboard .auth-title{font-size:clamp(30px,8vw,40px);line-height:1.15;font-weight:800;letter-spacing:-1.3px;margin:4px 0 6px;color:#fff}
+#onboard .auth-title span{color:#ff3159}
+#onboard .auth-tag{font-size:10px;letter-spacing:2.4px;font-weight:700;color:#d5bdc6;margin:0 0 25px}
+#onboard .seg{display:flex;gap:5px;padding:5px;background:#242026;border:1px solid #ffffff18;border-radius:13px;margin-bottom:22px}
+#onboard .seg button{flex:1;border:0;border-radius:10px;padding:12px 10px;background:transparent;color:#e6dce0;font-weight:750;font-size:14px;cursor:pointer}
+#onboard .seg button.on{background:#f52b51;color:white;box-shadow:0 3px 12px #f52b5140}
+#onboard input{background:#19161c;border:1px solid #49404a;color:#fff;border-radius:12px;padding:15px 14px;font-size:15px;margin:7px 0;box-shadow:none}
+#onboard input::placeholder{color:#aaa0a8;opacity:1}
+#onboard input:focus{border-color:#ff4168;box-shadow:0 0 0 3px #ff416829}
+#onboard .btn{background:linear-gradient(115deg,#ff3159,#dc1543);border-radius:12px;min-height:49px;box-shadow:0 6px 20px #ff315933;margin-top:14px;color:#fff}
+#onboard .btn.ghost{background:transparent;border:1px solid #ff3159;box-shadow:none}
+#onboard .muted{color:#c6b8c0;font-size:12px;line-height:1.6;margin:0 0 10px}
+#onboard .tiny{color:#b9aab2;font-size:11px;line-height:1.6;margin-top:19px}
+#onboard a{color:#ff7e9a;text-decoration:none;font-weight:700}
+#onboard .admin-login-separator{color:#e4d5dc;margin:18px 0 8px}
+@media(max-width:380px){#onboard .wordii-auth-card{padding:24px 16px}}
+@media(prefers-reduced-motion:reduce){#onboard .wordii-auth-card{animation:none}}

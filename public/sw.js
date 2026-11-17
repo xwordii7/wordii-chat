@@ -1,7 +1,11 @@
 // Minimal service worker: network first, cached copy if offline.
-const CACHE = "wordii-premium-icon-v7-20261116";
+const CACHE = "wordii-web-v1.5.1-20261117";
 self.addEventListener("install", (e) => { self.skipWaiting(); });
-self.addEventListener("activate", (e) => { e.waitUntil(self.clients.claim()); });
+self.addEventListener("activate", (e) => { e.waitUntil((async () => {
+  const names = await caches.keys();
+  await Promise.all(names.filter(name => name.startsWith("wordii-") && name !== CACHE).map(name => caches.delete(name)));
+  await self.clients.claim();
+})()); });
 self.addEventListener("fetch", (e) => {
   const req = e.request, url = new URL(req.url);
   if (req.method !== "GET" || url.origin !== location.origin) return;

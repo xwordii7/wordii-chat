@@ -9,12 +9,16 @@
 <link rel="manifest" href="manifest.webmanifest?v=7">
 <link rel="apple-touch-icon" href="icon-192-v7.png">
 <link rel="stylesheet" href="style.css">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Caveat:wght@700&family=Dancing+Script:wght@700&family=Great+Vibes&family=Oswald:wght@700&family=Pacifico&family=Playfair+Display:wght@700&family=Poppins:wght@700&family=Roboto+Mono:wght@700&display=swap" rel="stylesheet"></head>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Caveat:wght@700&family=Dancing+Script:wght@700&family=Great+Vibes&family=Oswald:wght@700&family=Pacifico&family=Playfair+Display:wght@700&family=Poppins:wght@700&family=Roboto+Mono:wght@700&display=swap" rel="stylesheet"><link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="modulepreload" href="app.js">
+</head>
 <body>
 <div id="splash" role="status" aria-live="polite"><div class="splash-aura"></div><div class="splash-content"><div class="splash-logo-wrap"><img class="logo-img" src="wordii-mark.png" alt="Wordii Chat"></div><h1 class="splash-name">Wordii <span>Chat</span></h1><p class="splash-tagline">Chat beyond words</p><div class="splash-progress" aria-label="Starting Wordii Chat"><i></i></div><p class="splash-wait">Getting things ready</p></div><div class="splash-footer">CHAT BEYOND WORDS</div></div>
 
-<section id="onboard" class="screen hidden">
-  <div class="card center">
+<section id="onboard" class="screen hidden wordii-auth-screen">
+  <div class="card center wordii-auth-card">
+    <div class="wordii-auth-kicker">WELCOME TO WORDII</div>
     <img class="logo-img" src="wordii-mark.png" alt="Wordii Chat">
     <h1 class="auth-title">Wordii <span>Chat</span></h1><p class="auth-tag">CHAT BEYOND WORDS</p><div class="seg"><button id="modeNew" class="on">Sign up</button><button id="modeLogin">Log in</button></div>
     <div id="paneNew">
@@ -22,7 +26,7 @@
       <input id="nameInput" maxlength="15" placeholder="your name (letters, numbers, _)" autocomplete="off">
       <input id="newEmail" type="email" placeholder="Your Gmail" autocomplete="email" autocapitalize="none">
       <input id="newPw" type="password" placeholder="Password (6+ characters)" autocomplete="new-password">
-      <button id="createBtn" class="btn">Create account</button>
+      <button id="createBtn" class="btn">Create new account</button>
     </div>
     <div id="paneLogin" class="hidden">
       <p class="muted">Log in with your email and password. Older accounts can use their original @username.</p>
@@ -61,7 +65,7 @@
   <section id="tab-status" class="tab hidden">
     <h2>Updates</h2>
     <div class="card status-create"><b>My status</b><p class="tiny">Friends can see it for 24 hours.</p>
-      <div class="row-btns"><button id="stTextBtn" class="btn sm">✏️ Text</button><button id="stPhotoBtn" class="btn sm ghost">📷 Photo</button><button id="stVideoBtn" class="btn sm ghost" type="button">🎬 Video</button><button id="stMusicBtn" class="btn sm ghost">🎵 Add Music</button><input id="stFile" type="file" accept="image/*" hidden></div>
+      <div class="row-btns"><button id="stTextBtn" class="btn sm">✏️ Text</button><button id="stPhotoBtn" class="btn sm ghost">📷 Photo</button><button id="stVideoBtn" class="btn sm ghost" type="button">🎬 Video</button><input id="wordiiStatusVideoFile" type="file" accept="video/mp4,video/webm" hidden><button id="stMusicBtn" class="btn sm ghost">🎵 Add Music</button><input id="stFile" type="file" accept="image/*" hidden></div>
       <div class="closebox"><label class="tiny"><input type="checkbox" id="stClose"> Close friends only</label><button id="stPick" class="btn sm ghost">Choose people</button><span id="stCloseCount" class="tiny"></span><button id="stMention" class="btn sm ghost">@ Mention</button><span id="stMentionCount" class="tiny"></span></div>
       <div id="myStatusList"></div></div>
     <h3 class="sec">Friends' updates</h3><div id="friendStatus"></div>
@@ -162,7 +166,7 @@
   </div>
   <input id="stMusicSearch" placeholder="Search original Wordii instrumental tracks..." style="width:100%;margin:12px 0">
   <p class="tiny">Original instrumental loops generated for Wordii. No commercial songs.</p>
-  <div id="stMusicResults"></div><hr><label for="wordiiAudioFile">Or choose audio from your phone (MP3, M4A, WAV; max 8 MB)</label><input id="wordiiAudioFile" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,audio/aac" style="width:100%;margin:12px 0"><p id="wordiiMusicSelected" class="tiny"></p><button id="wordiiMusicClear" class="btn sm ghost">Remove music</button>
+  <div id="stMusicResults"></div><hr><label for="wordiiAudioFile">Or choose audio from your phone (MP3, M4A, WAV; max 8 MB)</label><input id="wordiiAudioFile" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,audio/aac" style="width:100%;margin:12px 0"><p id="wordiiMusicSelected" class="tiny"></p><div class="wordii-trim"><label for="wordiiMusicStart">Song start (seconds)</label><input id="wordiiMusicStart" type="number" min="0" max="3600" step="1" value="0" style="width:90px"><span>15-second clip</span><button type="button" id="wordiiMusicPreviewClip" class="btn sm ghost">▶ Preview clip</button></div><button id="wordiiMusicClear" class="btn sm ghost">Remove music</button>
 </div>
 
 <div id="wordiiEffects" class="hidden" role="dialog" aria-label="Story effects"><div class="we-card"><h3>✨ Photo Effects</h3><div id="wordiiEffectsList"></div><button id="wordiiEffectsClose" class="btn">Done</button></div></div></body>
