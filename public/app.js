@@ -1159,7 +1159,7 @@ function renderSettings(force) {
       ${me?.premium ? `<div class="card"><label class="setrow"><span><b>🥷 Anonymous mode (Premium)</b></span><input type="checkbox" id="setPremiumInvisible" ${premiumInvisible() ? "checked" : ""}></label><p class="tiny">Hide new status views and Seen receipts on this device. Likes disabled. Existing views remain.</p></div>` : ``}`,
     chats: () => `<div class="card"><b>Theme</b><select id="setTheme"><option value="auto" ${t === "auto" ? "selected" : ""}>Same as my phone</option><option value="dark" ${t === "dark" ? "selected" : ""}>Dark</option><option value="light" ${t === "light" ? "selected" : ""}>Light</option>${canGreenTheme(me) ? `<option value="green" ${t === "green" ? "selected" : ""}>White + Green</option>` : ""}</select>
         <p class="tiny" style="margin-top:12px">Chat background</p>
-        <div class="colors">${BG_SW.map((c, i) => `<button type="button" data-bg="${i}" class="${String(i) === bg ? "on" : ""}" style="background:${c}" aria-label="Background ${i + 1}"></button>`).join("")}</div>${me?.premium ? `<div class="wd-wallpaper-settings"><label for="wdWallpaperFile"><b>🖼️ My gallery wallpaper</b></label><input type="file" id="wdWallpaperFile" accept="image/*"><button type="button" class="btn ghost" id="wdWallpaperClear">Remove custom wallpaper</button><p class="tiny">Saved only on this device. Choose an image under 5 MB.</p></div>` : `<p class="tiny">Gallery wallpaper is a Premium feature.</p>`}</div>`,
+        <div class="colors">${BG_SW.map((c, i) => `<button type="button" data-bg="${i}" class="${String(i) === bg ? "on" : ""}" style="background:${c}" aria-label="Background ${i + 1}"></button>`).join("")}</div>${canBTP() || me?.premium ? `<div class="wd-wallpaper-settings"><label for="wdWallpaperFile"><b>🖼️ My gallery wallpaper</b></label><input type="file" id="wdWallpaperFile" accept="image/*"><button type="button" class="btn ghost" id="wdWallpaperClear">Remove custom wallpaper</button><p class="tiny">Saved only on this device. Choose an image under 5 MB.</p></div>` : `<p class="tiny">Gallery wallpaper is a Premium feature.</p>`}</div>`,
     notif: () => `<div class="card"><label class="setrow"><span><b>Message notifications</b></span><input type="checkbox" id="setNotif" ${nOn ? "checked" : ""}></label>
         <p class="tiny">Alerts inside the app and while it is open or in the background.</p></div>
       <div class="card"><b>Alerts when the app is closed</b>
@@ -1177,7 +1177,7 @@ function renderSettings(force) {
     </div>`,
     lang: () => `<div class="card tiny">English. Hindi is coming soon.</div>`,
     musicAdmin: () => me?.admin === true ? wordiiAdminMusicHTML() : `<div class="card">Access denied.</div>`,
-    subs: () => wordiiSubscriptionHTML(),
+    subs: () => wordiiFullSubscriptionHTML(),
     admin: () => canBTP() ? `<div class="card"><b>🛡️ BTP — Badge & Trust Panel</b><p class="tiny">Search a username. Only Admin can assign Pre-Admin. Premium and Verified badges require payment approval.</p><div class="wd-badge-showcase" aria-label="Wordii role badges"><img src="wordii-badges/admin_full.png" alt="Admin role badge" loading="lazy"><img src="wordii-badges/pre_admin_full.png" alt="Pre-Admin role badge" loading="lazy"><img src="wordii-badges/premium_user_full.png" alt="Premium User role badge" loading="lazy"><img src="wordii-badges/verified_user_full.png" alt="Verified User role badge" loading="lazy"></div><input id="admSearch" placeholder="Search username" autocapitalize="none" autocomplete="off"><div id="admResults"></div></div>${me?.admin ? `<div class="card"><b>📩 Suspension appeals</b><div id="wdAppealAdminList">Loading…</div><button type="button" class="btn ghost" id="wdRefreshAppeals">Refresh appeals</button></div>` : ``}` : `<div class="card">Access denied.</div>`,
   };
   $("#settingsBody").innerHTML = (pages[subKey] || (() => ""))();
@@ -1190,7 +1190,7 @@ function renderSettings(force) {
 }
 function renderAdm() {
   const box = $("#admResults"); if (!box) return;
-  box.innerHTML = admList.length ? admList.map((u) => `<div class="row nopoint">${avatarHTML(u)}<div class="grow"><b>${esc(nameOf(u))}${vb(u)}</b><span class="muted">${esc(u.username)}</span></div><div class="btp-actions">${me?.admin===true ? `<button class="btn sm ghost" data-suspend="${esc(u.id)}">${u.suspended ? 'Unban' : 'Suspend'}</button>` : ''}${me?.admin===true ? `<button class="btn sm ghost" data-btp="preAdmin" data-user="${esc(u.id)}">${u.preAdmin?'Remove Pre-Admin':'Pre-Admin'}</button>`:''}</div></div>`).join("") : `<p class="tiny">Type at least 2 letters.</p>`;
+  box.innerHTML = admList.length ? admList.map((u) => `<div class="row nopoint">${avatarHTML(u)}<div class="grow"><b>${esc(nameOf(u))}${vb(u)}</b><span class="muted">${esc(u.username)}</span></div><div class="btp-actions">${me?.admin===true ? `<button class="btn sm ghost" data-suspend="${esc(u.id)}">${u.suspended ? 'Unban' : 'Suspend'}</button>` : ''}${me?.admin===true ? `<button class="btn sm ghost" data-btp="preAdmin" data-user="${esc(u.id)}">${u.preAdmin?'Remove Pre-Admin':'Pre-Admin'}</button>`:''}${canBTP() && u.admin!==true ? `<button class="btn sm ghost" data-btp="verified" data-user="${esc(u.id)}">${u.verified?'Remove Verified':'Give Verified'}</button><button class="btn sm ghost" data-btp="premium" data-user="${esc(u.id)}">${u.premium?'Remove Premium':'Give Premium'}</button>`:''}</div></div>`).join("") : `<p class="tiny">Type at least 2 letters.</p>`;
 }
 async function loadSuspensionAppeals() {
   const box = $('#wdAppealAdminList');
@@ -1210,7 +1210,7 @@ $("#settingsBody").addEventListener("change", (e) => {
   if (t.id === "setPublic") act(async () => { await updateDoc(doc(db, "users", uid), { isPublic: t.checked }); toast(t.checked ? "Account is public" : "Account is private"); });
   else if (t.id === "setTheme") { if (t.value === "green" && !canGreenTheme(me)) { toast("White + Green requires Admin, Pre-Admin or Premium"); t.value="dark"; } const theme=t.value === "auto" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : t.value; setPref("theme",t.value); document.documentElement.dataset.wdTheme=theme; document.documentElement.dataset.theme=theme; document.querySelector('meta[name="theme-color"]')?.setAttribute("content",(theme==="light"||theme==="green")?"#ffffff":"#08080b"); }
   else if (t.id === "setNotif") setPref("notif", t.checked ? "on" : "off");
-  else if (t.id === "wdWallpaperFile" && me?.premium) {
+  else if (t.id === "wdWallpaperFile" && (canBTP() || me?.premium)) {
     const file = t.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) { toast("Choose an image under 5 MB"); return; }
@@ -1331,8 +1331,8 @@ $("#settingsBody").addEventListener("click", async (e) => {
   if (btp) {
     const target = admList.find(x => x.id === btp.dataset.user);
     const field = btp.dataset.btp;
-    if (!target || field !== 'preAdmin') return;
-    if (me?.admin !== true) { toast('Only Admin can assign Pre-Admin'); return; }
+    if (!target || !['preAdmin','verified','premium'].includes(field)) return;
+    if (!canBTP() || (field === 'preAdmin' && me?.admin !== true)) { toast('Permission denied'); return; }
     if (target.admin === true) { toast('Admin account cannot be changed here'); return; }
     const next = target[field] !== true;
     if (!confirm(`${next?'Give':'Remove'} ${field} badge for ${target.username}?`)) return;
@@ -1366,7 +1366,7 @@ $("#settingsBody").addEventListener("click", async (e) => {
     if (!confirm(`Remove the gift for level ${level}?`)) return;
     act(async () => { await deleteDoc(doc(db, "levelRewards", level)); toast("Gift removed"); loadLevelGifts(); }, giftRemove); return;
   }
-  if (e.target.closest("#wdWallpaperClear") && me?.premium) {
+  if (e.target.closest("#wdWallpaperClear") && (canBTP() || me?.premium)) {
     localStorage.removeItem("wordii_wallpaper_" + uid);
     applyWordiiWallpaper(); toast("Custom wallpaper removed"); return;
   }
@@ -2652,7 +2652,8 @@ async function wordiiImageData(file){
   if(result.length>180000)throw Error('Screenshot is too large. Crop it and try again.');
   return result;
 }
-async function handleWordiiSubscriptionClick(e){ return false; }
+function wordiiFullSubscriptionHTML(){ return wordiiOriginalSubscriptionHTML(); }
+async function handleWordiiSubscriptionClick(e){ return wordiiOriginalSubscriptionClick(e); }
 async function wordiiOriginalSubscriptionClick(e){
   if(e.target.closest('#wordiiPremiumPurchase')){$('#wordiiPremiumPanel')?.classList.remove('hidden');return true;}
   const pSave=e.target.closest('#wordiiPremiumSave');if(pSave){
@@ -2691,7 +2692,7 @@ async function wordiiOriginalSubscriptionClick(e){
 function applyWordiiWallpaper() {
   const chat = document.querySelector("#chat");
   if (!chat) return;
-  const photo = (uid && me?.premium) ? localStorage.getItem("wordii_wallpaper_" + uid) : null;
+  const photo = (uid && (canBTP() || me?.premium)) ? localStorage.getItem("wordii_wallpaper_" + uid) : null;
   if (photo && photo.startsWith("data:image/")) {
     chat.style.setProperty("--wd-gallery-wallpaper", `url("${photo}")`);
     chat.classList.add("wd-gallery-wallpaper");
