@@ -42,7 +42,7 @@ if (firebaseConfig.apiKey.startsWith("PASTE")) { fatal(new Error("Open public/fi
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app), db = getFirestore(app);
 
-const WORDII_WEB_VERSION = "1.5.13";
+const WORDII_WEB_VERSION = "1.5.14";
 // Wordii Media API authentication self-test. Never logs or displays the ID token.
 async function wordiiTestMediaAuth() {
   const user = auth.currentUser;
@@ -389,7 +389,7 @@ function renderProfile() {
       <div class="you-ava">${avatarHTML(me, true)}<button class="plus" data-go="edit" aria-label="Change logo">+</button></div>
       <h2>${esc(nameOf(me))}${vb(me)}</h2>
       ${me.displayName ? `<p class="muted">${esc(me.username)}</p>` : ""}
-      <p class="tiny">${me.followersCount || 0} followers · ${following.size} following (only you can see who)</p>
+      <button type="button" class="btn ghost" data-go="followers">👥 ${me.followersCount || 0} followers · View list</button><p class="tiny">${following.size} following</p>
     </div>
     <div class="wlist">
       ${row("points", "🏆", "Points & level", `Level ${me.level || 1} · ${me.points || 0} points · 🔥 ${me.streak || 0}`)}
@@ -524,7 +524,7 @@ function renderMessages() {
   const box = $("#msgs");
   box.innerHTML = msgs.filter(m=>!wdHiddenIds().has(m.id)).map((m) => {
     const t = m.createdAt?.toDate?.().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) || "";
-    return `<div class="msg ${m.senderId === uid ? "mine" : "theirs"}" data-id="${esc(m.id)}">${m.replyTo?`<div class="wd-reply-quote">↩ Reply to message</div>`:""}${activeChat?.group && m.senderId !== uid ? `<small class="sname">${esc(nameOf(person(m.senderId)))}${vb(person(m.senderId))}</small>` : ""}<div class="bubble ${m.img ? "imgmsg" : m.aud ? "audmsg" : ""}"></div><time>${t}${m.senderId === uid && m.seenAt ? " · Seen" : ""}</time></div>`;
+    return `<div class="msg ${m.senderId === uid ? "mine" : "theirs"}" data-id="${esc(m.id)}">${m.replyTo?`<div class="wd-reply-quote">↩ Reply to message</div>`:""}${m.reactions && Object.keys(m.reactions).length ? `<div class="wd-reactions">${Object.values(m.reactions).map(x=>esc(x)).join(" ")}</div>` : ""}${activeChat?.group && m.senderId !== uid ? `<small class="sname">${esc(nameOf(person(m.senderId)))}${vb(person(m.senderId))}</small>` : ""}<div class="bubble ${m.img ? "imgmsg" : m.aud ? "audmsg" : ""}"></div><time>${t}${m.senderId === uid && m.seenAt ? " · Seen" : ""}</time></div>`;
   }).join("");
   tickMessages();
   wdSelectionSync();
@@ -579,11 +579,37 @@ mbox.addEventListener("click", (e) => {
 });
 
 
+async function wordiiSetReaction(id,emoji){
+ const c=activeChat;if(!c||!msgMap[id])return;
+ const allowed=['❤️','😂','😮','😢','👍','🔥'];
+ if(emoji!==null&&!allowed.includes(emoji))return;
+ try{
+  const ref=doc(db,'chats',c.id,'messages',id);
+  await runTransaction(db,async tx=>{
+   const snap=await tx.get(ref);
+   if(!snap.exists())throw Error('Message unavailable');
+   const current=snap.data().reactions||{};
+   if(typeof current!=='object'||Array.isArray(current))throw Error('Invalid reactions');
+   const next={...current};
+   if(emoji===null||next[uid]===emoji)delete next[uid];
+   else next[uid]=emoji;
+   if(Object.keys(next).length>50)throw Error('Reaction limit reached');
+   tx.update(ref,{reactions:next});
+  });
+ }catch(e){toast(friendly(e));}
+}
 function wordiiShowMessageMenu(id){
  const m=msgMap[id];if(!m)return;
  let menu=document.getElementById('wordiiMessageMenu');if(!menu){menu=document.createElement('div');menu.id='wordiiMessageMenu';menu.className='wd-message-menu';document.body.append(menu);}
  menu.replaceChildren();
  const add=(label,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=()=>{menu.remove();fn();};menu.append(b);};
+ const reactions=document.createElement('div');reactions.className='wd-reaction-picker';
+ for(const emoji of ['❤️','😂','😮','😢','👍','🔥']){
+   const b=document.createElement('button');b.type='button';b.textContent=emoji;
+   b.onclick=()=>{menu.remove();wordiiSetReaction(id,emoji);};reactions.append(b);
+ }
+ menu.append(reactions);
+ if(m.reactions?.[uid])add('Remove reaction',()=>wordiiSetReaction(id,null));
  add('↩ Reply',()=>wordiiReplyStart(id));
  if(m.text)add('Copy message',()=>navigator.clipboard?.writeText(plain(m)).then(()=>toast('Copied')).catch(()=>toast('Copy unavailable')));
  add('Select / Delete',()=>wdSelectionStart(id));
@@ -1110,6 +1136,22 @@ async function startPublicChat(other) {
   return { id, members };
 }
 
+// Public profiles show follower identities; private profiles show them only to their owner.
+async function wordiiShowFollowers(target) {
+  const userSnap = await getDoc(doc(db, 'users', target));
+  if (!userSnap.exists()) throw Error('Profile not found');
+  const owner = target === uid;
+  if (!owner && userSnap.data().isPublic !== true) {
+    toast('Follower list is private'); return;
+  }
+  const snap = await getDocs(query(collection(db, 'follows'), where('target', '==', target), limit(100)));
+  const rows = await Promise.all(snap.docs.map(async d => {
+    const x = await getDoc(doc(db, 'users', d.data().follower));
+    return x.exists() ? x.data().username || 'User' : null;
+  }));
+  const names = rows.filter(Boolean);
+  alert(names.length ? 'Followers (first 100):\n' + names.join('\n') : 'No followers yet.');
+}
 // --- someone's profile (tap their name in a chat, or a search result) ---
 let pvUnsub = null, pvId = null;
 function openProfileView(id) {
@@ -1131,7 +1173,7 @@ function renderPV() {
   body.innerHTML = `<div class="pv-banner" ${hasBanner(u) ? `style="background:${bannerCss(u)}"` : ""}></div><div class="pv-ava">${avatarHTML(u, true)}</div>
     <div class="pv-info"><h2>${esc(nameOf(u))}${vb(u)}</h2><p class="muted">${esc(u.username)}</p><p class="presence ${isOnline(u) ? "on" : ""}">${esc(presenceText(u))}</p>
     ${u.bio ? `<p class="bio">${esc(u.bio)}</p>` : `<p class="tiny">No bio yet.</p>`}
-    <p><b>${u.followersCount || 0}</b> <span class="muted">followers</span></p>
+    <button type="button" class="btn ghost" data-pv="followers">👥 ${u.followersCount || 0} followers · View list</button>
     <p class="tiny">${u.isPublic ? "🌍 Public account" : "🔒 Private account"}</p>
     <button class="btn ${isF ? "ghost" : ""}" data-pv="follow">${isF ? "Following ✓" : "Follow"}</button>${msg}</div>`;
 }
@@ -1145,6 +1187,7 @@ $("#pvBody").addEventListener("click", (e) => {
   const b = e.target.closest("[data-pv]"); if (!b) return;
   const id = pvId, a = b.dataset.pv;
   act(async () => {
+    if (a === "followers") { await wordiiShowFollowers(id); return; }
     if (a === "follow") await toggleFollow(id, following.has(id));
     else if (a === "open") { closePV(); openChat(chats.find((c) => c.id === pairId(id))); }
     else if (a === "msg") { const c = await startPublicChat(id); closePV(); openChat(c); }
@@ -1232,6 +1275,8 @@ function renderSettings(force) {
            <input id="emInput" type="email" placeholder="Your Gmail" autocomplete="email" autocapitalize="none"><input id="pwInput" type="password" placeholder="New password (6+ characters)" autocomplete="new-password"><button id="pwBtn" class="btn">Save</button></div>`
         : `<div class="card tiny">✅ Account protected. On a new phone choose <b>Log in</b>. ${isFakeEmail(u?.email) ? "This is an old-style account: log in with your @username + password." : "Forgot your password? Tap <b>Forgot password?</b> on the Log in screen."}</div>`}
       ${!u?.isAnonymous && !isFakeEmail(u?.email) ? `<div class="card"><b>✉️ Change email</b><p class="tiny">A verification link will be sent to the new address. You may need to log in again first.</p><input id="changeEmailInput" type="email" placeholder="New email address" autocomplete="email"><button id="changeEmailBtn" class="btn">Send verification link</button><button id="resendEmailBtn" class="btn ghost">Verify current email</button></div>` : ""}
+      <div class="card"><b>✏️ Change username</b><p class="tiny">3–15 letters, numbers or underscores. Your chats and badges stay with this account.</p><input id="wdNewUsername" maxlength="15" autocapitalize="none" autocomplete="off" placeholder="New username (without @)"><button type="button" class="btn" id="wdChangeUsername">Save username</button></div>
+      <div class="card"><b>📱 Phone number security</b><p class="tiny">Phone OTP linking is not active yet. It requires Firebase Phone Authentication, reCAPTCHA support and SMS billing configuration. Never share OTPs.</p></div>
       <div class="card"><button class="btn ghost" id="setLogout">Log out</button></div>`,
     privacy: () => `<div class="card"><label class="setrow"><span><b>Public account</b></span><input type="checkbox" id="setPublic" ${me.isPublic ? "checked" : ""}></label>
         <p class="tiny">Public: anyone who finds your username can message you directly. Private: they must send a request and you accept it. Anyone with your 6-digit code can always connect.</p></div>
@@ -1365,6 +1410,29 @@ $("#settingsBody").addEventListener("click", async (e) => {
     return;
   }
   if (await handleWordiiSubscriptionClick(e)) return;
+  if (e.target.closest("#wdChangeUsername")) {
+    const button=e.target.closest("#wdChangeUsername");
+    act(async()=>{
+      const key=String($("#wdNewUsername")?.value||"").trim().toLowerCase().replace(/^@/,"");
+      if(!/^[a-z0-9_]{3,15}$/.test(key))throw Error("Use 3–15 letters, numbers or underscores.");
+      if(!auth.currentUser || auth.currentUser.uid!==uid)throw Error("Log in again.");
+      const oldKey=String(me?.usernameKey||me?.username?.replace(/^@/,"")||"").toLowerCase();
+      if(key===oldKey)throw Error("This is already your username.");
+      const userRef=doc(db,"users",uid),newRef=doc(db,"usernames",key),oldRef=doc(db,"usernames",oldKey);
+      await runTransaction(db,async tx=>{
+        const [userSnap,newSnap,oldSnap]=await Promise.all([tx.get(userRef),tx.get(newRef),tx.get(oldRef)]);
+        if(!userSnap.exists()||userSnap.data().usernameKey!==oldKey)throw Error("Username changed elsewhere. Reopen settings.");
+        if(newSnap.exists())throw Error("Username is already taken.");
+        if(!oldSnap.exists()||oldSnap.data().uid!==uid)throw Error("Old username record missing. Contact support.");
+        tx.set(newRef,{uid,createdAt:serverTimestamp()});
+        tx.update(userRef,{username:"@"+key,usernameKey:key});
+        tx.delete(oldRef);
+      });
+      me.username="@"+key;me.usernameKey=key;
+      renderSettings(true);toast("Username changed successfully");
+    },button);
+    return;
+  }
   if (e.target.closest("#changeEmailBtn")) {
     const newEmail = $("#changeEmailInput")?.value.trim().toLowerCase();
     if (!newEmail || !EMAIL_RE.test(newEmail)) { toast("Enter a valid email address"); return; }
@@ -2816,3 +2884,11 @@ function applyWordiiWallpaper() {
 // Re-apply after account data has loaded, and when navigating back to the app.
 document.addEventListener("visibilitychange", () => { if (!document.hidden) applyWordiiWallpaper(); });
 
+
+// Followers list on own profile (capture to prevent older data-go router handling it).
+document.getElementById('profile')?.addEventListener('click', e => {
+  const b = e.target.closest('[data-go="followers"]');
+  if (!b) return;
+  e.stopImmediatePropagation();
+  act(async () => wordiiShowFollowers(uid), b);
+}, true);

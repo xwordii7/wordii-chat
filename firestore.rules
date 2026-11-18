@@ -138,6 +138,13 @@ service cloud.firestore {
         && (!('isPublic' in request.resource.data) || request.resource.data.isPublic is bool)
         && (!('showOnline' in request.resource.data) || request.resource.data.showOnline is bool)
         && (!('blockedUsers' in request.resource.data) || (request.resource.data.blockedUsers is list && request.resource.data.blockedUsers.size() <= 300));
+      // Username changes must be atomic with a new reserved username.
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username','usernameKey'])
+        && request.resource.data.usernameKey.matches('^[a-z0-9_]{3,15}$')
+        && request.resource.data.username == '@' + request.resource.data.usernameKey
+        && request.resource.data.usernameKey != resource.data.usernameKey
+        && getAfter(/databases/$(database)/documents/usernames/$(request.resource.data.usernameKey)).data.uid == uid;
       // +1 point per active minute. Pace is checked against the SERVER clock.
       allow update: if signedIn() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'level', 'lastMinuteAt'])
@@ -206,6 +213,8 @@ service cloud.firestore {
     }
 
     // Reserves a username. A second create on the same name fails, so no duplicates.
+    // Atomic username rename: reserve the new key, update own profile, remove old key.
+    // getAfter makes this impossible without the matching user record change.
     match /usernames/{key} {
       allow get: if request.auth != null;
       allow list: if false;
@@ -218,7 +227,10 @@ service cloud.firestore {
           key.matches('^[a-z0-9_]{3,15}$')
           || key.matches('^[a-z0-9_]{3,15}-[0-9]{3}$')
         );
-      allow update, delete: if false;
+      allow delete: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.usernameKey != key;
+      allow update: if false;
     }
 
         // Level Gifts: everyone signed in can view; only Admin can manage.
@@ -359,7 +371,13 @@ service cloud.firestore {
 
     // Follows: only the follower can read their own list (nobody else sees who you follow).
     match /follows/{id} {
-      allow read: if signedIn() && resource.data.follower == request.auth.uid;
+      allow get: if signedIn() && (resource.data.follower == request.auth.uid ||
+        (exists(/databases/$(database)/documents/users/$(resource.data.target)) &&
+         get(/databases/$(database)/documents/users/$(resource.data.target)).data.get('isPublic', false) == true));
+      allow list: if signedIn() && (resource.data.follower == request.auth.uid ||
+        (resource.data.target == request.auth.uid ||
+         (exists(/databases/$(database)/documents/users/$(resource.data.target)) &&
+          get(/databases/$(database)/documents/users/$(resource.data.target)).data.get('isPublic', false) == true)));
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['follower', 'target', 'createdAt'])
         && request.resource.data.follower == request.auth.uid
@@ -464,6 +482,15 @@ service cloud.firestore {
               && request.resource.data.dur is int
               && request.resource.data.dur >= 1 && request.resource.data.dur <= 60)
           );
+        // Any chat member may change only their own reaction, never another member's.
+        allow update: if signedIn()
+          && request.auth.uid in chatMembers(chatId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+          && request.resource.data.reactions is map
+          && request.resource.data.reactions.size() <= 50
+          && request.resource.data.reactions.diff(resource.data.get('reactions', {})).affectedKeys().hasOnly([request.auth.uid])
+          && (! (request.auth.uid in request.resource.data.reactions)
+              || request.resource.data.reactions[request.auth.uid] in ['❤️','😂','😮','😢','👍','🔥']);
         // The receiver (not the sender) may stamp "seen" once.
         allow update: if signedIn()
           && request.auth.uid in chatMembers(chatId)

@@ -1108,3 +1108,8 @@ small .wd-role-icon { width:18px; height:18px; }
 .wd-message-menu button,.wd-activity-tabs button{background:#392739;color:white;border:0;border-radius:8px;padding:12px;text-align:left}
 .wd-activity-tabs{display:flex;gap:8px;padding:6px}.wd-activity-tabs button{flex:1;text-align:center}
 #seenPanel{position:absolute;z-index:100;bottom:0;left:0;right:0;max-height:65%;overflow:auto;background:#17151d;color:white;border-radius:20px 20px 0 0;padding:15px}
+
+/* v1.5.14: emoji reaction picker and message reaction summary */
+.wd-reaction-picker{display:flex;flex-wrap:wrap;gap:6px;padding:8px 4px}
+.wd-reaction-picker button{font-size:22px;min-width:40px;min-height:40px;background:#252530;border:1px solid #49404b;border-radius:12px}
+.wd-reactions{font-size:15px;line-height:1.6;padding:2px 5px;max-width:220px;overflow-wrap:anywhere}
