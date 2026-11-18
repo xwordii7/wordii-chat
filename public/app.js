@@ -2007,6 +2007,15 @@ async function wordiiRegisterNativePush() {
 
     wordiiPushListenersReady = true;
   }
+  await plugin.createChannel({
+    id: "default",
+    name: "Wordii Messages",
+    description: "New message notifications",
+    importance: 5,
+    visibility: 1,
+    sound: "default",
+    vibration: true
+  });
   await plugin.register();
 }
 
