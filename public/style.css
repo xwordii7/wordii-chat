@@ -1100,3 +1100,11 @@ small .wd-role-icon { width:18px; height:18px; }
 .story-circle.story-gold-flame::before,.story-circle.story-purple-flame::before{content:"✦";position:absolute;top:-12px;right:-1px;z-index:2;color:var(--wd-ring);font-size:19px;text-shadow:0 0 10px var(--wd-glow);pointer-events:none}
 @keyframes wd-role-flame{50%{box-shadow:0 0 18px var(--wd-glow),0 0 34px var(--wd-glow)!important}}
 @media(prefers-reduced-motion:reduce){.story-circle.story-gold-flame,.story-circle.story-purple-flame{animation:none}}
+
+/* Wordii replies and status activity */
+.wd-reply-preview{padding:10px 16px;background:#271c2b;border-left:3px solid #ff3155;color:#fff;font-size:13px;cursor:pointer}
+.wd-reply-quote{font-size:11px;color:#ff8da7;border-left:2px solid #ff3155;padding:4px 7px;margin:0 0 4px;opacity:.9}
+.wd-message-menu{position:fixed;z-index:99999;left:50%;top:45%;transform:translate(-50%,-50%);width:min(300px,85vw);background:#211c29;border:1px solid #704056;border-radius:14px;padding:8px;box-shadow:0 10px 45px #0009;display:grid;gap:5px}
+.wd-message-menu button,.wd-activity-tabs button{background:#392739;color:white;border:0;border-radius:8px;padding:12px;text-align:left}
+.wd-activity-tabs{display:flex;gap:8px;padding:6px}.wd-activity-tabs button{flex:1;text-align:center}
+#seenPanel{position:absolute;z-index:100;bottom:0;left:0;right:0;max-height:65%;overflow:auto;background:#17151d;color:white;border-radius:20px 20px 0 0;padding:15px}

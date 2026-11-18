@@ -442,8 +442,9 @@ service cloud.firestore {
         allow read: if signedIn() && request.auth.uid in chatMembers(chatId);
         allow create: if signedIn()
           && request.auth.uid in chatMembers(chatId)
-          && request.resource.data.keys().hasOnly(['senderId', 'text', 'img', 'aud', 'dur', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['senderId', 'text', 'img', 'aud', 'dur', 'createdAt', 'replyTo'])
           && request.resource.data.senderId == request.auth.uid
+          && (!('replyTo' in request.resource.data) || (request.resource.data.replyTo is string && request.resource.data.replyTo.size() <= 150))
           && request.resource.data.createdAt == request.time
           && (
             ('text' in request.resource.data && !('img' in request.resource.data) && !('aud' in request.resource.data)

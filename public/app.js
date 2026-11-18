@@ -461,20 +461,29 @@ $("#connectBtn").onclick = (e) => act(async () => {
 
 // ---------- chat ----------
 let activeChat = null, unsubMsgs = null, msgs = [], msgMap = {}, reveal = {}, decoded = {};
+let wordiiChatGeneration = 0, wordiiReply = null;
+const wordiiDrafts = new Map();
+function wordiiReplyClear(){wordiiReply=null;const p=document.getElementById("wordiiReplyPreview");if(p){p.textContent="";p.classList.add("hidden");}}
+function wordiiReplyStart(id){const m=msgMap[id];if(!m||!activeChat)return;wordiiReply={id:m.id,chatId:activeChat.id,senderId:m.senderId,preview:m.text?"Message":m.img?"Photo":"Voice message"};const p=document.getElementById("wordiiReplyPreview");p.classList.remove("hidden");p.textContent="↩ Reply to "+(m.senderId===uid?"you":"message")+" · "+wordiiReply.preview+"  ✕";document.getElementById("msgInput").focus();}
+document.getElementById("wordiiReplyPreview")?.addEventListener("click",wordiiReplyClear);
 function openChat(c) {
   if (!c) return;
   closeChat(); activeChat = c; reveal = {}; decoded = {}; msgs = []; msgMap = {};
+  const generation=++wordiiChatGeneration;
+  $("#msgs").replaceChildren();
+  $("#msgInput").value=wordiiDrafts.get(c.id)||"";
   markRead(c.id);
   watchFriend(c);
   $("#chat").classList.remove("hidden"); renderChatTitle(); updateHideBtn(); startTyping(c);
   unsubMsgs = onSnapshot(query(collection(db, "chats", c.id, "messages"), orderBy("createdAt", "desc"), limit(40)), (s) => {
+    if(!activeChat||activeChat.id!==c.id||generation!==wordiiChatGeneration)return;
     msgs = s.docs.map((d) => ({ id: d.id, ...d.data() })).reverse();
     msgMap = Object.fromEntries(msgs.map((m) => [m.id, m]));
     processReveals(new Set(s.docs.filter((d) => d.metadata.hasPendingWrites).map((d) => d.id)));
     renderMessages();
   }, (e) => toast(friendly(e)));
 }
-function closeChat() { if(typeof wdSelectionStop === "function")wdSelectionStop(); if (rec) { recCancelled = true; rec.stop(); } if (unsubTyping) unsubTyping(); unsubTyping = null; typingAt = {}; if (unsubMsgs) unsubMsgs(); unsubMsgs = null; activeChat = null; $("#chat").classList.add("hidden"); }
+function closeChat() { if(activeChat){wordiiDrafts.set(activeChat.id,$("#msgInput").value);wordiiChatGeneration++;} wordiiReplyClear(); $("#msgs").replaceChildren(); $("#msgInput").value=""; msgs=[];msgMap={}; if(typeof wdSelectionStop === "function")wdSelectionStop(); if (rec) { recCancelled = true; rec.stop(); } if (unsubTyping) unsubTyping(); unsubTyping = null; typingAt = {}; if (unsubMsgs) unsubMsgs(); unsubMsgs = null; activeChat = null; $("#chat").classList.add("hidden"); }
 $("#backBtn").onclick = closeChat;
 function renderChatTitle() {
   if (!activeChat) return;
@@ -515,7 +524,7 @@ function renderMessages() {
   const box = $("#msgs");
   box.innerHTML = msgs.filter(m=>!wdHiddenIds().has(m.id)).map((m) => {
     const t = m.createdAt?.toDate?.().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) || "";
-    return `<div class="msg ${m.senderId === uid ? "mine" : "theirs"}" data-id="${esc(m.id)}">${activeChat?.group && m.senderId !== uid ? `<small class="sname">${esc(nameOf(person(m.senderId)))}${vb(person(m.senderId))}</small>` : ""}<div class="bubble ${m.img ? "imgmsg" : m.aud ? "audmsg" : ""}"></div><time>${t}${m.senderId === uid && m.seenAt ? " · Seen" : ""}</time></div>`;
+    return `<div class="msg ${m.senderId === uid ? "mine" : "theirs"}" data-id="${esc(m.id)}">${m.replyTo?`<div class="wd-reply-quote">↩ Reply to message</div>`:""}${activeChat?.group && m.senderId !== uid ? `<small class="sname">${esc(nameOf(person(m.senderId)))}${vb(person(m.senderId))}</small>` : ""}<div class="bubble ${m.img ? "imgmsg" : m.aud ? "audmsg" : ""}"></div><time>${t}${m.senderId === uid && m.seenAt ? " · Seen" : ""}</time></div>`;
   }).join("");
   tickMessages();
   wdSelectionSync();
@@ -556,7 +565,7 @@ mbox.addEventListener("contextmenu", (e) => e.preventDefault());
 mbox.addEventListener("pointerdown", (e) => {
   const el = e.target.closest(".msg"); if (!el) return; longDone = false;
   lp = setTimeout(() => {
-    longDone = true; wdSelectionStart(el.dataset.id);
+    longDone = true; wordiiShowMessageMenu(el.dataset.id);
   }, 600);
 });
 ["pointerup", "pointerleave", "pointercancel", "pointermove"].forEach((ev) => mbox.addEventListener(ev, () => clearTimeout(lp)));
@@ -569,16 +578,34 @@ mbox.addEventListener("click", (e) => {
   reveal[el.dataset.id] = Date.now() + 10000; tickMessages();
 });
 
+
+function wordiiShowMessageMenu(id){
+ const m=msgMap[id];if(!m)return;
+ let menu=document.getElementById('wordiiMessageMenu');if(!menu){menu=document.createElement('div');menu.id='wordiiMessageMenu';menu.className='wd-message-menu';document.body.append(menu);}
+ menu.replaceChildren();
+ const add=(label,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=()=>{menu.remove();fn();};menu.append(b);};
+ add('↩ Reply',()=>wordiiReplyStart(id));
+ if(m.text)add('Copy message',()=>navigator.clipboard?.writeText(plain(m)).then(()=>toast('Copied')).catch(()=>toast('Copy unavailable')));
+ add('Select / Delete',()=>wdSelectionStart(id));
+ add('Cancel',()=>{});
+}
+document.addEventListener('pointerdown',e=>{const menu=document.getElementById('wordiiMessageMenu');if(menu&&!menu.contains(e.target)&&!e.target.closest('#msgs .msg'))menu.remove();});
+let wordiiSwipeStart=null;
+mbox.addEventListener('touchstart',e=>{const el=e.target.closest('.msg');if(!el||e.touches.length!==1)return;wordiiSwipeStart={id:el.dataset.id,x:e.touches[0].clientX,y:e.touches[0].clientY};},{passive:true});
+mbox.addEventListener('touchend',e=>{if(!wordiiSwipeStart||!e.changedTouches.length)return;const s=wordiiSwipeStart;wordiiSwipeStart=null;const dx=e.changedTouches[0].clientX-s.x,dy=e.changedTouches[0].clientY-s.y;if(dx>75&&Math.abs(dy)<55){clearTimeout(lp);longDone=true;wordiiReplyStart(s.id);}}, {passive:true});
+
 const input = $("#msgInput");
+input.addEventListener("input",()=>{if(activeChat)wordiiDrafts.set(activeChat.id,input.value);});
 input.addEventListener("input", () => { // pasting a valid symbol message auto-decodes it
   if (isSymbolMessage(input.value)) { const t = decodeMessage(input.value); if (t !== null) { input.value = t; toast("Symbol message decoded"); } }
 });
 $("#composer").addEventListener("submit", (e) => {
   e.preventDefault();
   const text = input.value.trim(); if (!text || !activeChat) return;
-  input.value = "";
-  sendMsg({ text: encodeMessage(text) })
-    .catch((err) => { toast(friendly(err)); input.value = text; });
+  const chatId=activeChat.id;const reply=wordiiReply?.chatId===chatId?wordiiReply:null;
+  input.value="";wordiiDrafts.set(chatId,"");wordiiReplyClear();
+  sendMsg({text:encodeMessage(text),...(reply?{replyTo:reply.id}: {})},chatId)
+    .catch((err)=>{toast(friendly(err));if(activeChat?.id===chatId&&!input.value){input.value=text;wordiiDrafts.set(chatId,text);}});
 });
 
 // ---------- photos, logo, display name ----------
@@ -733,6 +760,7 @@ function drawSV() {
   stopWordiiStoryAudio();
   if(wordiiVideoObjectUrl){URL.revokeObjectURL(wordiiVideoObjectUrl);wordiiVideoObjectUrl=null;}
   clearTimeout(sv.t);
+  document.getElementById("seenPanel")?.classList.add("hidden");
   const st = sv.list[sv.i]; if (!st) { closeSV(); return; }
   const owner = st.ownerUid === uid ? me : friends[st.ownerUid];
   $("#svTop").innerHTML = `${avatarHTML(owner)}<div><b>${esc(nameOf(owner))}${vb(owner)}</b><br><small>${esc(ago(stTime(st)))} · ${sv.i + 1}/${sv.list.length}</small></div>`;
@@ -751,9 +779,12 @@ function drawSV() {
   else { body.style.background = ST_BG[st.bg] || ST_BG[0]; const d = document.createElement("div"); d.className = "sv-text"; d.textContent = st.text || ""; body.append(d); }
   playWordiiStoryAudio(st, body);
   drawSVBar(st);
-  if(!st.videoPath)sv.t = setTimeout(() => { sv.i++; drawSV(); }, 6000);
+  if(!st.videoPath)sv.t = setTimeout(() => { if(document.getElementById("seenPanel")&&!document.getElementById("seenPanel").classList.contains("hidden"))return; sv.i++; drawSV(); }, st.musicId||st.audioPath?Math.max(6000,Math.min(30000,Number(st.musicDuration||15)*1000)):6000);
 }
-$("#svBody").addEventListener("click", () => { sv.i++; drawSV(); });
+$("#svBody").addEventListener("click", () => { if(!$("#seenPanel")?.classList.contains("hidden"))return; sv.i++; drawSV(); });
+let wordiiStatusTouch=null;
+$("#statusView").addEventListener("touchstart",e=>{if(e.touches.length===1)wordiiStatusTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};},{passive:true});
+$("#statusView").addEventListener("touchend",e=>{if(!wordiiStatusTouch||!e.changedTouches.length)return;const dy=e.changedTouches[0].clientY-wordiiStatusTouch.y;wordiiStatusTouch=null;const st=sv.list[sv.i];if(dy< -75&&st?.ownerUid===uid)showSeenBy(st).catch(err=>toast(friendly(err)));},{passive:true});
 $("#svClose").onclick = closeSV;
 
 function drawColors() {
@@ -805,12 +836,15 @@ document.addEventListener("click", (e) => {
 });
 
 // ---------- sending (stamps the chat so the other person gets an unread dot + notification) ----------
-async function sendMsg(payload) {
-  if(activeChat && !activeChat.group){const other=activeChat.members.find(x=>x!==uid);if((me?.blockedUsers||[]).includes(other))throw new Error("Unblock this contact before sending");}
+async function sendMsg(payload, targetChatId=activeChat?.id) {
+  if(!targetChatId)throw new Error("No chat selected");
+  const targetChat=chats.find(c=>c.id===targetChatId)|| (activeChat?.id===targetChatId?activeChat:null);
+  if(!targetChat)throw new Error("Chat changed. Try again.");
+  if(!targetChat.group){const other=targetChat.members.find(x=>x!==uid);if((me?.blockedUsers||[]).includes(other))throw new Error("Unblock this contact before sending");}
 
   const b = writeBatch(db);
-  b.set(doc(collection(db, "chats", activeChat.id, "messages")), { senderId: uid, ...payload, createdAt: serverTimestamp() });
-  b.update(doc(db, "chats", activeChat.id), { lastAt: serverTimestamp(), lastBy: uid });
+  b.set(doc(collection(db, "chats", targetChatId, "messages")), { senderId: uid, ...payload, createdAt: serverTimestamp() });
+  b.update(doc(db, "chats", targetChatId), { lastAt: serverTimestamp(), lastBy: uid });
   await b.commit();
 }
 
@@ -1408,18 +1442,18 @@ const viewed = new Set();
 async function ensureView(st) {
   if (premiumInvisible()) return;
   if (viewed.has(st.id)) return; viewed.add(st.id);
-  try { await setDoc(doc(db, "statuses", st.id, "views", uid), { liked: false, at: serverTimestamp() }); } catch {}
+  try { const ref=doc(db,"statuses",st.id,"views",uid);const existing=await getDoc(ref);if(!existing.exists())await setDoc(ref,{liked:false,at:serverTimestamp()}); } catch {}
 }
 function drawSVBar(st) {
   const bar = $("#svBar");
   const sm = $("#svTop small");
   if (sm && st.mentions?.includes(uid)) sm.append(" · 📣 mentioned you");
   if (sm && st.via) sm.append(" · ↪ shared");
-  if (st.ownerUid === uid) { bar.innerHTML = `<button class="btn sm ghost" id="svSeen">👁 Seen by</button>`; return; }
+  if (st.ownerUid === uid) { bar.innerHTML = `<button class="btn sm ghost" id="svSeen">👁 Views & ❤️ Likes · Swipe up</button>`; return; }
   ensureView(st);
   bar.innerHTML = (premiumInvisible() ? `<span class="tiny">🥷 Anonymous viewing · Likes disabled</span>` : `<button class="btn sm ghost" id="svLike" data-liked="0">♡ Like</button>`) + (st.mentions?.includes(uid) ? `<button class="btn sm" id="svReshare">➕ Add to my status</button>` : "");
   getDoc(doc(db, "statuses", st.id, "views", uid)).then((d) => {
-    const b = $("#svLike"); if (b && d.exists() && d.data().liked) { b.dataset.liked = "1"; b.textContent = "❤️ Liked"; }
+    const b = $("#svLike"); if (sv.list[sv.i]?.id!==st.id)return; if (b && d.exists() && d.data().liked) { b.dataset.liked = "1"; b.textContent = "❤️ Liked"; }
   }).catch(() => {});
 }
 async function showSeenBy(st) {
@@ -1427,12 +1461,13 @@ async function showSeenBy(st) {
   const snap = await getDocs(collection(db, "statuses", st.id, "views"));
   const rows = await Promise.all(snap.docs.map(async (d) => ({ u: (await getDoc(doc(db, "users", d.id))).data(), liked: d.data().liked })));
   let p = $("#seenPanel"); if (!p) { p = document.createElement("div"); p.id = "seenPanel"; $("#statusView").append(p); }
-  p.innerHTML = `<div class="inbox-head" style="padding:4px 4px 8px"><b>👁 ${rows.length} seen · ❤️ ${rows.filter((r) => r.liked).length}</b><button class="icon" id="seenClose">✕</button></div>` +
-    (rows.length ? rows.map((r) => `<div class="row nopoint">${avatarHTML(r.u)}<div class="grow"><b>${esc(nameOf(r.u))}${vb(r.u)}</b></div>${r.liked ? "❤️" : ""}</div>`).join("") : `<p class="tiny">No views yet.</p>`);
+  p.innerHTML = `<div class="inbox-head" style="padding:4px 4px 8px"><b>👁 ${rows.length} views · ❤️ ${rows.filter((r) => r.liked).length} likes</b><button class="icon" id="seenClose">✕</button></div><div class="wd-activity-tabs"><button type="button" data-activity="all">All viewers</button><button type="button" data-activity="liked">Liked ❤️</button></div>` +
+    (rows.length ? rows.map((r) => `<div class="row nopoint wd-activity-person" data-liked="${r.liked?"yes":"no"}">${avatarHTML(r.u)}<div class="grow"><b>${esc(nameOf(r.u))}${vb(r.u)}</b></div>${r.liked ? "❤️" : ""}</div>`).join("") : `<p class="tiny">No views yet.</p>`);
   p.classList.remove("hidden");
 }
 $("#statusView").addEventListener("click", (e) => {
   const st = sv.list[sv.i];
+  const tab=e.target.closest("[data-activity]");if(tab){const liked=tab.dataset.activity==="liked";document.querySelectorAll("#seenPanel .wd-activity-person").forEach(row=>row.classList.toggle("hidden",liked&&row.dataset.liked!=="yes"));return;}
   if (e.target.closest("#seenClose")) { $("#seenPanel").classList.add("hidden"); drawSV(); return; }
   if (e.target.closest("#svSeen") && st) act(() => showSeenBy(st), e.target.closest("#svSeen"));
   const lk = e.target.closest("#svLike");
