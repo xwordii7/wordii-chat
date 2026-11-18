@@ -42,7 +42,7 @@ if (firebaseConfig.apiKey.startsWith("PASTE")) { fatal(new Error("Open public/fi
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app), db = getFirestore(app);
 
-const WORDII_WEB_VERSION = "1.5.10";
+const WORDII_WEB_VERSION = "1.5.12";
 // Wordii Media API authentication self-test. Never logs or displays the ID token.
 async function wordiiTestMediaAuth() {
   const user = auth.currentUser;
@@ -753,10 +753,12 @@ $("#tab-status").addEventListener("click", (e) => {
 });
 
 let sv = { list: [], i: 0, t: null };
+let wordiiStoryTimerToken = 0;
 let wordiiVideoObjectUrl = null;
 function openSV(list, i = 0) { if (!list.length) return; sv = { list, i, t: null }; $("#statusView").classList.remove("hidden"); drawSV(); }
-function closeSV() { if(wordiiVideoObjectUrl){URL.revokeObjectURL(wordiiVideoObjectUrl);wordiiVideoObjectUrl=null;} stopWordiiStoryAudio(); clearTimeout(sv.t); $("#statusView").classList.add("hidden"); }
+function closeSV() { wordiiStoryTimerToken++; if(wordiiVideoObjectUrl){URL.revokeObjectURL(wordiiVideoObjectUrl);wordiiVideoObjectUrl=null;} stopWordiiStoryAudio(); clearTimeout(sv.t); $("#statusView").classList.add("hidden"); }
 function drawSV() {
+  const timerToken = ++wordiiStoryTimerToken;
   stopWordiiStoryAudio();
   if(wordiiVideoObjectUrl){URL.revokeObjectURL(wordiiVideoObjectUrl);wordiiVideoObjectUrl=null;}
   clearTimeout(sv.t);
@@ -779,9 +781,14 @@ function drawSV() {
   else { body.style.background = ST_BG[st.bg] || ST_BG[0]; const d = document.createElement("div"); d.className = "sv-text"; d.textContent = st.text || ""; body.append(d); }
   playWordiiStoryAudio(st, body);
   drawSVBar(st);
-  if(!st.videoPath)sv.t = setTimeout(() => { if(document.getElementById("seenPanel")&&!document.getElementById("seenPanel").classList.contains("hidden"))return; sv.i++; drawSV(); }, st.musicId||st.audioPath?Math.max(6000,Math.min(30000,Number(st.musicDuration||15)*1000)):6000);
+  if(!st.videoPath)sv.t = setTimeout(() => {
+    if (timerToken !== wordiiStoryTimerToken || $("#statusView").classList.contains("hidden")) return;
+    if (!$("#seenPanel")?.classList.contains("hidden")) return;
+    if (sv.list[sv.i]?.id !== st.id) return;
+    sv.i++; drawSV();
+  }, st.musicId||st.audioPath?Math.max(6000,Math.min(30000,Number(st.musicDuration||15)*1000)):6000);
 }
-$("#svBody").addEventListener("click", () => { if(!$("#seenPanel")?.classList.contains("hidden"))return; sv.i++; drawSV(); });
+$("#svBody").addEventListener("click", (e) => { if(e.target.closest("button, audio, video, input"))return; if(!$("#seenPanel")?.classList.contains("hidden"))return; sv.i++; drawSV(); });
 let wordiiStatusTouch=null;
 $("#statusView").addEventListener("touchstart",e=>{if(e.touches.length===1)wordiiStatusTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};},{passive:true});
 $("#statusView").addEventListener("touchend",e=>{if(!wordiiStatusTouch||!e.changedTouches.length)return;const dy=e.changedTouches[0].clientY-wordiiStatusTouch.y;wordiiStatusTouch=null;const st=sv.list[sv.i];if(dy< -75&&st?.ownerUid===uid)showSeenBy(st).catch(err=>toast(friendly(err)));},{passive:true});
@@ -1309,7 +1316,7 @@ $("#settingsBody").addEventListener("click", async (e) => {
           link.rel = "noopener noreferrer";
           link.textContent = "Download Update";
           result.appendChild(link);
-        } else {
+        } else if (!apk) {
           result.append(" APK not available yet.");
         }
       })
@@ -2084,37 +2091,63 @@ function wordiiOpenEffects(){
 }
 document.getElementById('wordiiEffectsClose').onclick=()=>document.getElementById('wordiiEffects').classList.add('hidden');
 function stopWordiiStoryAudio(){if(wordiiStatusAudio){wordiiStatusAudio.pause();wordiiStatusAudio.remove();wordiiStatusAudio=null;}if(wordiiStatusAudioUrl){URL.revokeObjectURL(wordiiStatusAudioUrl);wordiiStatusAudioUrl=null;}}
-async function playWordiiStoryAudio(st,body){
-  if(!st.musicId&&!st.audioPath)return;
-  const expected=st.id;
-  const audio=document.createElement('audio');audio.className='wordii-status-audio';audio.controls=false;audio.loop=true;audio.volume=.55;body.append(audio);wordiiStatusAudio=audio;
-  try{
-    if(st.musicId){await wordiiLoadCatalog();let track=wordiiTracks.find(t=>t.id===st.musicId);if(/^am_[a-zA-Z0-9]+$/.test(st.musicId))track={id:st.musicId,adminClip:true};if(!track)return;const src=await wordiiAudioSource(track);if(wordiiStatusAudio!==audio)return;audio.src=src;}
-    else if(st.audioPath){const blob=await getBlob(storageRef(getStorage(),st.audioPath));if(sv.list[sv.i]?.id!==expected||wordiiStatusAudio!==audio)return;wordiiStatusAudioUrl=URL.createObjectURL(blob);audio.src=wordiiStatusAudioUrl;}
-    else return;
-    const start=Math.max(0,Number(st.musicStart)||0), duration=Math.max(1,Math.min(30,Number(st.musicDuration)||15));
-    audio.loop=false;
-    audio.addEventListener('loadedmetadata',()=>{if(Number.isFinite(audio.duration))audio.currentTime=Math.min(start,Math.max(0,audio.duration-0.1));},{once:true});
-    audio.addEventListener('timeupdate',()=>{if(audio.currentTime>=start+duration){audio.currentTime=start;audio.play().catch(()=>{});}});
-    audio.addEventListener('ended',()=>{audio.currentTime=start;audio.play().catch(()=>{});});
-    if(sv.list[sv.i]?.id===expected)audio.play().catch(()=>{
-      if(wordiiStatusAudio!==audio)return;
-      audio.controls=false;
-      let playBtn = body.querySelector(".wordii-audio-play-btn");
-      if (!playBtn) {
-        playBtn = document.createElement("button");
-        playBtn.className = "wordii-audio-play-btn";
-        playBtn.textContent = "♫ Play Music";
-        playBtn.onclick = e => {
-          e.stopPropagation();
-          audio.play().then(() => playBtn.remove()).catch(() => {
-            toast("Music could not play");
-          });
-        };
-        body.append(playBtn);
-      }
+async function playWordiiStoryAudio(st, body) {
+  if (!st.musicId && !st.audioPath) return;
+  const expected = st.id;
+  const audio = document.createElement('audio');
+  audio.className = 'wordii-status-audio';
+  audio.preload = 'auto';
+  audio.controls = false;
+  audio.volume = .55;
+  body.append(audio);
+  wordiiStatusAudio = audio;
+  const active = () => wordiiStatusAudio === audio && sv.list[sv.i]?.id === expected && !$("#statusView").classList.contains("hidden");
+  const start = Math.max(0, Number(st.musicStart) || 0);
+  const duration = Math.max(1, Math.min(30, Number(st.musicDuration) || 15));
+  let finished = false;
+  function showPlayButton() {
+    if (!active()) return;
+    let btn = body.querySelector('.wordii-audio-play-btn');
+    if (btn) return;
+    btn = document.createElement('button');
+    btn.className = 'wordii-audio-play-btn';
+    btn.textContent = '♫ Play Music';
+    btn.onclick = e => { e.stopPropagation(); if (!active()) return; audio.play().then(() => btn.remove()).catch(() => toast('Music could not play')); };
+    body.append(btn);
+  }
+  try {
+    if (st.musicId) {
+      await wordiiLoadCatalog();
+      let track = wordiiTracks.find(t => t.id === st.musicId);
+      if (/^am_[a-zA-Z0-9]+$/.test(st.musicId)) track = {id:st.musicId, adminClip:true};
+      if (!track) return;
+      const src = await wordiiAudioSource(track);
+      if (!active()) return;
+      audio.src = src;
+    } else {
+      const blob = await getBlob(storageRef(getStorage(), st.audioPath));
+      if (!active()) return;
+      wordiiStatusAudioUrl = URL.createObjectURL(blob);
+      audio.src = wordiiStatusAudioUrl;
+    }
+    audio.addEventListener('timeupdate', () => {
+      if (!active() || finished) return;
+      if (audio.currentTime >= start + duration) { finished = true; audio.pause(); }
     });
-  }catch(e){if(wordiiStatusAudio===audio){audio.replaceWith(document.createTextNode('Audio unavailable'));}}
+    audio.addEventListener('loadedmetadata', () => {
+      if (!active()) return;
+      const seek = Number.isFinite(audio.duration) ? Math.min(start, Math.max(0, audio.duration - .1)) : start;
+      try { audio.currentTime = seek; } catch (_) {}
+    }, {once:true});
+    audio.addEventListener('canplay', () => {
+      if (!active() || finished) return;
+      audio.play().catch(showPlayButton);
+    }, {once:true});
+    audio.load();
+    if (audio.readyState >= 2) audio.play().catch(showPlayButton);
+  } catch (e) {
+    if (active()) { audio.remove(); toast('Music unavailable: ' + friendly(e)); }
+  }
 }
 // Wordii Story Creator: My Status is the only visible entry point.
 let wordiiStoryStream = null;
