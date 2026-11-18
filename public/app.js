@@ -24,8 +24,13 @@ function friendly(e) {
   if (String(e.code || "").startsWith("auth/")) return authMsg(e.code);
   return e.code === "permission-denied" ? "Firebase permission denied. Check Story rules and login." : (e.code ? "[" + e.code + "] " : "") + (e.message || "Something went wrong");
 }
-const vb = (u) => (u?.admin === true ? '<span class="abadge" title="Admin">★</span>' : '') + (u?.preAdmin === true ? '<span class="btp-badge btp-pre" title="Pre-Admin">♛</span>' : '') + (u?.premium === true ? '<span class="btp-badge btp-premium" title="Premium">◆</span>' : '') + (u?.verified === true ? '<span class="vbadge" title="Verified">✔</span>' : '');
+// Wordii v1.5.2: original role badge artwork. Flags still come only from stored user permissions.
+const wdRoleIcon = (asset, label) => `<img class="wd-role-icon" src="wordii-badges/${asset}_icon.png" alt="${label} badge" title="${label}" loading="lazy" decoding="async">`;
+const vb = (u) => (u?.admin === true ? wdRoleIcon('admin', 'Admin') : '') + (u?.preAdmin === true ? wdRoleIcon('pre_admin', 'Pre-Admin') : '') + (u?.premium === true ? wdRoleIcon('premium_user', 'Premium User') : '') + (u?.verified === true ? wdRoleIcon('verified_user', 'Verified User') : '');
 const canBTP = () => me?.admin === true || me?.preAdmin === true;
+const canGreenTheme = (u) => u?.admin === true || u?.preAdmin === true || u?.premium === true;
+const wordiiStoryRole = (u) => u?.admin === true || u?.preAdmin === true ? 'story-gold-flame' : u?.premium === true ? 'story-purple-flame' : '';
+
 async function act(fn, btn) { if (btn) btn.disabled = true; try { await fn(); } catch (e) { toast(friendly(e)); } finally { if (btn) btn.disabled = false; } }
 function legacyCopy(text) { const t = document.createElement("textarea"); t.value = text; document.body.append(t); t.select(); document.execCommand("copy"); t.remove(); }
 function copy(text) {
@@ -37,7 +42,7 @@ if (firebaseConfig.apiKey.startsWith("PASTE")) { fatal(new Error("Open public/fi
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app), db = getFirestore(app);
 
-const WORDII_WEB_VERSION = "1.5.1";
+const WORDII_WEB_VERSION = "1.5.7-test";
 // Wordii Media API authentication self-test. Never logs or displays the ID token.
 async function wordiiTestMediaAuth() {
   const user = auth.currentUser;
@@ -348,8 +353,8 @@ function renderStoryRail() {
   const myAvatar=me ? avatarHTML(me) : '<div class="avatar">W</div>';
   const groups=friendGroups();
   const others=Object.entries(friends).filter(([id,f]) => !!f && (groups[id] || []).length).slice(0,12);
-  rail.innerHTML=`<button type="button" class="story" data-story-owner="me" aria-label="View my status"><span class="story-circle ${me?.premium ? "story-premium" : ""}">${myAvatar}<i data-add-story="true" role="button" aria-label="Add another status" title="Add status">+</i></span><small>My status</small></button>` +
-    others.map(([id,f]) => `<button type="button" class="story" data-story-owner="${esc(id)}"><span class="story-circle ${f?.premium ? "story-premium" : ""}">${avatarHTML(f)}</span><small>${esc(nameOf(f)).slice(0,13)}</small></button>`).join('');
+  rail.innerHTML=`<button type="button" class="story" data-story-owner="me" aria-label="View my status"><span class="story-circle ${wordiiStoryRole(me)}">${myAvatar}<i data-add-story="true" role="button" aria-label="Add another status" title="Add status">+</i></span><small>My status</small></button>` +
+    others.map(([id,f]) => `<button type="button" class="story" data-story-owner="${esc(id)}"><span class="story-circle ${wordiiStoryRole(f)}">${avatarHTML(f)}</span><small>${esc(nameOf(f)).slice(0,13)}</small></button>`).join('');
 }
 
 
@@ -397,7 +402,7 @@ function renderProfile() {
       ${row("subs", "💎", "Subscriptions", "Explore premium benefits")}
       ${row("updates", "🚀", "App Updates", "Check for new versions")}
       ${row("invite", "👥", "Invite a friend", "Share Wordii Chat")}
-      ${canBTP() ? row("admin", "🛡️", "BTP badge panel", "Manage verified, premium and staff badges") + (me.admin ? row("dash", "📊", "Admin dashboard", "See who is using the app") : "") + row("gifts", "🎁", "Level gifts", "Add, edit or remove rewards") : ""}
+      ${canBTP() ? row("admin", "🛡️", "BTP badge panel", "Manage verified, premium and staff badges") + (me.admin ? row("dash", "📊", "Admin dashboard", "See who is using the app") + row("musicAdmin", "🎵", "Manage Music", "Publish licensed status clips") : "") + row("gifts", "🎁", "Level gifts", "Add, edit or remove rewards") : ""}
     </div>
     ${followCard()}
     <p class="tiny" style="padding:6px 10px">Symbol messages are <b>obfuscation, not encryption</b>.</p>`;
@@ -777,7 +782,7 @@ $("#wordiiStatusVideoFile").addEventListener('change',async e=>{
     const ext=file.type==='video/mp4'?'mp4':'webm';
     const path=`status-video/${uid}/${statusRef.id}/clip.${ext}`;
     const audience=stAudience();
-    await uploadBytes(storageRef(getStorage(),path),file,{contentType:file.type});
+    try { await uploadBytes(storageRef(getStorage(),path),file,{contentType:file.type}); } catch(uploadErr) { throw new Error('Video storage upload failed. Firebase Storage is unavailable or denied. Google Drive backend must be connected before Drive uploads can work.'); }
     await setDoc(statusRef,{ownerUid:uid,...audience,videoPath:path,createdAt:serverTimestamp()});
     toast('Video status posted');clearMentions();
   }catch(err){toast(friendly(err));}finally{btn.disabled=false;}
@@ -1116,7 +1121,7 @@ $("#searchResults").addEventListener("click", (e) => {
 const BG_SW = ["#2a1b4d", "radial-gradient(#7b2cff,#1d1040)", "linear-gradient(160deg,#064e5c,#0b1b3a)", "linear-gradient(160deg,#7c2d12,#4c1d95)", "#000"];
 let admList = [], admTimer;
 let subKey = "";
-const SUB_TITLES = { overview: "Settings", appearance: "Appearance", points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "BTP badge panel", dash: "Admin dashboard", gifts: "Level gifts", updates: "App Updates" };
+const SUB_TITLES = { musicAdmin: "Manage Music", overview: "Settings", appearance: "Appearance", points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "BTP badge panel", dash: "Admin dashboard", gifts: "Level gifts", updates: "App Updates" };
 function openSub(k) { subKey = k; $("#setTitle").textContent = SUB_TITLES[k] || "Settings"; $("#settings").classList.remove("hidden"); renderSettings(true); }
 function shareInvite() {
   const d = { title: "Wordii Chat", text: `Chat with me on Wordii Chat! Find me: ${me.username}`, url: location.origin };
@@ -1131,7 +1136,7 @@ function renderSettings(force) {
   const pages = {
     overview: () => `<div class="wd-settings-overview"><div class="wd-settings-person"><div class="wd-settings-avatar">${avatarHTML(me)}</div><div><strong>${esc(me.displayName || me.username)}</strong><p class="tiny">${esc(me.username)} · Level ${me.level || 1}</p></div></div>
       ${[['👤','edit','Edit profile','Name, bio, profile photo and banner'],['🏆','points','Points & level','XP, progress and streak'],['🔑','account','Account','Login, email and account security'],['🔒','privacy','Privacy','Online status, public account'],['💬','chats','Chats','Chat wallpaper and theme'],['🎨','appearance','Appearance','Light and dark app theme'],['🔔','notif','Notifications','Message and push alerts'],['🌐','lang','App language','Current language options'],['💎','subs','Subscriptions','Available plans'],['🚀','updates','App Updates','Check the app version']].map(([ico,k,label,desc])=>`<button type="button" class="wd-settings-link" data-wd-settings="${k}"><span class="wd-settings-ico">${ico}</span><span><b>${label}</b><small>${desc}</small></span><span class="wd-settings-arrow">›</span></button>`).join('')}</div>`,
-    appearance: () => `<div class="card"><b>App theme</b><p class="tiny">Choose a theme for all screens.</p><select id="setTheme"><option value="dark" ${t==='dark'?'selected':''}>Dark</option><option value="light" ${t==='light'?'selected':''}>Light</option><option value="green" ${t==='green'?'selected':''}>White + Green</option><option value="auto" ${t==='auto'?'selected':''}>System default</option></select></div>`,
+    appearance: () => `<div class="card"><b>App theme</b><p class="tiny">Choose a theme for all screens.</p><select id="setTheme"><option value="dark" ${t==='dark'?'selected':''}>Dark</option><option value="light" ${t==='light'?'selected':''}>Light</option>${canGreenTheme(me) ? `<option value="green" ${t==='green'?'selected':''}>White + Green</option>` : ""}<option value="auto" ${t==='auto'?'selected':''}>System default</option></select></div>`,
     points: () => `<div class="card center"><div class="stats"><div><b>${me.level || 1}</b><span>Level</span></div><div><b>${me.points || 0}</b><span>Points</span></div><div><b>🔥 ${me.streak || 0}</b><span>Streak</span></div></div>
       <div class="bar"><i style="width:${((me.points || 0) % 10) * 10}%"></i></div><p class="tiny">${10 - ((me.points || 0) % 10)} more points to Level ${(me.level || 1) + 1}</p></div>
       <div class="card tiny">Earn points: +4 once a day (streak) and +1 for every active minute. Every 10 points = 1 level.</div>`,
@@ -1152,7 +1157,7 @@ function renderSettings(force) {
       <div class="card"><label class="setrow"><span><b>Show when I'm online</b></span><input type="checkbox" id="setShowOnline" ${me.showOnline === false ? "" : "checked"}></label>
         <p class="tiny">Friends see "Active now" while you use the app. Turn it off to hide it (you won't see theirs either way).</p></div>
       ${me?.premium ? `<div class="card"><label class="setrow"><span><b>🥷 Anonymous mode (Premium)</b></span><input type="checkbox" id="setPremiumInvisible" ${premiumInvisible() ? "checked" : ""}></label><p class="tiny">Hide new status views and Seen receipts on this device. Likes disabled. Existing views remain.</p></div>` : ``}`,
-    chats: () => `<div class="card"><b>Theme</b><select id="setTheme"><option value="auto" ${t === "auto" ? "selected" : ""}>Same as my phone</option><option value="dark" ${t === "dark" ? "selected" : ""}>Dark</option><option value="light" ${t === "light" ? "selected" : ""}>Light</option><option value="green" ${t === "green" ? "selected" : ""}>White + Green</option></select>
+    chats: () => `<div class="card"><b>Theme</b><select id="setTheme"><option value="auto" ${t === "auto" ? "selected" : ""}>Same as my phone</option><option value="dark" ${t === "dark" ? "selected" : ""}>Dark</option><option value="light" ${t === "light" ? "selected" : ""}>Light</option>${canGreenTheme(me) ? `<option value="green" ${t === "green" ? "selected" : ""}>White + Green</option>` : ""}</select>
         <p class="tiny" style="margin-top:12px">Chat background</p>
         <div class="colors">${BG_SW.map((c, i) => `<button type="button" data-bg="${i}" class="${String(i) === bg ? "on" : ""}" style="background:${c}" aria-label="Background ${i + 1}"></button>`).join("")}</div>${me?.premium ? `<div class="wd-wallpaper-settings"><label for="wdWallpaperFile"><b>🖼️ My gallery wallpaper</b></label><input type="file" id="wdWallpaperFile" accept="image/*"><button type="button" class="btn ghost" id="wdWallpaperClear">Remove custom wallpaper</button><p class="tiny">Saved only on this device. Choose an image under 5 MB.</p></div>` : `<p class="tiny">Gallery wallpaper is a Premium feature.</p>`}</div>`,
     notif: () => `<div class="card"><label class="setrow"><span><b>Message notifications</b></span><input type="checkbox" id="setNotif" ${nOn ? "checked" : ""}></label>
@@ -1171,19 +1176,21 @@ function renderSettings(force) {
       <div id="wordiiUpdateResult" style="margin-top:14px"></div>
     </div>`,
     lang: () => `<div class="card tiny">English. Hindi is coming soon.</div>`,
+    musicAdmin: () => me?.admin === true ? wordiiAdminMusicHTML() : `<div class="card">Access denied.</div>`,
     subs: () => wordiiSubscriptionHTML(),
-    admin: () => canBTP() ? `<div class="card"><b>🛡️ BTP — Badge & Trust Panel</b><p class="tiny">Search a username. Only full Admin can suspend/restore accounts.</p><input id="admSearch" placeholder="Search username" autocapitalize="none" autocomplete="off"><div id="admResults"></div></div>${me?.admin ? `<div class="card"><b>📩 Suspension appeals</b><div id="wdAppealAdminList">Loading…</div><button type="button" class="btn ghost" id="wdRefreshAppeals">Refresh appeals</button></div>` : ``}` : `<div class="card">Access denied.</div>`,
+    admin: () => canBTP() ? `<div class="card"><b>🛡️ BTP — Badge & Trust Panel</b><p class="tiny">Search a username. Only Admin can assign Pre-Admin. Premium and Verified badges require payment approval.</p><div class="wd-badge-showcase" aria-label="Wordii role badges"><img src="wordii-badges/admin_full.png" alt="Admin role badge" loading="lazy"><img src="wordii-badges/pre_admin_full.png" alt="Pre-Admin role badge" loading="lazy"><img src="wordii-badges/premium_user_full.png" alt="Premium User role badge" loading="lazy"><img src="wordii-badges/verified_user_full.png" alt="Verified User role badge" loading="lazy"></div><input id="admSearch" placeholder="Search username" autocapitalize="none" autocomplete="off"><div id="admResults"></div></div>${me?.admin ? `<div class="card"><b>📩 Suspension appeals</b><div id="wdAppealAdminList">Loading…</div><button type="button" class="btn ghost" id="wdRefreshAppeals">Refresh appeals</button></div>` : ``}` : `<div class="card">Access denied.</div>`,
   };
   $("#settingsBody").innerHTML = (pages[subKey] || (() => ""))();
   applyWordiiWallpaper();
   if (subKey === "admin") { renderAdm(); if (me?.admin) loadSuspensionAppeals(); }
+  if (subKey === "musicAdmin" && me?.admin === true) wordiiBindAdminMusic();
   if (subKey === "subs") loadWordiiSubscription();
   if (subKey === "dash") loadDash();
   if (subKey === "gifts" && canBTP()) loadLevelGifts();
 }
 function renderAdm() {
   const box = $("#admResults"); if (!box) return;
-  box.innerHTML = admList.length ? admList.map((u) => `<div class="row nopoint">${avatarHTML(u)}<div class="grow"><b>${esc(nameOf(u))}${vb(u)}</b><span class="muted">${esc(u.username)}</span></div><div class="btp-actions">${me?.admin===true ? `<button class="btn sm ghost" data-suspend="${esc(u.id)}">${u.suspended ? 'Unban' : 'Suspend'}</button>` : ''}${me?.admin===true ? `<button class="btn sm ghost" data-btp="preAdmin" data-user="${esc(u.id)}">${u.preAdmin?'Remove Pre-Admin':'Pre-Admin'}</button>`:''}<button class="btn sm ghost" data-btp="premium" data-user="${esc(u.id)}">${u.premium?'Remove Premium':'Premium'}</button><button class="btn sm ghost" data-btp="verified" data-user="${esc(u.id)}">${u.verified?'Remove Verified':'Verified'}</button></div></div>`).join("") : `<p class="tiny">Type at least 2 letters.</p>`;
+  box.innerHTML = admList.length ? admList.map((u) => `<div class="row nopoint">${avatarHTML(u)}<div class="grow"><b>${esc(nameOf(u))}${vb(u)}</b><span class="muted">${esc(u.username)}</span></div><div class="btp-actions">${me?.admin===true ? `<button class="btn sm ghost" data-suspend="${esc(u.id)}">${u.suspended ? 'Unban' : 'Suspend'}</button>` : ''}${me?.admin===true ? `<button class="btn sm ghost" data-btp="preAdmin" data-user="${esc(u.id)}">${u.preAdmin?'Remove Pre-Admin':'Pre-Admin'}</button>`:''}</div></div>`).join("") : `<p class="tiny">Type at least 2 letters.</p>`;
 }
 async function loadSuspensionAppeals() {
   const box = $('#wdAppealAdminList');
@@ -1201,7 +1208,7 @@ $("#settingsBody").addEventListener("click", e => { const b=e.target.closest("[d
 $("#settingsBody").addEventListener("change", (e) => {
   const t = e.target;
   if (t.id === "setPublic") act(async () => { await updateDoc(doc(db, "users", uid), { isPublic: t.checked }); toast(t.checked ? "Account is public" : "Account is private"); });
-  else if (t.id === "setTheme") { const theme=t.value === "auto" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : t.value; setPref("theme",t.value); document.documentElement.dataset.wdTheme=theme; document.documentElement.dataset.theme=theme; document.querySelector('meta[name="theme-color"]')?.setAttribute("content",(theme==="light"||theme==="green")?"#ffffff":"#08080b"); }
+  else if (t.id === "setTheme") { if (t.value === "green" && !canGreenTheme(me)) { toast("White + Green requires Admin, Pre-Admin or Premium"); t.value="dark"; } const theme=t.value === "auto" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : t.value; setPref("theme",t.value); document.documentElement.dataset.wdTheme=theme; document.documentElement.dataset.theme=theme; document.querySelector('meta[name="theme-color"]')?.setAttribute("content",(theme==="light"||theme==="green")?"#ffffff":"#08080b"); }
   else if (t.id === "setNotif") setPref("notif", t.checked ? "on" : "off");
   else if (t.id === "wdWallpaperFile" && me?.premium) {
     const file = t.files?.[0];
@@ -1244,7 +1251,7 @@ $("#settingsBody").addEventListener("click", async (e) => {
       })
       .then(release => {
         const apk = release.assets?.find(a => a.name.endsWith(".apk"));
-        const currentVersion = "1.3.2";
+        const currentVersion = WORDII_WEB_VERSION;
         const latestVersion = release.tag_name.replace(/^v/i, "");
         const compareVersions = (a, b) => {
           const x = a.split(".").map(Number);
@@ -1324,8 +1331,8 @@ $("#settingsBody").addEventListener("click", async (e) => {
   if (btp) {
     const target = admList.find(x => x.id === btp.dataset.user);
     const field = btp.dataset.btp;
-    if (!target || !['preAdmin','premium','verified'].includes(field)) return;
-    if (!canBTP() || (field === 'preAdmin' && me?.admin !== true)) { toast('Not authorized'); return; }
+    if (!target || field !== 'preAdmin') return;
+    if (me?.admin !== true) { toast('Only Admin can assign Pre-Admin'); return; }
     if (target.admin === true) { toast('Admin account cannot be changed here'); return; }
     const next = target[field] !== true;
     if (!confirm(`${next?'Give':'Remove'} ${field} badge for ${target.username}?`)) return;
@@ -1844,14 +1851,57 @@ const wordiiTracks = [
   {id:'aurora',title:'Aurora Drift'}, {id:'midnight',title:'Midnight Pulse'},
   {id:'sunrise',title:'Sunrise Bloom'}, {id:'nebula',title:'Nebula Nights'}
 ];
+// Hosting-managed catalog: only the hosting publisher can change these assets.
+const wordiiBuiltinTracks = [...wordiiTracks];
+let wordiiCatalogPromise;
+function wordiiTrackURL(t){return t?.file ? 'wordii-music/'+t.file : 'wordii-music/'+t.id+'.wav';}
+function wordiiLoadCatalog(){
+  if(wordiiCatalogPromise)return wordiiCatalogPromise;
+  wordiiCatalogPromise=(async()=>{
+    try{
+      const r=await fetch('wordii-music/catalog.json',{cache:'no-store'});if(!r.ok)return;
+      const catalog=await r.json();
+      if(!Array.isArray(catalog.tracks))return;
+      const ids=new Set(wordiiBuiltinTracks.map(t=>t.id));
+      for(const t of catalog.tracks.slice(0,500)){
+        if(!t||typeof t.id!=='string'||!/^[-a-z0-9_]{1,64}$/.test(t.id)||ids.has(t.id)||typeof t.title!=='string'||!t.title.trim()||typeof t.file!=='string'||!/^[-a-zA-Z0-9_]+\.(mp3|wav|m4a|aac|ogg)$/i.test(t.file))continue;
+        ids.add(t.id);wordiiTracks.push({id:t.id,title:t.title.slice(0,100),file:t.file});
+      }
+    }catch(e){wordiiCatalogPromise=null;}
+  })();return wordiiCatalogPromise;
+}
+// Small, licensed MP3 status clips; metadata and audio stored separately.
+const WORDII_CLIP_MAX = 450000;
+async function wordiiLoadAdminTracks(){
+  const snap=await getDocs(query(collection(db,'wordiiAdminMusic'),limit(100)));
+  for(let i=wordiiTracks.length-1;i>=0;i--)if(wordiiTracks[i].adminClip)wordiiTracks.splice(i,1);
+  for(const d of snap.docs){const t=d.data();if(/^am_[a-zA-Z0-9]+$/.test(d.id)&&typeof t.title==='string')wordiiTracks.push({id:d.id,title:t.title,artist:t.artist,category:t.category,enabled:t.enabled===true,adminClip:true});}
+}
+async function wordiiAudioSource(t){
+  if(!t.adminClip)return wordiiTrackURL(t);
+  const d=await getDoc(doc(db,'wordiiAdminMusicAudio',t.id));
+  const audio=d.data()?.audio;
+  if(typeof audio!=='string'||!/^data:audio\/mpeg;base64,[A-Za-z0-9+/=]+$/.test(audio)||audio.length>600100)throw Error('Music is unavailable');
+  return audio;
+}
+function wordiiAdminMusicHTML(){return `<div class="card"><h3>🎵 Manage Music</h3><p class="tiny">Upload original or licensed MP3 clips only. Max 450 KB per clip, up to 100 tracks. Published clips are available to registered users.</p><label>Song name</label><input id="wmTitle" maxlength="100"><label>Artist</label><input id="wmArtist" maxlength="80"><label>Category</label><select id="wmCategory"><option>Sad / Lo-fi</option><option>Romantic</option><option>Punjabi</option><option>Other</option></select><input id="wmFile" type="file" accept="audio/mpeg,.mp3"><label><input id="wmRights" type="checkbox"> I have permission to publish this music for users.</label><button id="wmUpload" class="btn">Upload Music</button><div id="wmList">Loading…</div></div>`;}
+async function wordiiBindAdminMusic(){
+  const list=$('#wmList'),btn=$('#wmUpload');if(!list||!btn||me?.admin!==true)return;
+  async function refresh(){try{await wordiiLoadAdminTracks();if(!list.isConnected)return;list.textContent='';for(const t of wordiiTracks.filter(t=>t.adminClip)){const row=document.createElement('div');row.className='card';const title=document.createElement('p');title.textContent=t.title+' · '+t.artist;row.append(title);const toggle=document.createElement('button');toggle.className='btn sm ghost';toggle.textContent=t.enabled?'Disable':'Enable';toggle.onclick=()=>act(async()=>{await updateDoc(doc(db,'wordiiAdminMusic',t.id),{enabled:!t.enabled});await refresh();},toggle);row.append(toggle);const del=document.createElement('button');del.className='btn sm ghost';del.textContent='Delete';del.onclick=()=>act(async()=>{if(!confirm('Delete music? Existing statuses will lose this audio.'))return;const batch=writeBatch(db);batch.delete(doc(db,'wordiiAdminMusic',t.id));batch.delete(doc(db,'wordiiAdminMusicAudio',t.id));await batch.commit();await refresh();},del);row.append(del);list.append(row);}if(!list.children.length)list.textContent='No uploaded music yet.';}catch(e){list.textContent=friendly(e);}}
+  btn.onclick=()=>act(async()=>{if(me?.admin!==true)throw Error('Admin only');const title=$('#wmTitle').value.trim(),artist=$('#wmArtist').value.trim(),category=$('#wmCategory').value,f=$('#wmFile').files[0];if(!title||!artist||!f||!$('#wmRights').checked)throw Error('Enter details, select MP3 and confirm rights.');if(!/\.mp3$/i.test(f.name)||f.size<1||f.size>WORDII_CLIP_MAX)throw Error('Choose an MP3 clip under 450 KB.');await wordiiLoadAdminTracks();if(wordiiTracks.filter(t=>t.adminClip).length>=100)throw Error('Library limit reached.');const audio=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve('data:audio/mpeg;base64,'+String(r.result).split(',')[1]);r.onerror=reject;r.readAsDataURL(f);});const id='am_'+doc(collection(db,'wordiiAdminMusic')).id;const batch=writeBatch(db);batch.set(doc(db,'wordiiAdminMusic',id),{title,artist,category,enabled:true});batch.set(doc(db,'wordiiAdminMusicAudio',id),{audio});await batch.commit();toast('Music published');if(btn.isConnected){$('#wmTitle').value='';$('#wmArtist').value='';$('#wmFile').value='';$('#wmRights').checked=false;await refresh();}},btn);
+  await refresh();
+}
 const wordiiEffects = [
   {name:'Normal',css:'none'}, {name:'Black & White',css:'grayscale(1)'},
   {name:'Vintage',css:'sepia(.75) contrast(.92)'}, {name:'Cinematic',css:'contrast(1.22) saturate(.75) brightness(.9)'},
-  {name:'Glow',css:'brightness(1.16) saturate(1.35)'}, {name:'Dream Blur',css:'blur(2px) saturate(1.2)'}
+  {name:'Glow',css:'brightness(1.16) saturate(1.35)'}, {name:'Dream Blur',css:'blur(2px) saturate(1.2)'},
+  {name:'Warm Sunset',css:'sepia(.25) saturate(1.3) brightness(1.05)'}, {name:'Cool Blue',css:'hue-rotate(15deg) saturate(.85) contrast(1.1)'},
+  {name:'Soft Pastel',css:'contrast(.85) saturate(.8) brightness(1.15)'}, {name:'High Contrast',css:'contrast(1.5) saturate(1.1)'}, {name:'Retro Film',css:'sepia(.35) contrast(1.15) saturate(.7)'}, {name:'Night Mood',css:'brightness(.8) contrast(1.2) saturate(.8)'}
 ];
 let wordiiSelectedMusic=null, wordiiAudioPreview=null, wordiiEffect=0, wordiiStatusAudio=null, wordiiStatusAudioUrl=null;
+let wordiiPreviewStopHandler=null;
 const wordiiMusicPanel=document.getElementById('stMusicPanel');
-function wordiiStopPreview(){if(wordiiAudioPreview){wordiiAudioPreview.pause();const oldUrl=wordiiAudioPreview.src;wordiiAudioPreview.removeAttribute('src');wordiiAudioPreview.load();if(oldUrl.startsWith('blob:'))URL.revokeObjectURL(oldUrl);wordiiAudioPreview=null;}}
+function wordiiStopPreview(){if(wordiiAudioPreview&&wordiiPreviewStopHandler){wordiiAudioPreview.removeEventListener('timeupdate',wordiiPreviewStopHandler);wordiiPreviewStopHandler=null;}if(wordiiAudioPreview){wordiiAudioPreview.pause();const oldUrl=wordiiAudioPreview.src;wordiiAudioPreview.removeAttribute('src');wordiiAudioPreview.load();if(oldUrl.startsWith('blob:'))URL.revokeObjectURL(oldUrl);wordiiAudioPreview=null;}}
 
 /* WORDII MUSIC COVER DISPLAY V1 */
 
@@ -1959,15 +2009,15 @@ function wordiiMusicLabel(){
 function wordiiRenderMusic(){
   const q=document.getElementById('stMusicSearch').value.trim().toLowerCase();
   const results=document.getElementById('stMusicResults');results.textContent='';
-  wordiiTracks.filter(t=>t.title.toLowerCase().includes(q)).forEach(t=>{
-    const b=document.createElement('button');b.type='button';b.textContent='♫ '+t.title+' · Original instrumental';
+  wordiiTracks.filter(t=>(!t.adminClip||t.enabled)&&[t.title,t.artist,t.category].join(' ').toLowerCase().includes(q)).forEach(t=>{
+    const b=document.createElement('button');b.type='button';b.textContent='♫ '+t.title+' · '+(t.artist||'Wordii Library');
     if(wordiiSelectedMusic?.id===t.id)b.classList.add('selected');
-    b.onclick=()=>{wordiiStopPreview();wordiiSelectedMusic={type:'library',id:t.id,title:t.title};wordiiMusicLabel();wordiiRenderMusic();wordiiAudioPreview=new Audio('wordii-music/'+t.id+'.wav');wordiiAudioPreview.volume=.45;wordiiAudioPreview.play().catch(()=>{});};
+    b.onclick=async()=>{wordiiStopPreview();const selection={type:'library',id:t.id,title:t.title};wordiiSelectedMusic=selection;wordiiMusicLabel();wordiiRenderMusic();try{const src=await wordiiAudioSource(t);if(wordiiSelectedMusic!==selection||wordiiMusicPanel.classList.contains('hidden'))return;wordiiAudioPreview=new Audio(src);wordiiAudioPreview.volume=.45;wordiiAudioPreview.play().catch(()=>toast('Tap preview to play music'));}catch(e){toast(friendly(e));}};
     results.append(b);
   });
   if(!results.children.length)results.textContent='No matching original tracks.';
 }
-function wordiiOpenMusic(){wordiiMusicPanel.classList.remove('hidden');wordiiRenderMusic();wordiiMusicLabel();}
+async function wordiiOpenMusic(){wordiiMusicPanel.classList.remove('hidden');wordiiRenderMusic();wordiiMusicLabel();await wordiiLoadCatalog();try{await wordiiLoadAdminTracks();}catch(e){toast(friendly(e));}wordiiRenderMusic();}
 function wordiiCloseMusic(){wordiiStopPreview();wordiiMusicPanel.classList.add('hidden');}
 document.getElementById('stMusicBtn').onclick=wordiiOpenMusic;
 document.getElementById('stMusicClose').onclick=wordiiCloseMusic;
@@ -1985,8 +2035,9 @@ document.getElementById('wordiiMusicPreviewClip').onclick=()=>{
   try{wordiiAudioPreview.currentTime=start;}catch(e){}
   wordiiAudioPreview.play().catch(()=>toast('Tap again to preview music'));
   const preview=wordiiAudioPreview;
-  const onTime=()=>{if(preview.currentTime>=start+15){preview.pause();preview.removeEventListener('timeupdate',onTime);}};
-  preview.addEventListener('timeupdate',onTime);
+  if(wordiiPreviewStopHandler)preview.removeEventListener('timeupdate',wordiiPreviewStopHandler);
+  wordiiPreviewStopHandler=()=>{if(preview.currentTime>=start+Math.max(1,Math.min(30,Number(document.getElementById("wordiiMusicDuration")?.value)||15))){preview.pause();preview.removeEventListener('timeupdate',wordiiPreviewStopHandler);wordiiPreviewStopHandler=null;}};
+  preview.addEventListener('timeupdate',wordiiPreviewStopHandler);
 };
 document.getElementById('wordiiMusicClear').onclick=()=>{wordiiStopPreview();wordiiSelectedMusic=null;document.getElementById('wordiiAudioFile').value='';wordiiMusicLabel();wordiiRenderMusic();};
 function wordiiOpenEffects(){
@@ -2001,7 +2052,7 @@ async function playWordiiStoryAudio(st,body){
   const expected=st.id;
   const audio=document.createElement('audio');audio.className='wordii-status-audio';audio.controls=false;audio.loop=true;audio.volume=.55;body.append(audio);wordiiStatusAudio=audio;
   try{
-    if(st.musicId&&wordiiTracks.some(t=>t.id===st.musicId))audio.src='wordii-music/'+st.musicId+'.wav';
+    if(st.musicId){await wordiiLoadCatalog();let track=wordiiTracks.find(t=>t.id===st.musicId);if(/^am_[a-zA-Z0-9]+$/.test(st.musicId))track={id:st.musicId,adminClip:true};if(!track)return;const src=await wordiiAudioSource(track);if(wordiiStatusAudio!==audio)return;audio.src=src;}
     else if(st.audioPath){const blob=await getBlob(storageRef(getStorage(),st.audioPath));if(sv.list[sv.i]?.id!==expected||wordiiStatusAudio!==audio)return;wordiiStatusAudioUrl=URL.createObjectURL(blob);audio.src=wordiiStatusAudioUrl;}
     else return;
     const start=Math.max(0,Number(st.musicStart)||0), duration=Math.max(1,Math.min(30,Number(st.musicDuration)||15));
@@ -2379,12 +2430,12 @@ document.getElementById("seShare").onclick=e=>act(async()=>{
     const safeExt=({mp3:'mp3',m4a:'m4a',aac:'aac',wav:'wav'})[ext];
     if(!safeExt)throw new Error('Use MP3, M4A, AAC or WAV audio.');
     const path=`status-audio/${uid}/${statusRef.id}/track.${safeExt}`;
-    await uploadBytes(storageRef(getStorage(),path),f,{contentType:f.type});
+    try { await uploadBytes(storageRef(getStorage(),path),f,{contentType:f.type}); } catch(uploadErr) { throw new Error('Device music upload failed. Firebase Storage is unavailable or denied. Google Drive backend must be connected before Drive uploads can work.'); }
     data.audioPath=path;
   }
   if(wordiiSelectedMusic) {
     data.musicStart=Math.max(0,Number(document.getElementById('wordiiMusicStart')?.value)||0);
-    data.musicDuration=15;
+    data.musicDuration=Math.max(1,Math.min(30,Number(document.getElementById("wordiiMusicDuration")?.value)||15));
   }
   await setDoc(statusRef,data);
   closeStoryEdit();wordiiSelectedMusic=null;wordiiMusicLabel();toast("Story posted. Tap My status to view.");
@@ -2538,7 +2589,7 @@ document.getElementById('backBtn').addEventListener('click',wdCloseChatMenu);
   document.getElementById('wdLevelBack').onclick=closeLevel;
   document.getElementById('wdLevelHome').onclick=closeLevel;
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!page.classList.contains('hidden'))closeLevel();});
-  function setTheme(v){document.documentElement.dataset.wdTheme=v;document.documentElement.dataset.theme=v;setPref('theme',v);document.querySelector('meta[name="theme-color"]')?.setAttribute('content',(v==='light'||v==='green')?'#f7f8fc':'#08080b');}
+  function setTheme(v){if(v==="green" && !canGreenTheme(me)) v="dark"; document.documentElement.dataset.wdTheme=v;document.documentElement.dataset.theme=v;setPref('theme',v);document.querySelector('meta[name="theme-color"]')?.setAttribute('content',(v==='light'||v==='green')?'#f7f8fc':'#08080b');}
   setTheme(pref('theme','dark')==='auto'?(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'):pref('theme','dark'));
   const menu=document.getElementById('homeMenu');
   const themeBtn=document.createElement('button');themeBtn.type='button';themeBtn.id='wdThemeToggle';themeBtn.textContent='☀ Light / Dark mode';
@@ -2562,6 +2613,9 @@ document.getElementById('backBtn').addEventListener('click',wdCloseChatMenu);
 let wordiiPlan = {price:30, enabled:false};
 let wordiiPremiumPlan={price:50,enabled:false};
 function wordiiSubscriptionHTML(){
+  return `<div class="card"><h3>Wordii Verified — ₹30</h3><p>Verified badge after approval.</p></div><div class="card"><h3>Premium Verified — ₹50</h3><p>Premium and verified benefits.</p></div><p class="tiny">Test build: payments are not enabled.</p>`;
+}
+function wordiiOriginalSubscriptionHTML(){
   const premiumBlock=`<div class="card wordii-subscription"><h3>💎 Premium Verified</h3><p>Premium badge + verified badge and premium features after manual approval.</p><b>₹${wordiiPremiumPlan.price}</b><p class="tiny">Payment screenshot and UTR required. Never share OTP.</p><button type="button" class="btn" id="wordiiPremiumPurchase" ${!wordiiPremiumPlan.enabled?'disabled':''}>${wordiiPremiumPlan.enabled?'Purchase Premium':'Premium purchases disabled'}</button><div id="wordiiPremiumPanel" class="hidden"><img class="wordii-pay-qr" src="wordii-payment-qr.jpg" alt="Wordii payment QR"><p>Amount: ₹${wordiiPremiumPlan.price}</p><label>UTR / Transaction ID</label><input id="wordiiPremiumUtr" maxlength="45" placeholder="Payment reference"><label>Payment screenshot</label><input id="wordiiPremiumProof" type="file" accept="image/*"><button type="button" class="btn" id="wordiiPremiumSubmit">Submit Premium Request</button></div></div>${me?.admin===true?`<div class="card"><h3>Premium plan settings</h3><label class="setrow"><span>Enable Premium purchases (₹50)</span><input id="wordiiPremiumEnabled" type="checkbox" ${wordiiPremiumPlan.enabled?'checked':''}></label><button id="wordiiPremiumSave" class="btn">Save Premium availability</button></div>`:''}`;
   return premiumBlock+`<div class="card wordii-subscription"><div class="wordii-sub-icon">✔</div><h3>Wordii Verified</h3><p class="tiny">Get a verified badge next to your username after payment is checked by an admin.</p><div class="wordii-sub-price" id="wordiiSubPrice">₹${wordiiPlan.price}</div><p class="tiny">One-time badge • Manual verification • No automatic payment confirmation</p>${me?.verified ? '<p>✅ Your account is verified.</p>' : ''}<button type="button" id="wordiiPurchase" class="btn" ${!wordiiPlan.enabled?'disabled':''}>${wordiiPlan.enabled?'Purchase':'Purchases not enabled yet'}</button><div id="wordiiPurchasePanel" class="hidden"><p class="tiny">Scan this FamPay QR and pay the exact amount shown above. Check the recipient before paying.</p><img class="wordii-pay-qr" src="wordii-payment-qr.jpg" alt="Payment QR supplied by Wordii developer"><p><b>Amount: ₹<span id="wordiiPayAmount">${wordiiPlan.price}</span></b></p><label>UTR / Transaction ID</label><input id="wordiiUtr" maxlength="45" placeholder="Enter payment reference" autocomplete="off"><label>Payment screenshot (required)</label><input id="wordiiProof" type="file" accept="image/*"><p class="tiny">Your username: <b>${esc(me?.username)}</b>. Only admins can view your submitted proof. Do not upload passwords, OTPs or unrelated personal information.</p><button type="button" class="btn" id="wordiiSubmitProof">Submit for Verification</button></div><div id="wordiiMyRequests" class="tiny"></div></div>${me?.admin===true?`<div class="card"><h3>🛡️ Verified Badge Admin</h3><label>Badge price (₹)</label><input id="wordiiAdminPrice" type="number" min="1" max="10000" step="1" value="${wordiiPlan.price}"><label class="setrow"><span>Enable purchases</span><input type="checkbox" id="wordiiAdminEnabled" ${wordiiPlan.enabled?'checked':''}></label><button class="btn" id="wordiiSavePlan">Save price & availability</button><p class="tiny">Changing the price does not change existing requests. Confirm payment in FamPay before approval.</p><div id="wordiiAdminRequests">Loading requests…</div></div>`:''}`;
 }
@@ -2573,6 +2627,7 @@ async function loadWordiiSubscription(){
     if(subKey!=='subs')return;
     // Refresh content only after the initial plan load.
     $('#settingsBody').innerHTML=wordiiSubscriptionHTML();
+    return; // No payment records fetched in test build.
     const mine=await getDocs(query(collection(db,'verifiedRequests'),where('uid','==',uid),limit(20)));
     const mineBox=$('#wordiiMyRequests');
     if(mineBox)mineBox.innerHTML=mine.docs.map(d=>`<div class="wordii-request">Request: ₹${d.data().price} — <b>${esc(d.data().status)}</b></div>`).join('');
@@ -2597,7 +2652,8 @@ async function wordiiImageData(file){
   if(result.length>180000)throw Error('Screenshot is too large. Crop it and try again.');
   return result;
 }
-async function handleWordiiSubscriptionClick(e){
+async function handleWordiiSubscriptionClick(e){ return false; }
+async function wordiiOriginalSubscriptionClick(e){
   if(e.target.closest('#wordiiPremiumPurchase')){$('#wordiiPremiumPanel')?.classList.remove('hidden');return true;}
   const pSave=e.target.closest('#wordiiPremiumSave');if(pSave){
     if(me?.admin!==true){toast('Admin only');return true;}

@@ -1072,3 +1072,31 @@ body.light .wordii-profile-nav, body[data-theme="light"] .wordii-profile-nav { b
 #onboard .admin-login-separator{color:#e4d5dc;margin:18px 0 8px}
 @media(max-width:380px){#onboard .wordii-auth-card{padding:24px 16px}}
 @media(prefers-reduced-motion:reduce){#onboard .wordii-auth-card{animation:none}}
+
+
+/* Wordii v1.5.2 — designed, transparent role insignias beside usernames. */
+.wd-role-icon {
+  display:inline-block;
+  width:24px;
+  height:24px;
+  max-width:none;
+  margin-left:3px;
+  object-fit:contain;
+  vertical-align:-.32em;
+  flex:none;
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.32));
+}
+h2 .wd-role-icon,.pv-info .wd-role-icon { width:29px; height:29px; vertical-align:-.34em; }
+.row .wd-role-icon,.sname .wd-role-icon { width:22px; height:22px; }
+small .wd-role-icon { width:18px; height:18px; }
+.wd-badge-showcase { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0 16px; }
+.wd-badge-showcase img { display:block;width:100%;height:auto;max-height:68px;object-fit:contain; }
+@media (max-width:360px) { .wd-badge-showcase {gap:6px} .row .wd-role-icon{width:19px;height:19px;} }
+
+/* Role-specific story rings. Verified users intentionally have no flame. */
+.story-circle.story-gold-flame,.story-circle.story-purple-flame {position:relative;isolation:isolate;border:2px solid var(--wd-ring)!important;animation:wd-role-flame 2.2s ease-in-out infinite;box-shadow:0 0 12px var(--wd-glow),0 0 23px var(--wd-glow)!important}
+.story-circle.story-gold-flame{--wd-ring:#ffca40;--wd-glow:#ff9d0099}
+.story-circle.story-purple-flame{--wd-ring:#c27aff;--wd-glow:#9b37ff99}
+.story-circle.story-gold-flame::before,.story-circle.story-purple-flame::before{content:"✦";position:absolute;top:-12px;right:-1px;z-index:2;color:var(--wd-ring);font-size:19px;text-shadow:0 0 10px var(--wd-glow);pointer-events:none}
+@keyframes wd-role-flame{50%{box-shadow:0 0 18px var(--wd-glow),0 0 34px var(--wd-glow)!important}}
+@media(prefers-reduced-motion:reduce){.story-circle.story-gold-flame,.story-circle.story-purple-flame{animation:none}}
