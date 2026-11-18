@@ -42,7 +42,7 @@ if (firebaseConfig.apiKey.startsWith("PASTE")) { fatal(new Error("Open public/fi
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app), db = getFirestore(app);
 
-const WORDII_WEB_VERSION = "1.5.7";
+const WORDII_WEB_VERSION = "1.5.10";
 // Wordii Media API authentication self-test. Never logs or displays the ID token.
 async function wordiiTestMediaAuth() {
   const user = auth.currentUser;
@@ -782,7 +782,7 @@ $("#wordiiStatusVideoFile").addEventListener('change',async e=>{
     const ext=file.type==='video/mp4'?'mp4':'webm';
     const path=`status-video/${uid}/${statusRef.id}/clip.${ext}`;
     const audience=stAudience();
-    try { await uploadBytes(storageRef(getStorage(),path),file,{contentType:file.type}); } catch(uploadErr) { throw new Error('Video storage upload failed. Firebase Storage is unavailable or denied. Google Drive backend must be connected before Drive uploads can work.'); }
+    try { await uploadBytes(storageRef(getStorage(),path),file,{contentType:file.type}); } catch(uploadErr) { throw new Error('Video storage upload failed. Firebase Storage is unavailable or denied. Try sharing without device music until media storage is connected.'); }
     await setDoc(statusRef,{ownerUid:uid,...audience,videoPath:path,createdAt:serverTimestamp()});
     toast('Video status posted');clearMentions();
   }catch(err){toast(friendly(err));}finally{btn.disabled=false;}
@@ -1847,10 +1847,7 @@ document.addEventListener("click", (e) => {
 })();
 
 // ---------- Wordii original music library and phone audio ----------
-const wordiiTracks = [
-  {id:'aurora',title:'Aurora Drift'}, {id:'midnight',title:'Midnight Pulse'},
-  {id:'sunrise',title:'Sunrise Bloom'}, {id:'nebula',title:'Nebula Nights'}
-];
+const wordiiTracks = [];
 // Hosting-managed catalog: only the hosting publisher can change these assets.
 const wordiiBuiltinTracks = [...wordiiTracks];
 let wordiiCatalogPromise;
@@ -2038,6 +2035,11 @@ document.getElementById('wordiiMusicPreviewClip').onclick=()=>{
   if(wordiiPreviewStopHandler)preview.removeEventListener('timeupdate',wordiiPreviewStopHandler);
   wordiiPreviewStopHandler=()=>{if(preview.currentTime>=start+Math.max(1,Math.min(30,Number(document.getElementById("wordiiMusicDuration")?.value)||15))){preview.pause();preview.removeEventListener('timeupdate',wordiiPreviewStopHandler);wordiiPreviewStopHandler=null;}};
   preview.addEventListener('timeupdate',wordiiPreviewStopHandler);
+};
+document.getElementById('wordiiMusicDone').onclick=()=>{
+  if(!wordiiSelectedMusic){toast('Select music first');return;}
+  wordiiCloseMusic();
+  toast('Music selected. Tap Share to post.');
 };
 document.getElementById('wordiiMusicClear').onclick=()=>{wordiiStopPreview();wordiiSelectedMusic=null;document.getElementById('wordiiAudioFile').value='';wordiiMusicLabel();wordiiRenderMusic();};
 function wordiiOpenEffects(){
@@ -2430,7 +2432,7 @@ document.getElementById("seShare").onclick=e=>act(async()=>{
     const safeExt=({mp3:'mp3',m4a:'m4a',aac:'aac',wav:'wav'})[ext];
     if(!safeExt)throw new Error('Use MP3, M4A, AAC or WAV audio.');
     const path=`status-audio/${uid}/${statusRef.id}/track.${safeExt}`;
-    try { await uploadBytes(storageRef(getStorage(),path),f,{contentType:f.type}); } catch(uploadErr) { throw new Error('Device music upload failed. Firebase Storage is unavailable or denied. Google Drive backend must be connected before Drive uploads can work.'); }
+    try { await uploadBytes(storageRef(getStorage(),path),f,{contentType:f.type}); } catch(uploadErr) { throw new Error('Device music upload failed. Firebase Storage is unavailable or denied. Try sharing without device music until media storage is connected.'); }
     data.audioPath=path;
   }
   if(wordiiSelectedMusic) {
