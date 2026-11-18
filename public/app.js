@@ -884,8 +884,8 @@ async function sendMsg(payload, targetChatId=activeChat?.id) {
   // WORDII_FCM_SEND_V1
   // Fire-and-forget: push failure must not block a sent message.
   if (auth.currentUser && !auth.currentUser.isAnonymous) {
-    auth.currentUser.getIdToken().then(token =>
-      fetch("https://wordii-push.xwordii7.workers.dev/send", {
+    auth.currentUser.getIdToken().then(async token => {
+      const res = await fetch("https://wordii-push.xwordii7.workers.dev/send", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -895,8 +895,17 @@ async function sendMsg(payload, targetChatId=activeChat?.id) {
           chatId: targetChatId,
           messageId: wordiiMessageRef.id
         })
-      })
-    ).catch(err => console.warn("Push request failed:", err));
+      });
+      const result = await res.json();
+      if (!res.ok || result.error) {
+        console.warn("Wordii Push error:", res.status, result);
+        toast("Push error: " + (result.error || res.status));
+      } else {
+        console.log("Wordii Push result:", result);
+        // WORDII_PUSH_RESULT_TOAST_V2
+        toast("Push: sent=" + (result.sent ?? 0) + (result.duplicate ? " (duplicate)" : ""));
+      }
+    }).catch(err => console.warn("Push request failed:", err));
   }
 }
 
