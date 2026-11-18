@@ -42,7 +42,7 @@ if (firebaseConfig.apiKey.startsWith("PASTE")) { fatal(new Error("Open public/fi
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app), db = getFirestore(app);
 
-const WORDII_WEB_VERSION = "1.5.12";
+const WORDII_WEB_VERSION = "1.5.13";
 // Wordii Media API authentication self-test. Never logs or displays the ID token.
 async function wordiiTestMediaAuth() {
   const user = auth.currentUser;
@@ -102,7 +102,7 @@ onAuthStateChanged(auth, (u) => {
     lastSeenLevel = currentLevel;
     me = incoming;
     $("#onboard").classList.add("hidden"); $("#app").classList.remove("hidden");
-    if (!started) { started = true; startApp(); }
+    if (!started) { started = true; startApp(); wordiiOpenSharedProfile(); }
     renderProfile(); checkGate();
   }, fatal);
 });
@@ -1162,10 +1162,49 @@ $("#searchResults").addEventListener("click", (e) => {
 const BG_SW = ["#2a1b4d", "radial-gradient(#7b2cff,#1d1040)", "linear-gradient(160deg,#064e5c,#0b1b3a)", "linear-gradient(160deg,#7c2d12,#4c1d95)", "#000"];
 let admList = [], admTimer;
 let subKey = "";
-const SUB_TITLES = { musicAdmin: "Manage Music", overview: "Settings", appearance: "Appearance", points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "BTP badge panel", dash: "Admin dashboard", gifts: "Level gifts", updates: "App Updates" };
+const SUB_TITLES = { musicAdmin: "Manage Music", overview: "Settings", appearance: "Appearance", points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "BTP badge panel", dash: "Admin dashboard", gifts: "Level gifts", updates: "App Updates", assistant: "Wordii Assistant" };
 function openSub(k) { subKey = k; $("#setTitle").textContent = SUB_TITLES[k] || "Settings"; $("#settings").classList.remove("hidden"); renderSettings(true); }
+function wordiiProfileShareURL(){
+  const name = String(me?.username || '').replace(/^@/, '');
+  const u = new URL('https://wordii-chat.web.app/');
+  if (/^[a-z0-9_]{3,15}$/i.test(name)) u.searchParams.set('profile', name.toLowerCase());
+  return u.href;
+}
+function wordiiOpenSharedProfile(){
+  const name = new URLSearchParams(location.search).get('profile');
+  if (!name || !/^[a-z0-9_]{3,15}$/i.test(name)) return;
+  history.replaceState(null, '', location.pathname);
+  if (me?.username?.replace(/^@/, '').toLowerCase() === name.toLowerCase()) {
+    renderProfile(); toast('This is your profile'); return;
+  }
+  getDoc(doc(db, 'usernames', name.toLowerCase())).then(s => {
+    const target = s.data()?.uid;
+    if (target) openProfileView(target);
+    else toast('Shared profile not found');
+  }).catch(e => toast(friendly(e)));
+}
+function wordiiAssistantHTML(){
+  return `<div class="card"><h3>🤖 Wordii Assistant</h3><p class="tiny">Official offline help assistant. It does not read your chats.</p><div id="wdBotLog" aria-live="polite" style="max-height:320px;overflow:auto;display:grid;gap:8px;margin:12px 0"></div><form id="wdBotForm" style="display:flex;gap:8px"><input id="wdBotInput" maxlength="120" placeholder="Type /help" aria-label="Bot command" required style="min-width:0;flex:1"><button class="btn" type="submit">Send</button></form><p class="tiny">Try /help, /level, /profile, /rules, /updates, /support.</p></div>`;
+}
+function wordiiBotReply(raw){
+  const cmd=raw.trim().toLowerCase().split(/\s+/)[0];
+  if(cmd==='/help'||cmd==='help') return 'Commands: /help, /level, /profile, /rules, /updates, /support';
+  if(cmd==='/level') return `🏆 Level ${me?.level||1} · ${me?.points||0} points`;
+  if(cmd==='/profile') return `👤 ${me?.username||'Unknown'} · ${wordiiProfileShareURL()}`;
+  if(cmd==='/rules') return 'Be respectful. No harassment, spam or sharing private information without permission.';
+  if(cmd==='/updates') return `Installed web build: v${WORDII_WEB_VERSION}. Check Settings → App Updates for the latest APK.`;
+  if(cmd==='/support') return 'For help, open Settings → Account or contact the Wordii Chat administrator. Never share passwords or OTPs.';
+  return 'I can help with Wordii Chat commands. Type /help to see options.';
+}
+function wordiiBindAssistant(){
+  const log=document.getElementById('wdBotLog'),form=document.getElementById('wdBotForm');
+  if(!log||!form)return;
+  const add=(who,message)=>{const el=document.createElement('div');el.className='card';el.style.margin='0';const title=document.createElement('b');title.textContent=who;const content=document.createElement('p');content.style.whiteSpace='pre-wrap';content.style.overflowWrap='anywhere';content.textContent=message;el.append(title,content);log.append(el);log.scrollTop=log.scrollHeight;};
+  add('Wordii Assistant','Welcome! Type /help for commands.');
+  form.addEventListener('submit',e=>{e.preventDefault();const input=document.getElementById('wdBotInput');const value=input.value.trim();if(!value)return;add('You',value);add('Wordii Assistant',wordiiBotReply(value));input.value='';});
+}
 function shareInvite() {
-  const d = { title: "Wordii Chat", text: `Chat with me on Wordii Chat! Find me: ${me.username}`, url: location.origin };
+  const d = { title: "Wordii Chat", text: `Chat with me on Wordii Chat! Find me: ${me.username}`, url: wordiiProfileShareURL() };
   if (navigator.share) navigator.share(d).catch(() => {}); else { copy(`${d.text} ${d.url}`); toast("Invite copied"); }
 }
 function renderSettings(force) {
@@ -1175,8 +1214,9 @@ function renderSettings(force) {
   const u = auth.currentUser, email = u?.email && !isFakeEmail(u.email) ? u.email : "";
   const t = pref("theme", "auto"), bg = pref("chatbg", "0"), nOn = pref("notif", "on") === "on";
   const pages = {
+    assistant: () => wordiiAssistantHTML(),
     overview: () => `<div class="wd-settings-overview"><div class="wd-settings-person"><div class="wd-settings-avatar">${avatarHTML(me)}</div><div><strong>${esc(me.displayName || me.username)}</strong><p class="tiny">${esc(me.username)} · Level ${me.level || 1}</p></div></div>
-      ${[['👤','edit','Edit profile','Name, bio, profile photo and banner'],['🏆','points','Points & level','XP, progress and streak'],['🔑','account','Account','Login, email and account security'],['🔒','privacy','Privacy','Online status, public account'],['💬','chats','Chats','Chat wallpaper and theme'],['🎨','appearance','Appearance','Light and dark app theme'],['🔔','notif','Notifications','Message and push alerts'],['🌐','lang','App language','Current language options'],['💎','subs','Subscriptions','Available plans'],['🚀','updates','App Updates','Check the app version']].map(([ico,k,label,desc])=>`<button type="button" class="wd-settings-link" data-wd-settings="${k}"><span class="wd-settings-ico">${ico}</span><span><b>${label}</b><small>${desc}</small></span><span class="wd-settings-arrow">›</span></button>`).join('')}</div>`,
+      ${[['👤','edit','Edit profile','Name, bio, profile photo and banner'],['🏆','points','Points & level','XP, progress and streak'],['🔑','account','Account','Login, email and account security'],['🔒','privacy','Privacy','Online status, public account'],['💬','chats','Chats','Chat wallpaper and theme'],['🎨','appearance','Appearance','Light and dark app theme'],['🔔','notif','Notifications','Message and push alerts'],['🌐','lang','App language','Current language options'],['💎','subs','Subscriptions','Available plans'],['🚀','updates','App Updates','Check the app version'],['🤖','assistant','Wordii Assistant','Help, rules and account commands']].map(([ico,k,label,desc])=>`<button type="button" class="wd-settings-link" data-wd-settings="${k}"><span class="wd-settings-ico">${ico}</span><span><b>${label}</b><small>${desc}</small></span><span class="wd-settings-arrow">›</span></button>`).join('')}</div>`,
     appearance: () => `<div class="card"><b>App theme</b><p class="tiny">Choose a theme for all screens.</p><select id="setTheme"><option value="dark" ${t==='dark'?'selected':''}>Dark</option><option value="light" ${t==='light'?'selected':''}>Light</option>${canGreenTheme(me) ? `<option value="green" ${t==='green'?'selected':''}>White + Green</option>` : ""}<option value="auto" ${t==='auto'?'selected':''}>System default</option></select></div>`,
     points: () => `<div class="card center"><div class="stats"><div><b>${me.level || 1}</b><span>Level</span></div><div><b>${me.points || 0}</b><span>Points</span></div><div><b>🔥 ${me.streak || 0}</b><span>Streak</span></div></div>
       <div class="bar"><i style="width:${((me.points || 0) % 10) * 10}%"></i></div><p class="tiny">${10 - ((me.points || 0) % 10)} more points to Level ${(me.level || 1) + 1}</p></div>
@@ -1226,6 +1266,7 @@ function renderSettings(force) {
   if (subKey === "admin") { renderAdm(); if (me?.admin) loadSuspensionAppeals(); }
   if (subKey === "musicAdmin" && me?.admin === true) wordiiBindAdminMusic();
   if (subKey === "subs") loadWordiiSubscription();
+  if (subKey === "assistant") wordiiBindAssistant();
   if (subKey === "dash") loadDash();
   if (subKey === "gifts" && canBTP()) loadLevelGifts();
 }
@@ -1413,7 +1454,7 @@ $("#settingsBody").addEventListener("click", async (e) => {
   }
   if (e.target.closest("#setAllow")) Notification.requestPermission().then(() => renderSettings());
   if (e.target.closest("#setInvite")) {
-    const d = { title: "Wordii Chat", text: `Chat with me on Wordii Chat! Find me: ${me.username}`, url: location.origin };
+    const d = { title: "Wordii Chat", text: `Chat with me on Wordii Chat! Find me: ${me.username}`, url: wordiiProfileShareURL() };
     if (navigator.share) navigator.share(d).catch(() => {}); else { copy(`${d.text} ${d.url}`); toast("Invite copied"); }
   }
   if (e.target.closest("#setLogout")) {
