@@ -2612,7 +2612,8 @@ document.getElementById('backBtn').addEventListener('click',wdCloseChatMenu);
 // Wordii Verified: manual UPI proof review. Screenshots are stored in private Firestore documents.
 let wordiiPlan = {price:30, enabled:false};
 let wordiiPremiumPlan={price:50,enabled:false};
-function wordiiSubscriptionHTML(){
+function wordiiSubscriptionHTML(){ return wordiiOriginalSubscriptionHTML(); }
+function wordiiOldTestSubscriptionHTML(){
   return `<div class="card"><h3>Wordii Verified — ₹30</h3><p>Verified badge after approval.</p></div><div class="card"><h3>Premium Verified — ₹50</h3><p>Premium and verified benefits.</p></div><p class="tiny">Test build: payments are not enabled.</p>`;
 }
 function wordiiOriginalSubscriptionHTML(){
@@ -2626,7 +2627,7 @@ async function loadWordiiSubscription(){
     const ps=await getDoc(doc(db,'wordiiConfig','premiumPlan'));wordiiPremiumPlan=ps.exists()?{price:50,enabled:ps.data().enabled===true}:{price:50,enabled:false};
     if(subKey!=='subs')return;
     // Refresh content only after the initial plan load.
-    $('#settingsBody').innerHTML=wordiiSubscriptionHTML();
+    $('#settingsBody').innerHTML=wordiiFullSubscriptionHTML();
     return; // No payment records fetched in test build.
     const mine=await getDocs(query(collection(db,'verifiedRequests'),where('uid','==',uid),limit(20)));
     const mineBox=$('#wordiiMyRequests');
