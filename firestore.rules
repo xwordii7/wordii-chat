@@ -206,8 +206,12 @@ service cloud.firestore {
       match /private/{doc} {
         allow read: if signedIn() && request.auth.uid == uid;
         allow create, update: if signedIn() && request.auth.uid == uid && doc == 'push'
-          && request.resource.data.keys().hasOnly(['subs'])
-          && request.resource.data.subs is list && request.resource.data.subs.size() <= 5;
+          && request.resource.data.keys().hasOnly(['subs', 'fcmTokens'])
+          && (!('subs' in request.resource.data) ||
+              (request.resource.data.subs is list && request.resource.data.subs.size() <= 5))
+          && (!('fcmTokens' in request.resource.data) ||
+              (request.resource.data.fcmTokens is list &&
+               request.resource.data.fcmTokens.size() <= 5));
         allow delete: if false;
       }
     }

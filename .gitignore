@@ -154,3 +154,4 @@ vite.config.ts.timestamp-*
 .private/
 
 node_modules/
+android/app/google-services.json

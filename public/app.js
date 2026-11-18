@@ -876,9 +876,28 @@ async function sendMsg(payload, targetChatId=activeChat?.id) {
   if(!targetChat.group){const other=targetChat.members.find(x=>x!==uid);if((me?.blockedUsers||[]).includes(other))throw new Error("Unblock this contact before sending");}
 
   const b = writeBatch(db);
-  b.set(doc(collection(db, "chats", targetChatId, "messages")), { senderId: uid, ...payload, createdAt: serverTimestamp() });
+  const wordiiMessageRef = doc(collection(db, "chats", targetChatId, "messages"));
+  b.set(wordiiMessageRef, { senderId: uid, ...payload, createdAt: serverTimestamp() });
   b.update(doc(db, "chats", targetChatId), { lastAt: serverTimestamp(), lastBy: uid });
   await b.commit();
+
+  // WORDII_FCM_SEND_V1
+  // Fire-and-forget: push failure must not block a sent message.
+  if (auth.currentUser && !auth.currentUser.isAnonymous) {
+    auth.currentUser.getIdToken().then(token =>
+      fetch("https://wordii-push.xwordii7.workers.dev/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({
+          chatId: targetChatId,
+          messageId: wordiiMessageRef.id
+        })
+      })
+    ).catch(err => console.warn("Push request failed:", err));
+  }
 }
 
 // ---------- unread, notifications, inbox ----------
@@ -1289,7 +1308,7 @@ function renderSettings(force) {
     notif: () => `<div class="card"><label class="setrow"><span><b>Message notifications</b></span><input type="checkbox" id="setNotif" ${nOn ? "checked" : ""}></label>
         <p class="tiny">Alerts inside the app and while it is open or in the background.</p></div>
       <div class="card"><b>Alerts when the app is closed</b>
-        <p class="tiny">${pushOn() ? "✅ ON for this phone." : "OFF for this phone."} New messages, chat requests and incoming calls show a notification even if the app is fully closed. (Needs the Wordii push server, see PUSH-SETUP.md.)</p>
+        <p class="tiny">${pushOn() ? "✅ ON for this phone." : "OFF for this phone."} Enable phone notifications. Closed-app alerts require the Wordii secure push sender backend.</p>
         <button class="btn" id="${pushOn() ? "pushOff" : "pushOn"}">${pushOn() ? "Turn off" : "Turn on"}</button></div>`,
     dash: () => `<div class="card center" id="dashStats">Loading…</div><div class="seg"><button data-dtab="active" class="on">Active</button><button data-dtab="new">New</button><button data-dtab="top">Top points</button></div><div id="dashList"></div>`,
     gifts: () => canBTP() ? `<div class="card"><b>🎁 Manage level gifts</b><p class="tiny">Set a gift name for any level. You can edit or remove it later. Gifts are announcements, not automatically delivered items.</p><label for="giftLevel">Level</label><input id="giftLevel" type="number" min="1" max="10000" placeholder="e.g. 5"><label for="giftName">Gift</label><input id="giftName" maxlength="100" placeholder="e.g. VIP badge"><label for="giftExp">Bonus EXP (reward configuration)</label><input id="giftExp" type="number" min="0" max="100000" value="0"><label for="giftPhoto">Prize photo (optional)</label><input id="giftPhoto" type="file" accept="image/*"><p class="tiny">EXP is saved with the prize; automatic crediting to user accounts needs a separate secure server-side feature.</p><button id="giftSave" class="btn">Save level gift</button></div><div id="giftList" class="card">Loading gifts…</div>` : `<div class="card">Admin only.</div>`,
@@ -1914,40 +1933,135 @@ $("#cCam").onclick = () => { const t = call?.stream?.getVideoTracks()[0]; if (!t
 $("#cEnd").onclick = () => endCall(true, "Call ended");
 
 // ================= v13: phone push notifications (app closed) =================
-const pushOn = () => pref("push", "off") === "on" && "Notification" in window && Notification.permission === "granted";
-const b64ToU8 = (b64) => { const raw = atob((b64 + "=".repeat((4 - (b64.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(raw, (c) => c.charCodeAt(0)); };
-const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && !!vapidPublicKey && !vapidPublicKey.startsWith("PASTE");
+
+const wordiiNativePush = () =>
+  !!window.Capacitor?.isNativePlatform?.() &&
+  !!window.Capacitor?.Plugins?.PushNotifications;
+
+const pushOn = () => pref("push", "off") === "on";
+
+const b64ToU8 = (b64) => {
+  const raw = atob((b64 + "=".repeat((4 - b64.length % 4) % 4)).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(raw, c => c.charCodeAt(0));
+};
+
+const pushSupported = () =>
+  "serviceWorker" in navigator &&
+  "PushManager" in window &&
+  "Notification" in window &&
+  !!vapidPublicKey &&
+  !vapidPublicKey.startsWith("PASTE");
+
 async function savePushSub(sub) {
-  const j = sub.toJSON(), entry = { endpoint: j.endpoint, keys: { p256dh: j.keys.p256dh, auth: j.keys.auth } };
-  const ref = doc(db, "users", uid, "private", "push");
+  const j = sub.toJSON();
+  const entry = {endpoint:j.endpoint,keys:{p256dh:j.keys.p256dh,auth:j.keys.auth}};
+  const ref = doc(db,"users",uid,"private","push");
   const cur = (await getDoc(ref)).data()?.subs || [];
-  await setDoc(ref, { subs: [entry, ...cur.filter((x) => x.endpoint !== entry.endpoint)].slice(0, 5) });
+  await setDoc(ref,{subs:[entry,...cur.filter(x=>x.endpoint!==entry.endpoint)].slice(0,5)},{merge:true});
 }
+
 async function getSub() {
   const reg = await navigator.serviceWorker.ready;
-  return (await reg.pushManager.getSubscription()) || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(vapidPublicKey) });
+  return (await reg.pushManager.getSubscription()) ||
+    reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToU8(vapidPublicKey)});
 }
+
+let wordiiPushListenersReady = false;
+
+async function wordiiRegisterNativePush() {
+  const plugin = window.Capacitor.Plugins.PushNotifications;
+  if (!wordiiPushListenersReady) {
+    await plugin.addListener("registration", async token => {
+      if (!auth.currentUser || !uid || pref("push","off") !== "on") return;
+      try {
+        const ref = doc(db,"users",uid,"private","push");
+        const old = (await getDoc(ref)).data()?.fcmTokens || [];
+        const next = [token.value,...old.filter(t=>t!==token.value)].slice(0,5);
+        await setDoc(ref,{fcmTokens:next},{merge:true});
+      } catch (e) {
+        console.error("FCM token save failed",e);
+        toast("Could not save notification token");
+      }
+    });
+
+    await plugin.addListener("registrationError", error => {
+      console.error("FCM registration failed",error);
+      toast("Notification registration failed");
+    });
+
+    await plugin.addListener("pushNotificationActionPerformed", event => {
+      const chatId = event.notification?.data?.chatId;
+      if (!chatId || typeof chatId !== "string") return;
+      const target = chats.find(c=>c.id===chatId);
+      if (target) openChat(target);
+    });
+
+    wordiiPushListenersReady = true;
+  }
+  await plugin.register();
+}
+
 async function enablePush() {
-  if (!pushSupported()) throw new Error("Push alerts are not supported on this phone/browser.");
-  if ((await Notification.requestPermission()) !== "granted") throw new Error("Notifications are blocked. Allow them in your phone's app settings.");
-  await savePushSub(await getSub()); setPref("push", "on");
+  if (wordiiNativePush()) {
+    const plugin = window.Capacitor.Plugins.PushNotifications;
+    let permission = await plugin.checkPermissions();
+    if (permission.receive !== "granted") permission = await plugin.requestPermissions();
+    if (permission.receive !== "granted") throw new Error("Allow notifications in Android settings.");
+    setPref("push","on");
+    await wordiiRegisterNativePush();
+    return;
+  }
+  if (!pushSupported()) throw new Error("Push alerts are not supported on this browser.");
+  if (await Notification.requestPermission() !== "granted")
+    throw new Error("Notifications are blocked.");
+  await savePushSub(await getSub());
+  setPref("push","on");
 }
+
 async function disablePush() {
-  setPref("push", "off");
+  setPref("push","off");
+  if (wordiiNativePush()) {
+    try {
+      const ref = doc(db,"users",uid,"private","push");
+      const data = (await getDoc(ref)).data() || {};
+      await setDoc(ref,{fcmTokens:[]},{merge:true});
+      await window.Capacitor.Plugins.PushNotifications.unregister();
+    } catch(e) { console.error("FCM disable failed",e); }
+    return;
+  }
   try {
-    const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
     if (sub) {
-      const ep = sub.endpoint; await sub.unsubscribe();
-      const ref = doc(db, "users", uid, "private", "push"), cur = (await getDoc(ref)).data()?.subs || [];
-      await setDoc(ref, { subs: cur.filter((x) => x.endpoint !== ep) });
+      const endpoint = sub.endpoint;
+      await sub.unsubscribe();
+      const ref = doc(db,"users",uid,"private","push");
+      const cur = (await getDoc(ref)).data()?.subs || [];
+      await setDoc(ref,{subs:cur.filter(x=>x.endpoint!==endpoint)},{merge:true});
     }
-  } catch {}
+  } catch(e) { console.error("Browser push disable failed",e); }
 }
-async function syncPush() { if (pushOn() && pushSupported()) { try { await savePushSub(await getSub()); } catch {} } }
-document.addEventListener("click", (e) => {
-  const on = e.target.closest("#pushOn"), off = e.target.closest("#pushOff");
-  if (on) act(async () => { await enablePush(); toast("Alerts when closed: ON ✅"); renderSettings(true); }, on);
-  if (off) act(async () => { await disablePush(); toast("Alerts when closed: OFF"); renderSettings(true); }, off);
+
+async function syncPush() {
+  if (!pushOn()) return;
+  try {
+    if (wordiiNativePush()) await wordiiRegisterNativePush();
+    else if (pushSupported()) await savePushSub(await getSub());
+  } catch(e) { console.error("Push sync failed",e); }
+}
+
+document.addEventListener("click",e=>{
+  const on=e.target.closest("#pushOn"),off=e.target.closest("#pushOff");
+  if(on) act(async()=>{
+    await enablePush();
+    toast("Notification registration enabled");
+    renderSettings(true);
+  },on);
+  if(off) act(async()=>{
+    await disablePush();
+    toast("Notifications turned off");
+    renderSettings(true);
+  },off);
 });
 
 // Wordii Chat: centralized Android hardware back navigation.
