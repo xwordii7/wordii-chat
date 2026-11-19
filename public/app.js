@@ -1993,6 +1993,10 @@ async function wordiiRegisterNativePush() {
       }
     });
 
+    await plugin.addListener("pushNotificationReceived", notification => {
+      console.log("Wordii push received", notification);
+    });
+
     await plugin.addListener("registrationError", error => {
       console.error("FCM registration failed",error);
       toast("Notification registration failed");
