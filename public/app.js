@@ -90,7 +90,7 @@ document.addEventListener("click", e => {
   },e.target.closest("#wdBrandReset"));
 });
 
-const WORDII_WEB_VERSION = "1.5.19";
+const WORDII_WEB_VERSION = "1.5.20";
 // Wordii Media API authentication self-test. Never logs or displays the ID token.
 async function wordiiTestMediaAuth() {
   const user = auth.currentUser;
@@ -530,7 +530,7 @@ let activeChat = null, unsubMsgs = null, msgs = [], msgMap = {}, reveal = {}, de
 let wordiiChatGeneration = 0, wordiiReply = null;
 const wordiiDrafts = new Map();
 function wordiiReplyClear(){wordiiReply=null;const p=document.getElementById("wordiiReplyPreview");if(p){p.textContent="";p.classList.add("hidden");}}
-function wordiiReplyStart(id){const m=msgMap[id];if(!m||!activeChat)return;wordiiReply={id:m.id,chatId:activeChat.id,senderId:m.senderId,preview:m.text?"Message":m.img?"Photo":"Voice message"};const p=document.getElementById("wordiiReplyPreview");p.classList.remove("hidden");p.textContent="↩ Reply to "+(m.senderId===uid?"you":"message")+" · "+wordiiReply.preview+"  ✕";document.getElementById("msgInput").focus();}
+function wordiiReplyStart(id){const m=msgMap[id];if(!m||!activeChat)return;wordiiReply={id:m.id,chatId:activeChat.id,senderId:m.senderId,preview:m.text?"Message":m.img?"Photo":m.videoPath?"Video":"Voice message"};const p=document.getElementById("wordiiReplyPreview");p.classList.remove("hidden");p.textContent="↩ Reply to "+(m.senderId===uid?"you":"message")+" · "+wordiiReply.preview+"  ✕";document.getElementById("msgInput").focus();}
 document.getElementById("wordiiReplyPreview")?.addEventListener("click",wordiiReplyClear);
 function openChat(c) {
   if (!c) return;
@@ -590,7 +590,7 @@ function renderMessages() {
   const box = $("#msgs");
   box.innerHTML = msgs.filter(m=>!wdHiddenIds().has(m.id)).map((m) => {
     const t = m.createdAt?.toDate?.().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) || "";
-    return `<div class="msg ${m.senderId === uid ? "mine" : "theirs"}" data-id="${esc(m.id)}">${m.replyTo?`<div class="wd-reply-quote">↩ Reply to message</div>`:""}${m.reactions && Object.keys(m.reactions).length ? `<div class="wd-reactions">${Object.values(m.reactions).map(x=>esc(x)).join(" ")}</div>` : ""}${activeChat?.group && m.senderId !== uid ? `<small class="sname">${esc(nameOf(person(m.senderId)))}${vb(person(m.senderId))}</small>` : ""}<div class="bubble ${m.img ? "imgmsg" : m.aud ? "audmsg" : ""}"></div><time>${t}${m.senderId === uid && m.seenAt ? " · Seen" : ""}</time></div>`;
+    return `<div class="msg ${m.senderId === uid ? "mine" : "theirs"}" data-id="${esc(m.id)}">${m.replyTo?`<div class="wd-reply-quote">↩ Reply to message</div>`:""}${m.reactions && Object.keys(m.reactions).length ? `<div class="wd-reactions">${Object.values(m.reactions).map(x=>esc(x)).join(" ")}</div>` : ""}${activeChat?.group && m.senderId !== uid ? `<small class="sname">${esc(nameOf(person(m.senderId)))}${vb(person(m.senderId))}</small>` : ""}<div class="bubble ${m.img ? "imgmsg" : m.aud ? "audmsg" : m.videoPath ? "videomsg" : ""}"></div><time>${t}${m.senderId === uid && m.seenAt ? " · Seen" : ""}</time></div>`;
   }).join("");
   tickMessages();
   wdSelectionSync();
@@ -603,6 +603,25 @@ function tickMessages() {
   $$("#msgs .msg").forEach((el) => {
     const m = msgMap[el.dataset.id]; if (!m) return;
     const open = !hideOn() || (reveal[m.id] || 0) > now, b = el.querySelector(".bubble");
+    if (m.videoPath) {
+      if (b.dataset.s !== m.videoPath) {
+        b.dataset.s = m.videoPath; b.replaceChildren();
+        const player = document.createElement('video');
+        player.controls = true; player.playsInline = true; player.preload = 'none';
+        player.style.cssText = 'max-width:100%;max-height:300px;border-radius:12px';
+        const load = document.createElement('button'); load.type='button'; load.className='btn sm';load.textContent='▶ Load video';
+        const save = document.createElement('button');save.type='button';save.className='btn sm ghost';save.textContent='⬇ Download';
+        let blobUrl=null;
+        const fetchVideo = async () => {
+          if (!blobUrl) { const blob=await getBlob(storageRef(getStorage(),m.videoPath));blobUrl=URL.createObjectURL(blob);player.src=blobUrl; }
+          return blobUrl;
+        };
+        load.onclick=()=>act(async()=>{await fetchVideo();load.remove();await player.play().catch(()=>{});},load);
+        save.onclick=()=>act(async()=>{const url=await fetchVideo();const link=document.createElement('a');link.href=url;link.download='wordii-video.'+(m.videoPath.endsWith('.webm')?'webm':'mp4');document.body.append(link);link.click();link.remove();},save);
+        b.append(player,load,save);
+      }
+      b.classList.add('open');return;
+    }
     if (m.aud !== undefined) {
       if (b.dataset.s !== "aud") {
         b.dataset.s = "aud"; b.textContent = "";
@@ -749,9 +768,21 @@ $("#fileInput").addEventListener("change", (e) => {
   const f = e.target.files[0]; e.target.value = "";
   if (!f || !activeChat) return;
   act(async () => {
-    toast("Sending photo…");
-    const img = await compress(f, { max: 800, quality: 0.62, limitLen: 220000 });
-    await sendMsg({ img });
+    if (f.type === 'video/mp4' || f.type === 'video/webm') {
+      if (f.size > 20 * 1024 * 1024) throw Error('Video must be 20 MB or smaller.');
+      const chatId=activeChat.id;
+      const messageId=doc(collection(db,'chats',chatId,'messages')).id;
+      const extension=f.type==='video/mp4'?'mp4':'webm';
+      const path=`chat-video/${chatId}/${uid}/${messageId}/clip.${extension}`;
+      toast('Uploading video…');
+      await uploadBytes(storageRef(getStorage(),path),f,{contentType:f.type});
+      await sendMsg({videoPath:path});
+      toast('Video sent');
+    } else {
+      toast('Sending photo…');
+      const img=await compress(f,{max:800,quality:0.62,limitLen:220000});
+      await sendMsg({img});
+    }
   });
 });
 document.addEventListener("click", (e) => {
@@ -1395,11 +1426,13 @@ function wordiiOpenSharedProfile(){
   }).catch(e => toast(friendly(e)));
 }
 function wordiiAssistantHTML(){
-  return `<div class="card"><h3>🤖 Wordii Assistant</h3><p class="tiny">Official offline help assistant. It does not read your chats.</p><div id="wdBotLog" aria-live="polite" style="max-height:320px;overflow:auto;display:grid;gap:8px;margin:12px 0"></div><form id="wdBotForm" style="display:flex;gap:8px"><input id="wdBotInput" maxlength="120" placeholder="Type /help" aria-label="Bot command" required style="min-width:0;flex:1"><button class="btn" type="submit">Send</button></form><p class="tiny">Try /help, /level, /profile, /rules, /updates, /support.</p><div id="wdBotAnnouncement" class="wd-bot-announcement">Loading official announcement…</div>${me?.admin===true?`<div class="wd-bot-admin"><b>📣 Official announcement</b><textarea id="wdBotAnnouncementText" maxlength="500" placeholder="Message for all Wordii users"></textarea><button type="button" class="btn" id="wdBotPublish">Publish announcement</button><p class="tiny">Appears in the assistant and in-app notification while the app is open. Background push needs a separate server.</p></div>`:''}</div>`;
+  return `<div class="card"><h3>🤖 Wordii Assistant</h3><p class="tiny">Official offline help assistant. It does not read your chats.</p><div id="wdBotLog" aria-live="polite" style="max-height:320px;overflow:auto;display:grid;gap:8px;margin:12px 0"></div><form id="wdBotForm" style="display:flex;gap:8px"><input id="wdBotInput" maxlength="120" placeholder="Type /help" aria-label="Bot command" required style="min-width:0;flex:1"><button class="btn" type="submit">Send</button></form><p class="tiny">Try /help, /level, /profile, /rules, /updates, /support.</p><div class="wd-bot-quick"><button class="btn sm ghost" type="button" data-bot-cmd="/help">/help</button><button class="btn sm ghost" type="button" data-bot-cmd="/support">/support</button><button class="btn sm ghost" type="button" data-bot-cmd="/level">/level</button></div><div id="wdBotAnnouncement" class="wd-bot-announcement">Loading official announcement…</div>${me?.admin===true?`<div class="wd-bot-admin"><b>🤖 Admin Bot Settings</b><p class="tiny">Configure a custom /welcome reply for users. Only Admin can save it.</p><textarea id="wdBotWelcomeText" maxlength="500" placeholder="Custom welcome message"></textarea><button type="button" class="btn" id="wdBotWelcomeSave">Save bot reply</button><hr><b>📣 Official announcement</b><textarea id="wdBotAnnouncementText" maxlength="500" placeholder="Message for all Wordii users"></textarea><button type="button" class="btn" id="wdBotPublish">Publish announcement</button><p class="tiny">Appears in the assistant and in-app notification while the app is open. Background push needs a separate server.</p></div>`:''}</div>`;
 }
+let wordiiBotWelcome = "Welcome to Wordii Chat! Type /help for commands.";
 function wordiiBotReply(raw){
+  if(raw.trim().toLowerCase() === "/start" || raw.trim().toLowerCase() === "/welcome")return wordiiBotWelcome;
   const cmd=raw.trim().toLowerCase().split(/\s+/)[0];
-  if(cmd==='/help'||cmd==='help') return 'Commands: /help, /level, /profile, /rules, /updates, /support';
+  if(cmd==='/help'||cmd==='help') return 'Commands: /start, /welcome, /help, /level, /profile, /rules, /updates, /support';
   if(cmd==='/level') return `🏆 Level ${me?.level||1} · ${me?.points||0} points`;
   if(cmd==='/profile') return `👤 ${me?.username||'Unknown'} · ${wordiiProfileShareURL()}`;
   if(cmd==='/rules') return 'Be respectful. No harassment, spam or sharing private information without permission.';
@@ -1411,7 +1444,11 @@ function wordiiBindAssistant(){
   const log=document.getElementById('wdBotLog'),form=document.getElementById('wdBotForm');
   if(!log||!form)return;
   const add=(who,message)=>{const el=document.createElement('div');el.className='card';el.style.margin='0';const title=document.createElement('b');title.textContent=who;const content=document.createElement('p');content.style.whiteSpace='pre-wrap';content.style.overflowWrap='anywhere';content.textContent=message;el.append(title,content);log.append(el);log.scrollTop=log.scrollHeight;};
-  add('Wordii Assistant','Welcome! Type /help for commands.');
+  add('Wordii Assistant',wordiiBotWelcome);
+  log.closest('.card')?.querySelectorAll('[data-bot-cmd]').forEach(b=>b.onclick=()=>{const v=b.dataset.botCmd;add('You',v);add('Wordii Assistant',wordiiBotReply(v));});
+  const welcomeRef=doc(db,'wordiiConfig','botWelcome');
+  getDoc(welcomeRef).then(snap=>{if(snap.exists()){wordiiBotWelcome=snap.data().text;const field=document.getElementById('wdBotWelcomeText');if(field)field.value=wordiiBotWelcome;}}).catch(()=>{});
+  document.getElementById('wdBotWelcomeSave')?.addEventListener('click',e=>act(async()=>{if(me?.admin!==true)throw Error('Admin only');const text=document.getElementById('wdBotWelcomeText').value.trim();if(!text||text.length>500)throw Error('Enter a reply under 500 characters');await setDoc(welcomeRef,{text,updatedAt:serverTimestamp(),updatedBy:uid});wordiiBotWelcome=text;toast('Bot reply saved');},e.currentTarget));
   const announcementRef=doc(db,'wordiiConfig','botAnnouncement');
   const unsub=onSnapshot(announcementRef,snap=>{
     if(subKey!=='assistant'){unsub();return;}
@@ -1498,7 +1535,7 @@ function renderSettings(force) {
 }
 function renderAdm() {
   const box = $("#admResults"); if (!box) return;
-  box.innerHTML = admList.length ? admList.map((u) => `<div class="row nopoint">${avatarHTML(u)}<div class="grow"><b>${esc(nameOf(u))}${vb(u)}</b><span class="muted">${esc(u.username)}</span></div><div class="btp-actions">${me?.admin===true ? `<button class="btn sm ghost" data-suspend="${esc(u.id)}">${u.suspended ? 'Unban' : 'Suspend'}</button>` : ''}${me?.admin===true ? `<button class="btn sm ghost" data-btp="preAdmin" data-user="${esc(u.id)}">${u.preAdmin?'Remove Pre-Admin':'Pre-Admin'}</button>`:''}${canBTP() && u.admin!==true ? `<button class="btn sm ghost" data-btp="verified" data-user="${esc(u.id)}">${u.verified?'Remove Verified':'Give Verified'}</button><button class="btn sm ghost" data-btp="premium" data-user="${esc(u.id)}">${u.premium?'Remove Premium':'Give Premium'}</button>`:''}</div></div>`).join("") : `<p class="tiny">Type at least 2 letters.</p>`;
+  box.innerHTML = admList.length ? admList.map((u) => `<div class="row nopoint">${avatarHTML(u)}<div class="grow"><b>${esc(nameOf(u))}${vb(u)}</b><span class="muted">${esc(u.username)}</span></div><div class="btp-actions">${me?.admin===true ? `<button class="btn sm ghost" data-suspend="${esc(u.id)}">${u.suspended ? 'Unban' : 'Suspend'}</button>` : ''}${me?.admin===true && u.admin!==true && u.id!==uid ? `<button class="btn sm ghost" data-delete-request="${esc(u.id)}">🗑 Request Delete</button>` : ''}${me?.admin===true ? `<button class="btn sm ghost" data-btp="preAdmin" data-user="${esc(u.id)}">${u.preAdmin?'Remove Pre-Admin':'Pre-Admin'}</button>`:''}${canBTP() && u.admin!==true ? `<button class="btn sm ghost" data-btp="verified" data-user="${esc(u.id)}">${u.verified?'Remove Verified':'Give Verified'}</button><button class="btn sm ghost" data-btp="premium" data-user="${esc(u.id)}">${u.premium?'Remove Premium':'Give Premium'}</button>`:''}</div></div>`).join("") : `<p class="tiny">Type at least 2 letters.</p>`;
 }
 async function loadSuspensionAppeals() {
   const box = $('#wdAppealAdminList');
@@ -1643,6 +1680,23 @@ $("#settingsBody").addEventListener("click", async (e) => {
   const bgb = e.target.closest("[data-bg]");
   if (bgb) { setPref("chatbg", bgb.dataset.bg); applyChatBg(); renderSettings(); return; }
   if (e.target.closest('#wdRefreshAppeals')) { loadSuspensionAppeals(); return; }
+  const deleteRequestBtn = e.target.closest('[data-delete-request]');
+  if (deleteRequestBtn) {
+    if (me?.admin !== true) return;
+    const target = admList.find(x => x.id === deleteRequestBtn.dataset.deleteRequest);
+    if (!target || target.id === uid || target.admin === true) { toast('Cannot request deletion of an admin'); return; }
+    if (!confirm(`Request PERMANENT deletion of ${target.username}? This is not a suspension.`)) return;
+    const typed = prompt(`To confirm, type the exact username: ${target.username}`);
+    if (typed !== target.username) { toast('Username did not match. Cancelled.'); return; }
+    act(async () => {
+      await setDoc(doc(db, 'accountDeletionRequests', target.id), {
+        targetUid: target.id, targetUsername: target.username,
+        requestedBy: uid, requestedAt: serverTimestamp(), status: 'pending'
+      });
+      toast('Deletion requested. Admin server execution still required.');
+    }, deleteRequestBtn);
+    return;
+  }
   const suspendBtn = e.target.closest('[data-suspend]');
   if (suspendBtn) {
     if (me?.admin !== true) return;
@@ -2571,6 +2625,8 @@ async function startWordiiCamera(){
     wordiiStoryStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:wordiiStoryFacing},audio:false});
     if(wsc.classList.contains('hidden')) { wordiiStoryStream.getTracks().forEach(t=>t.stop()); wordiiStoryStream=null; return; }
     video.srcObject=wordiiStoryStream;
+    // Mirror only the selfie preview, not the rear camera.
+    video.style.transform=wordiiStoryFacing==='user'?'scaleX(-1)':'none';
     video.hidden=false; fallback.hidden=true;
     document.getElementById('wscNote').textContent='Tap the shutter to capture a photo.';
   } catch(err) {
@@ -2598,7 +2654,10 @@ document.getElementById('wscShutter').onclick=()=>{
   const canvas=document.createElement('canvas');
   const scale=Math.min(1,1024/Math.max(video.videoWidth,video.videoHeight));
   canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
-  canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+  const ctx=canvas.getContext('2d');
+  // Keep the saved selfie consistent with the mirrored live preview.
+  if(wordiiStoryFacing==='user') {ctx.translate(canvas.width,0);ctx.scale(-1,1);}
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
   canvas.toBlob(blob=>{
     if(!blob)return;
     const file=new File([blob],'wordii-story.jpg',{type:'image/jpeg'});

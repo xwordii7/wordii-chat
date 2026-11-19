@@ -1172,3 +1172,13 @@ small .wd-role-icon { width:18px; height:18px; }
 .wd-follower-avatar{flex:none}.wd-follower-details{min-width:0;flex:1;display:flex;flex-direction:column;gap:5px}.wd-follower-details strong{font-size:15px;overflow-wrap:anywhere}.wd-follower-details small{font-size:13px;color:var(--muted);overflow-wrap:anywhere}.wd-follower-chevron{font-size:28px;color:var(--muted)}
 .wd-followers-empty{text-align:center;padding:48px 15px;color:var(--muted)}.wd-followers-empty h3{color:var(--text)}
 .wd-ad-preview{border:1px dashed var(--accent)}.wd-ad-preview .btn{box-shadow:none}
+
+/* Wordii v1.5.20 chat media and bot refresh */
+.wd-bot-quick{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.bubble.videomsg{max-width:min(78vw,350px);display:grid;gap:8px;padding:10px;background:linear-gradient(150deg,#23131a,#101014);border:1px solid #702638}
+.bubble.videomsg video{width:100%;background:#080808}
+#profile .you-top,.pv-info{border:1px solid rgba(255,75,90,.22);border-radius:22px;box-shadow:0 12px 40px rgba(0,0,0,.24)}
+#profile .you-top{background-image:linear-gradient(145deg,rgba(45,8,18,.35),rgba(7,7,12,.25))}
+#profile .wlist{border-radius:18px;overflow:hidden}
+#profile .wrow{transition:background .2s ease}
+#profile .wrow:active{background:rgba(235,35,64,.13)}
