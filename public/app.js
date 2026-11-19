@@ -90,7 +90,7 @@ document.addEventListener("click", e => {
   },e.target.closest("#wdBrandReset"));
 });
 
-const WORDII_WEB_VERSION = "1.5.18";
+const WORDII_WEB_VERSION = "1.5.19";
 // Wordii Media API authentication self-test. Never logs or displays the ID token.
 async function wordiiTestMediaAuth() {
   const user = auth.currentUser;
