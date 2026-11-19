@@ -1644,7 +1644,7 @@ function renderSettings(force) {
     appearance: () => `<div class="card"><b>App theme</b><p class="tiny">Choose a theme for all screens.</p><select id="setTheme"><option value="dark" ${t==='dark'?'selected':''}>Dark</option><option value="light" ${t==='light'?'selected':''}>Light</option>${canGreenTheme(me) ? `<option value="green" ${t==='green'?'selected':''}>White + Green</option>` : ""}<option value="auto" ${t==='auto'?'selected':''}>System default</option></select></div>`,
     points: () => `<div class="card center"><div class="stats"><div><b>${me.level || 1}</b><span>Level</span></div><div><b>${me.points || 0}</b><span>Points</span></div><div><b>🔥 ${me.streak || 0}</b><span>Streak</span></div></div>
       <div class="bar"><i style="width:${((me.points || 0) % 10) * 10}%"></i></div><p class="tiny">${10 - ((me.points || 0) % 10)} more points to Level ${(me.level || 1) + 1}</p></div>
-      <div class="card tiny">Earn points: +4 once a day (streak) and +1 for every active minute. Every 10 points = 1 level.</div><div class="card wd-ad-preview"><b>🎬 Watch Ad & Earn +8 Points</b><p class="tiny">Coming soon. Rewards will be enabled after secure AdMob rewarded-ad verification is connected.</p><button type="button" class="btn" disabled aria-disabled="true">Rewarded ads not available yet</button></div>`,
+      <div class="card tiny">Earn points: +4 once a day (streak) and +1 for every active minute. Every 10 points = 1 level.</div><div class="card wd-ad-preview"><b>🎬 Watch Ad & Earn +8 Points</b><p class="tiny">Watch a Google test ad. EXP rewards are not active until secure verification is ready.</p><button type="button" class="btn" id="wdPointsTestRewarded">Watch Rewarded Test Ad</button></div>`,
     edit: () => `<div class="card center"><div class="you-ava">${avatarHTML(me, true)}</div><br><button id="logoBtn" class="btn sm ghost" style="margin-top:12px">Change logo</button><input id="logoInput" type="file" accept="image/*" hidden></div>
       <div class="card"><b>Your name</b><p class="tiny">Friends see this name. Your @username stays the same.</p><input id="dnInput" maxlength="30" placeholder="Display name" value="${esc(me.displayName || "")}"><button id="saveName" class="btn">Save name</button></div>
       <div class="card"><b>About you</b><p class="tiny">Your bio and banner show when people open your profile.</p>
@@ -1725,6 +1725,15 @@ $("#settingsBody").addEventListener("click", e => {
     if (b.id === 'wdTestRewarded') toast('Test finished. No EXP awarded.');
   }).catch(err => toast('Ad test: ' + String(err?.message || err).slice(0, 120)))
     .finally(() => { b.disabled = false; });
+});
+// Points page: use the existing Android test-ad flow, never grant client-side EXP.
+$("#settingsBody").addEventListener("click", e => {
+  const b = e.target.closest("#wdPointsTestRewarded");
+  if (!b || b.disabled) return;
+  b.disabled = true;
+  wordiiShowTestRewarded().then(() => toast("Test ad completed. No EXP awarded yet."))
+    .catch(err => toast("Rewarded test ad unavailable: " + (err?.message || err)))
+    .finally(() => { if (b.isConnected) b.disabled = false; });
 });
 $("#settingsBody").addEventListener("change", (e) => {
   const t = e.target;
