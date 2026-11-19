@@ -1180,7 +1180,6 @@ async function sendMsg(payload, targetChatId=activeChat?.id) {
       } else {
         console.log("Wordii Push result:", result);
         // WORDII_PUSH_RESULT_TOAST_V2
-        toast("Push: sent=" + (result.sent ?? 0) + (result.duplicate ? " (duplicate)" : ""));
       }
     }).catch(err => console.warn("Push request failed:", err));
   }
