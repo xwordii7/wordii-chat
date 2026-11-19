@@ -28,6 +28,80 @@ function friendly(e) {
 const wdRoleIcon = (asset, label) => `<img class="wd-role-icon" src="wordii-badges/${asset}_icon.png" alt="${label} badge" title="${label}" loading="lazy" decoding="async">`;
 const vb = (u) => (u?.admin === true ? wdRoleIcon('admin', 'Admin') : '') + (u?.preAdmin === true ? wdRoleIcon('pre_admin', 'Pre-Admin') : '') + (u?.premium === true ? wdRoleIcon('premium_user', 'Premium User') : '') + (u?.verified === true ? wdRoleIcon('verified_user', 'Verified User') : '');
 const canBTP = () => me?.admin === true || me?.preAdmin === true;
+// Wordii Ad Controls v1: client-side eligibility only. SDK must enforce this at every ad request.
+// Do not award EXP here; rewarded EXP requires verified server-side completion.
+const WORDII_AD_IDS = Object.freeze({
+  app: 'ca-app-pub-5814222285253168~5537679277',
+  banner: 'ca-app-pub-5814222285253168/3032815766',
+  native: 'ca-app-pub-5814222285253168/4777589383',
+  rewarded: 'ca-app-pub-5814222285253168/8525262700',
+  appOpen: 'ca-app-pub-5814222285253168/5899099368',
+  interstitial: 'ca-app-pub-5814222285253168/1719734094'
+});
+function wordiiStaffAdsEnabled(user = me) {
+  if (!user?.admin && !user?.preAdmin) return true;
+  if (!uid) return false;
+  try { return localStorage.getItem('wordii_staff_ads_' + uid) === 'on'; }
+  catch (_) { return false; }
+}
+function wordiiAdPolicy(user = me) {
+  const staff = user?.admin === true || user?.preAdmin === true;
+  if (staff && !wordiiStaffAdsEnabled(user)) return { enabled:false, tier:'staff-off', intervalMs:Infinity };
+  if (user?.premium === true && !staff) return { enabled:true, tier:'premium', intervalMs:30*60*1000 };
+  return { enabled:true, tier:staff?'staff-opt-in':'standard', intervalMs:15*60*1000 };
+}
+// Future native AdMob bridge MUST consult this before banner/native/app-open/interstitial loads.
+// Never place ads inside message composer or during a conversation.
+window.wordiiAdPolicy = () => wordiiAdPolicy();
+
+// Wordii AdMob TEST bridge. Android-only; no production ad requests or EXP writes.
+const WORDII_TEST_AD_IDS = Object.freeze({
+  banner: 'ca-app-pub-3940256099942544/6300978111',
+  rewarded: 'ca-app-pub-3940256099942544/5224354917'
+});
+let wordiiAdMobInit = null;
+let wordiiTestBannerShown = false;
+function wordiiNativeAdMob() {
+  return window.Capacitor?.isNativePlatform?.() ? window.Capacitor?.Plugins?.AdMob : null;
+}
+function wordiiAdTestAllowed() {
+  return !!(me && uid && !me.suspended && wordiiAdPolicy().enabled &&
+    !document.querySelector('#settings')?.classList.contains('hidden') && subKey === 'ads' &&
+    document.querySelector('#chat')?.classList.contains('hidden'));
+}
+async function wordiiInitTestAds() {
+  const sdk = wordiiNativeAdMob();
+  if (!sdk) throw new Error('Test ads require the updated Android APK, not the browser.');
+  if (!wordiiAdMobInit) {
+    wordiiAdMobInit = sdk.initialize({ initializeForTesting: true, maxAdContentRating: 'General' })
+      .catch(err => { wordiiAdMobInit = null; throw err; });
+  }
+  await wordiiAdMobInit;
+  return sdk;
+}
+async function wordiiHideTestBanner() {
+  if (!wordiiTestBannerShown) return;
+  wordiiTestBannerShown = false;
+  try { await wordiiNativeAdMob()?.removeBanner(); } catch (err) { console.warn('Ad banner cleanup:', err); }
+}
+async function wordiiShowTestBanner() {
+  if (!wordiiAdTestAllowed()) throw new Error('Ads are disabled for this account or screen.');
+  const sdk = await wordiiInitTestAds();
+  if (!wordiiAdTestAllowed()) return;
+  await sdk.showBanner({ adId: WORDII_TEST_AD_IDS.banner, isTesting: true, position: 'BOTTOM_CENTER' });
+  wordiiTestBannerShown = true;
+}
+async function wordiiShowTestRewarded() {
+  if (!wordiiAdTestAllowed()) throw new Error('Ads are disabled for this account or screen.');
+  const sdk = await wordiiInitTestAds();
+  if (!wordiiAdTestAllowed()) return;
+  await sdk.prepareRewardVideoAd({ adId: WORDII_TEST_AD_IDS.rewarded, isTesting: true });
+  if (!wordiiAdTestAllowed()) return;
+  await sdk.showRewardVideoAd();
+  // IMPORTANT: never award XP here. Server-side AdMob SSV is required first.
+}
+
+
 const canGreenTheme = (u) => u?.admin === true || u?.preAdmin === true || u?.premium === true;
 const wordiiStoryRole = (u) => u?.admin === true || u?.preAdmin === true ? 'story-gold-flame' : u?.premium === true ? 'story-purple-flame' : '';
 
@@ -233,6 +307,7 @@ onAuthStateChanged(auth, (u) => {
     if (lastSeenLevel !== null && currentLevel > lastSeenLevel) showLevelCelebration(currentLevel);
     lastSeenLevel = currentLevel;
     me = incoming;
+    if (!wordiiAdPolicy().enabled) void wordiiHideTestBanner();
     $("#onboard").classList.add("hidden"); $("#app").classList.remove("hidden");
     if (!started) { started = true; startApp(); wordiiOpenSharedProfile(); }
     renderProfile(); checkGate();
@@ -1488,8 +1563,8 @@ async function wordiiConfirmPhoneOTP() {
 const BG_SW = ["#2a1b4d", "radial-gradient(#7b2cff,#1d1040)", "linear-gradient(160deg,#064e5c,#0b1b3a)", "linear-gradient(160deg,#7c2d12,#4c1d95)", "#000"];
 let admList = [], admTimer;
 let subKey = "";
-const SUB_TITLES = { musicAdmin: "Manage Music", overview: "Settings", appearance: "Appearance", points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "BTP badge panel", dash: "Admin dashboard", gifts: "Level gifts", updates: "App Updates", assistant: "Wordii Assistant", brand: "App Branding" };
-function openSub(k) { subKey = k; $("#setTitle").textContent = SUB_TITLES[k] || "Settings"; $("#settings").classList.remove("hidden"); renderSettings(true); }
+const SUB_TITLES = { ads: "Ad Preferences", musicAdmin: "Manage Music", overview: "Settings", appearance: "Appearance", points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "BTP badge panel", dash: "Admin dashboard", gifts: "Level gifts", updates: "App Updates", assistant: "Wordii Assistant", brand: "App Branding" };
+function openSub(k) { if (k !== "ads") void wordiiHideTestBanner(); subKey = k; $("#setTitle").textContent = SUB_TITLES[k] || "Settings"; $("#settings").classList.remove("hidden"); renderSettings(true); }
 function wordiiProfileShareURL(){
   const name = String(me?.username || '').replace(/^@/, '');
   const u = new URL('https://wordii-chat.web.app/');
@@ -1558,8 +1633,14 @@ function renderSettings(force) {
   const t = pref("theme", "auto"), bg = pref("chatbg", "0"), nOn = pref("notif", "on") === "on";
   const pages = {
     assistant: () => wordiiAssistantHTML(),
+    ads: () => `<div class="card"><h3>📢 Ad Preferences</h3>
+      ${canBTP() ? `<label class="setrow"><span><b>Show Ads</b><small>Admin and Pre-Admin: OFF by default</small></span><input type="checkbox" id="wdStaffAds" ${wordiiStaffAdsEnabled() ? 'checked' : ''}></label><p class="tiny">Turn ON only if you want to see ads. You can switch OFF anytime. This choice is saved on this device.</p>` : `<p class="tiny">${me?.premium ? 'Premium: fewer ads, with longer breaks.' : 'Standard: limited ads with breaks.'}</p>`}
+      <p class="tiny">No ads in private chats. These buttons show Google TEST ads only in the updated Android APK. No EXP is awarded during testing.</p>
+      <div class="row-btns"><button type="button" class="btn sm" id="wdTestBanner">Show test banner</button><button type="button" class="btn sm ghost" id="wdHideBanner">Hide banner</button><button type="button" class="btn sm" id="wdTestRewarded">Watch test rewarded ad</button></div>
+      <p class="tiny">TEST MODE — no live ad earnings.</p></div>`,
+
     overview: () => `<div class="wd-settings-overview"><div class="wd-settings-person"><div class="wd-settings-avatar">${avatarHTML(me)}</div><div><strong>${esc(me.displayName || me.username)}</strong><p class="tiny">${esc(me.username)} · Level ${me.level || 1}</p></div></div>
-      ${[['👤','edit','Edit profile','Name, bio, profile photo and banner'],['🏆','points','Points & level','XP, progress and streak'],['🔑','account','Account','Login, email and account security'],['🔒','privacy','Privacy','Online status, public account'],['💬','chats','Chats','Chat wallpaper and theme'],['🎨','appearance','Appearance','Light and dark app theme'],['🔔','notif','Notifications','Message and push alerts'],['🌐','lang','App language','Current language options'],['💎','subs','Subscriptions','Available plans'],['🚀','updates','App Updates','Check the app version'],['🤖','assistant','Wordii Assistant','Help, rules and account commands'],...(me?.admin===true ? [['🎨','brand','App Branding','Upload or reset the Wordii logo']] : [])].map(([ico,k,label,desc])=>`<button type="button" class="wd-settings-link" data-wd-settings="${k}"><span class="wd-settings-ico">${ico}</span><span><b>${label}</b><small>${desc}</small></span><span class="wd-settings-arrow">›</span></button>`).join('')}</div>`,
+      ${[['👤','edit','Edit profile','Name, bio, profile photo and banner'],['🏆','points','Points & level','XP, progress and streak'],['🔑','account','Account','Login, email and account security'],['🔒','privacy','Privacy','Online status, public account'],['💬','chats','Chats','Chat wallpaper and theme'],['🎨','appearance','Appearance','Light and dark app theme'],['🔔','notif','Notifications','Message and push alerts'],['🌐','lang','App language','Current language options'],['💎','subs','Subscriptions','Available plans'],['📢','ads','Ad Preferences','Manage ad visibility and frequency'],['🚀','updates','App Updates','Check the app version'],['🤖','assistant','Wordii Assistant','Help, rules and account commands'],...(me?.admin===true ? [['🎨','brand','App Branding','Upload or reset the Wordii logo']] : [])].map(([ico,k,label,desc])=>`<button type="button" class="wd-settings-link" data-wd-settings="${k}"><span class="wd-settings-ico">${ico}</span><span><b>${label}</b><small>${desc}</small></span><span class="wd-settings-arrow">›</span></button>`).join('')}</div>`,
     appearance: () => `<div class="card"><b>App theme</b><p class="tiny">Choose a theme for all screens.</p><select id="setTheme"><option value="dark" ${t==='dark'?'selected':''}>Dark</option><option value="light" ${t==='light'?'selected':''}>Light</option>${canGreenTheme(me) ? `<option value="green" ${t==='green'?'selected':''}>White + Green</option>` : ""}<option value="auto" ${t==='auto'?'selected':''}>System default</option></select></div>`,
     points: () => `<div class="card center"><div class="stats"><div><b>${me.level || 1}</b><span>Level</span></div><div><b>${me.points || 0}</b><span>Points</span></div><div><b>🔥 ${me.streak || 0}</b><span>Streak</span></div></div>
       <div class="bar"><i style="width:${((me.points || 0) % 10) * 10}%"></i></div><p class="tiny">${10 - ((me.points || 0) % 10)} more points to Level ${(me.level || 1) + 1}</p></div>
@@ -1632,11 +1713,26 @@ async function loadSuspensionAppeals() {
     }).join('');
   } catch(e) { box.textContent = friendly(e); }
 }
-$("#setBack").onclick = () => { if(subKey!=="overview") openSub("overview"); else $("#settings").classList.add("hidden"); };
+$("#setBack").onclick = () => { if(subKey!=="overview") openSub("overview"); else { void wordiiHideTestBanner(); $("#settings").classList.add("hidden"); } };
 $("#settingsBody").addEventListener("click", e => { const b=e.target.closest("[data-wd-settings]"); if(b) openSub(b.dataset.wdSettings); });
+$("#settingsBody").addEventListener("click", e => {
+  const b = e.target.closest('#wdTestBanner, #wdHideBanner, #wdTestRewarded');
+  if (!b) return;
+  b.disabled = true;
+  const task = b.id === 'wdTestBanner' ? wordiiShowTestBanner()
+    : b.id === 'wdHideBanner' ? wordiiHideTestBanner() : wordiiShowTestRewarded();
+  Promise.resolve(task).then(() => {
+    if (b.id === 'wdTestRewarded') toast('Test finished. No EXP awarded.');
+  }).catch(err => toast('Ad test: ' + String(err?.message || err).slice(0, 120)))
+    .finally(() => { b.disabled = false; });
+});
 $("#settingsBody").addEventListener("change", (e) => {
   const t = e.target;
-  if (t.id === "setPublic") act(async () => { await updateDoc(doc(db, "users", uid), { isPublic: t.checked }); toast(t.checked ? "Account is public" : "Account is private"); });
+  if (t.id === "wdStaffAds" && canBTP()) {
+    try { localStorage.setItem('wordii_staff_ads_' + uid, t.checked ? 'on' : 'off'); if (!t.checked) void wordiiHideTestBanner(); toast(t.checked ? 'Ads enabled for this device' : 'Ads disabled'); }
+    catch (_) { t.checked = false; toast('Could not save ad preference'); }
+  }
+  else if (t.id === "setPublic") act(async () => { await updateDoc(doc(db, "users", uid), { isPublic: t.checked }); toast(t.checked ? "Account is public" : "Account is private"); });
   else if (t.id === "setTheme") { if (t.value === "green" && !canGreenTheme(me)) { toast("White + Green requires Admin, Pre-Admin or Premium"); t.value="dark"; } const theme=t.value === "auto" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : t.value; setPref("theme",t.value); document.documentElement.dataset.wdTheme=theme; document.documentElement.dataset.theme=theme; document.querySelector('meta[name="theme-color"]')?.setAttribute("content",(theme==="light"||theme==="green")?"#ffffff":"#08080b"); }
   else if (t.id === "setNotif") setPref("notif", t.checked ? "on" : "off");
   else if (t.id === "wdWallpaperFile" && (canBTP() || me?.premium)) {
