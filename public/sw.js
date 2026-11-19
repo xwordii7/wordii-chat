@@ -1,5 +1,5 @@
 // Minimal service worker: network first, cached copy if offline.
-const CACHE = "wordii-web-v1.5.20-20261119";
+const CACHE = "wordii-web-v1.5.20-updater-20261119";
 self.addEventListener("install", (e) => { self.skipWaiting(); });
 self.addEventListener("activate", (e) => { e.waitUntil((async () => {
   const names = await caches.keys();

@@ -91,6 +91,90 @@ document.addEventListener("click", e => {
 });
 
 const WORDII_WEB_VERSION = "1.5.20";
+
+// APK updater: installed Android version is authoritative; the web bundle version is not.
+const WORDII_RELEASES_API = "https://api.github.com/repos/xwordii7/wordii-chat/releases/latest";
+let wordiiUpdateCheckPending = null;
+function wordiiSemver(value) {
+  const match = String(value || "").trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:$|[-+])/i);
+  return match ? match.slice(1,4).map(Number) : null;
+}
+function wordiiVersionCompare(a,b) {
+  const x=wordiiSemver(a), y=wordiiSemver(b);
+  if (!x || !y) return null;
+  for (let i=0;i<3;i++) if (x[i]!==y[i]) return x[i]>y[i]?1:-1;
+  return 0;
+}
+function wordiiIsNativeAndroid() {
+  return window.Capacitor?.isNativePlatform?.() === true && window.Capacitor?.getPlatform?.() === "android";
+}
+async function wordiiInstalledVersion() {
+  if (!wordiiIsNativeAndroid()) return null;
+  const plugin=window.Capacitor?.Plugins?.App;
+  if (!plugin?.getInfo) throw Error("Android app version could not be read. Update the APK first.");
+  const info=await plugin.getInfo();
+  if (info.id !== "com.wordii.chat") throw Error("Unexpected Android package ID.");
+  if (!wordiiSemver(info.version)) throw Error("Installed APK version is invalid.");
+  return info.version;
+}
+function wordiiUpdateModal(release, apk, installed) {
+  let overlay=document.getElementById("wordiiApkUpdateModal");
+  if (!overlay) {
+    overlay=document.createElement("div");
+    overlay.id="wordiiApkUpdateModal";
+    overlay.className="wordii-apk-update-overlay";
+    overlay.innerHTML='<div class="wordii-apk-update-card" role="dialog" aria-modal="true" aria-labelledby="wordiiApkUpdateTitle"><div class="wordii-apk-update-icon">🚀</div><h2 id="wordiiApkUpdateTitle">Update Available</h2><p id="wordiiApkUpdateDescription"></p><div class="wordii-apk-update-actions"><button type="button" class="btn ghost" id="wordiiApkLater">Later</button><a class="btn" id="wordiiApkDownload" target="_blank" rel="noopener noreferrer">Download Update</a></div><p class="tiny">Android will ask you to approve installation. Your account stays unchanged.</p></div>';
+    document.body.append(overlay);
+    overlay.querySelector("#wordiiApkLater").addEventListener("click",()=>overlay.remove());
+  }
+  overlay.querySelector("#wordiiApkUpdateDescription").textContent=`Wordii Chat v${release.tag_name.replace(/^v/i, "")} is available. Installed APK: v${installed}.`;
+  overlay.querySelector("#wordiiApkDownload").href=apk.browser_download_url;
+}
+async function wordiiCheckForApkUpdate({manual=false,result=null}={}) {
+  if (wordiiUpdateCheckPending) return wordiiUpdateCheckPending;
+  const task=(async()=>{
+    const installed=await wordiiInstalledVersion();
+    if (!installed && !manual) return;
+    const response=await fetch(WORDII_RELEASES_API,{headers:{Accept:"application/vnd.github+json"},cache:"no-store"});
+    if (!response.ok) throw Error(response.status===403?"GitHub rate limit reached. Try again later.":"Could not check GitHub Releases (HTTP "+response.status+").");
+    const release=await response.json();
+    const version=release.tag_name;
+    if (!wordiiSemver(version)) throw Error("Latest release has no valid version tag.");
+    const apk=(release.assets||[]).find(a=>typeof a.name==="string" && /\.apk$/i.test(a.name) && /^https:\/\/github\.com\/xwordii7\/wordii-chat\/releases\/download\//.test(a.browser_download_url||""));
+    if (!apk) {
+      if (result) result.textContent=`Release ${version} has no downloadable APK asset yet.`;
+      return;
+    }
+    if (!installed) {
+      if (result) result.textContent="This is the web version. APK updates are checked automatically in the Android app.";
+      return;
+    }
+    const comparison=wordiiVersionCompare(version,installed);
+    if (comparison===null) throw Error("Cannot compare the installed and released APK versions.");
+    if (comparison<=0) {
+      if (result) result.textContent=`✅ APK is up to date (v${installed}).`;
+      return;
+    }
+    if (result) result.textContent=`Update available: ${version} (installed v${installed}).`;
+    wordiiUpdateModal(release,apk,installed);
+  })();
+  wordiiUpdateCheckPending=task;
+  try { await task; }
+  catch(error) { if (result) result.textContent=error.message||"Update check failed."; else console.warn("Wordii APK update check:",error.message||error); }
+  finally { wordiiUpdateCheckPending=null; }
+}
+// Check once per app launch and again when Android returns to the foreground.
+function wordiiStartUpdateChecks() {
+  if (!wordiiIsNativeAndroid()) return;
+  wordiiCheckForApkUpdate();
+  const plugin=window.Capacitor?.Plugins?.App;
+  plugin?.addListener?.("appStateChange",state=>{
+    if (state.isActive && !document.getElementById("wordiiApkUpdateModal")) wordiiCheckForApkUpdate();
+  });
+}
+if (document.readyState==="loading") document.addEventListener("DOMContentLoaded",wordiiStartUpdateChecks,{once:true});
+else wordiiStartUpdateChecks();
+
 // Wordii Media API authentication self-test. Never logs or displays the ID token.
 async function wordiiTestMediaAuth() {
   const user = auth.currentUser;
@@ -1597,44 +1681,10 @@ $("#settingsBody").addEventListener("click", async (e) => {
   }
   if (e.target.closest("#checkWordiiUpdate")) {
     const result = document.getElementById("wordiiUpdateResult");
-    if (!result) return;
-    result.textContent = "Checking for updates...";
-    fetch("https://api.github.com/repos/xwordii7/wordii-chat/releases/latest")
-      .then(async r => {
-        if (!r.ok) throw new Error("No published update found yet.");
-        return r.json();
-      })
-      .then(release => {
-        const apk = release.assets?.find(a => a.name.endsWith(".apk"));
-        const currentVersion = WORDII_WEB_VERSION;
-        const latestVersion = release.tag_name.replace(/^v/i, "");
-        const compareVersions = (a, b) => {
-          const x = a.split(".").map(Number);
-          const y = b.split(".").map(Number);
-          for (let i = 0; i < Math.max(x.length, y.length); i++) {
-            const diff = (x[i] || 0) - (y[i] || 0);
-            if (diff) return diff;
-          }
-          return 0;
-        };
-        const updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
-        result.innerHTML = "";
-        const info = document.createElement("p");
-        info.textContent = updateAvailable ? "New version available: " + release.tag_name : "✅ You are up to date (v" + currentVersion + ")";
-        result.appendChild(info);
-        if (apk && updateAvailable) {
-          const link = document.createElement("a");
-          link.className = "btn";
-          link.href = apk.browser_download_url;
-          link.target = "_blank";
-          link.rel = "noopener noreferrer";
-          link.textContent = "Download Update";
-          result.appendChild(link);
-        } else if (!apk) {
-          result.append(" APK not available yet.");
-        }
-      })
-      .catch(err => { result.textContent = err.message; });
+    if (result) {
+      result.textContent = "Checking GitHub Releases…";
+      wordiiCheckForApkUpdate({manual:true, result});
+    }
     return;
   }
   if (await handleWordiiSubscriptionClick(e)) return;

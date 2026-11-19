@@ -1182,3 +1182,9 @@ small .wd-role-icon { width:18px; height:18px; }
 #profile .wlist{border-radius:18px;overflow:hidden}
 #profile .wrow{transition:background .2s ease}
 #profile .wrow:active{background:rgba(235,35,64,.13)}
+
+/* Wordii native APK release update dialog */
+.wordii-apk-update-overlay{position:fixed;inset:0;z-index:12000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:22px;backdrop-filter:blur(7px)}
+.wordii-apk-update-card{width:min(100%,390px);background:#141116;border:1px solid #8b2739;border-radius:24px;color:#fff;padding:26px 20px;text-align:center;box-shadow:0 24px 70px #0009}
+.wordii-apk-update-icon{font-size:42px}.wordii-apk-update-card h2{margin:10px 0;color:#fff}.wordii-apk-update-card p{color:#d4c5c9;line-height:1.55}
+.wordii-apk-update-actions{display:flex;gap:10px;justify-content:center;align-items:center;margin:20px 0}.wordii-apk-update-actions .btn{flex:1;text-decoration:none;white-space:nowrap;font-size:13px}
