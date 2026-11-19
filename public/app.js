@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged, linkWithCredential, EmailAuthProvider, signInWithEmailAndPassword, signOut, sendEmailVerification, sendPasswordResetEmail, verifyBeforeUpdateEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, signInAnonymously, onAuthStateChanged, linkWithCredential, EmailAuthProvider, signInWithEmailAndPassword, signOut, sendEmailVerification, sendPasswordResetEmail, verifyBeforeUpdateEmail, PhoneAuthProvider, RecaptchaVerifier } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, runTransaction, getCountFromServer, setDoc, updateDoc, deleteDoc, writeBatch, increment, collection, query, where, orderBy, limit, onSnapshot, addDoc, serverTimestamp, Timestamp, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { getStorage, ref as storageRef, uploadBytes, getBlob } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
@@ -82,7 +82,7 @@ document.addEventListener("click", e => {
   },e.target.closest("#wdBrandReset"));
 });
 
-const WORDII_WEB_VERSION = "1.5.16";
+const WORDII_WEB_VERSION = "1.5.17";
 // Wordii Media API authentication self-test. Never logs or displays the ID token.
 async function wordiiTestMediaAuth() {
   const user = auth.currentUser;
@@ -1291,6 +1291,44 @@ $("#searchResults").addEventListener("click", (e) => {
   if (ms) act(async () => { const c = await startPublicChat(ms.dataset.smsg); openChat(c); }, ms);
 });
 
+// Optional SMS verification: link the phone credential to the signed-in account.
+// No phone number is stored in public Firestore user profiles.
+let wdPhoneVerifier=null, wdPhoneVerificationId=null;
+function wordiiPhoneStatus(message) { const el=document.getElementById('wdPhoneStatus');if(el)el.textContent=message; }
+async function wordiiSendPhoneOTP() {
+  const user=auth.currentUser;
+  if(!user || user.isAnonymous)throw Error('Please protect your account with Gmail first.');
+  if(user.phoneNumber)throw Error('This account already has a verified phone.');
+  const number=String(document.getElementById('wdPhoneNumber')?.value||'').replace(/[\s()-]/g,'');
+  if(!/^\+[1-9]\d{7,14}$/.test(number))throw Error('Enter a valid number with country code, e.g. +91XXXXXXXXXX.');
+  wdPhoneVerificationId=null;
+  if(wdPhoneVerifier){try{wdPhoneVerifier.clear();}catch{} wdPhoneVerifier=null;}
+  const holder=document.getElementById('wdPhoneCaptcha');
+  if(!holder)throw Error('Open Settings → Account again.');
+  holder.innerHTML='';
+  wdPhoneVerifier=new RecaptchaVerifier(auth,holder,{size:'normal'});
+  await wdPhoneVerifier.render();
+  wordiiPhoneStatus('Complete the security check to receive your SMS.');
+  const provider=new PhoneAuthProvider(auth);
+  wdPhoneVerificationId=await provider.verifyPhoneNumber(number,wdPhoneVerifier);
+  document.getElementById('wdPhoneOtpBox')?.classList.remove('hidden');
+  wordiiPhoneStatus('SMS sent. Enter the OTP to verify your number.');
+}
+async function wordiiConfirmPhoneOTP() {
+  if(!wdPhoneVerificationId)throw Error('Send an OTP first.');
+  const otp=String(document.getElementById('wdPhoneOtp')?.value||'').trim();
+  if(!/^\d{6}$/.test(otp))throw Error('Enter the 6-digit OTP.');
+  const user=auth.currentUser;
+  if(!user || user.isAnonymous)throw Error('Log in with your protected account.');
+  const credential=PhoneAuthProvider.credential(wdPhoneVerificationId,otp);
+  await linkWithCredential(user,credential);
+  await user.reload();
+  wdPhoneVerificationId=null;
+  if(wdPhoneVerifier){try{wdPhoneVerifier.clear();}catch{}wdPhoneVerifier=null;}
+  toast('Phone number verified');
+  if(subKey==='account')renderSettings(true);
+}
+
 // --- settings ---
 const BG_SW = ["#2a1b4d", "radial-gradient(#7b2cff,#1d1040)", "linear-gradient(160deg,#064e5c,#0b1b3a)", "linear-gradient(160deg,#7c2d12,#4c1d95)", "#000"];
 let admList = [], admTimer;
@@ -1366,7 +1404,7 @@ function renderSettings(force) {
         : `<div class="card tiny">✅ Account protected. On a new phone choose <b>Log in</b>. ${isFakeEmail(u?.email) ? "This is an old-style account: log in with your @username + password." : "Forgot your password? Tap <b>Forgot password?</b> on the Log in screen."}</div>`}
       ${!u?.isAnonymous && !isFakeEmail(u?.email) ? `<div class="card"><b>✉️ Change email</b><p class="tiny">A verification link will be sent to the new address. You may need to log in again first.</p><input id="changeEmailInput" type="email" placeholder="New email address" autocomplete="email"><button id="changeEmailBtn" class="btn">Send verification link</button><button id="resendEmailBtn" class="btn ghost">Verify current email</button></div>` : ""}
       <div class="card"><b>✏️ Change username</b><p class="tiny">3–15 letters, numbers or underscores. Your chats and badges stay with this account.</p><input id="wdNewUsername" maxlength="15" autocapitalize="none" autocomplete="off" placeholder="New username (without @)"><button type="button" class="btn" id="wdChangeUsername">Save username</button></div>
-      <div class="card"><b>📱 Phone number security</b><p class="tiny">Phone OTP linking is not active yet. It requires Firebase Phone Authentication, reCAPTCHA support and SMS billing configuration. Never share OTPs.</p></div>
+      <div class="card wd-phone-card"><b>📱 Optional phone verification</b><p class="tiny">${u?.phoneNumber ? `✅ Verified: ${esc(u.phoneNumber)}` : 'Verify your number with a one-time SMS code. You can keep using Wordii without doing this.'}</p>${!u?.phoneNumber ? `<label for="wdPhoneNumber">Phone number with country code</label><input id="wdPhoneNumber" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91XXXXXXXXXX" maxlength="17"><div id="wdPhoneCaptcha"></div><button type="button" class="btn" id="wdPhoneSend">Send OTP</button><div id="wdPhoneOtpBox" class="hidden"><label for="wdPhoneOtp">6-digit SMS code</label><input id="wdPhoneOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Enter OTP"><button type="button" class="btn" id="wdPhoneConfirm">Verify number</button></div><p id="wdPhoneStatus" class="tiny" role="status"></p>` : '<p class="tiny">Your number is linked to this account.</p>'}<p class="tiny">Never share OTPs. SMS delivery requires Firebase Phone Authentication and billing configuration.</p></div>
       <div class="card"><button class="btn ghost" id="setLogout">Log out</button></div>`,
     privacy: () => `<div class="card"><label class="setrow"><span><b>Public account</b></span><input type="checkbox" id="setPublic" ${me.isPublic ? "checked" : ""}></label>
         <p class="tiny">Public: anyone who finds your username can message you directly. Private: they must send a request and you accept it. Anyone with your 6-digit code can always connect.</p></div>
@@ -1453,6 +1491,16 @@ $("#settingsBody").addEventListener("input", (e) => {
   admTimer = setTimeout(async () => { try { admList = await searchPeople($("#admSearch").value); } catch (err) { toast(friendly(err)); admList = []; } renderAdm(); }, 350);
 });
 $("#settingsBody").addEventListener("click", async (e) => {
+  if (e.target.closest("#wdPhoneSend")) {
+    const button=e.target.closest("#wdPhoneSend");button.disabled=true;
+    try { await wordiiSendPhoneOTP(); } catch(err) { wordiiPhoneStatus(friendly(err)); } finally { button.disabled=false; }
+    return;
+  }
+  if (e.target.closest("#wdPhoneConfirm")) {
+    const button=e.target.closest("#wdPhoneConfirm");button.disabled=true;
+    try { await wordiiConfirmPhoneOTP(); } catch(err) { wordiiPhoneStatus(friendly(err)); } finally { button.disabled=false; }
+    return;
+  }
   if (e.target.closest("#wordiiMediaAuthTest")) {
     const button = e.target.closest("#wordiiMediaAuthTest");
     button.disabled = true;

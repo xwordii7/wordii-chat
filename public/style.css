@@ -1124,3 +1124,20 @@ small .wd-role-icon { width:18px; height:18px; }
 .wordii-subscription{border:1px solid rgba(244,43,88,.5);border-radius:18px;background:linear-gradient(145deg,rgba(55,9,22,.75),rgba(15,15,20,.9));box-shadow:0 4px 24px rgba(255,0,65,.08);padding:18px}
 .wordii-request{border:1px solid rgba(255,255,255,.13);border-radius:14px;padding:12px;margin:10px 0;background:rgba(255,255,255,.03)}
 .wordii-proof-preview{max-width:100%;max-height:280px;object-fit:contain;border-radius:10px}
+
+/* Wordii 1.5.17: social-inspired authentication, original Wordii identity */
+#onboard.wordii-auth-screen{background:radial-gradient(circle at 50% 12%,#a41b45 0%,#471026 26%,#130b13 58%,#07070a 100%);padding:calc(32px + env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom));}
+#onboard .wordii-auth-card{max-width:420px;background:#0b0b10ed;border:1px solid #ffffff26;border-radius:22px;padding:35px 26px 28px;box-shadow:0 24px 85px #000a,0 0 55px #ff245a18;}
+#onboard .wordii-auth-card>.logo-img{width:100px;height:100px;margin:0 auto 14px;filter:drop-shadow(0 0 23px #ff31595e)}
+#onboard .wordii-auth-kicker{letter-spacing:2.2px;font-size:10px;color:#f5a5ba}
+#onboard .auth-title{font-size:clamp(33px,9vw,45px);letter-spacing:-1.7px}
+#onboard .auth-tag{font-size:11px;letter-spacing:.8px;text-transform:none;color:#cdbdc5;margin-bottom:28px}
+#onboard .seg{background:transparent;border:0;padding:0;gap:0;border-bottom:1px solid #ffffff2a;border-radius:0}
+#onboard .seg button{border-radius:0;padding:13px 8px;border-bottom:2px solid transparent}
+#onboard .seg button.on{background:transparent;box-shadow:none;color:#ff5378;border-bottom-color:#ff4268}
+#onboard input{background:#15141b;border:1px solid #49404b;border-radius:9px;padding:14px}
+#onboard .btn{border-radius:9px;background:linear-gradient(105deg,#ff3159,#dd195c,#b62491)}
+#onboard .wordii-auth-card #forgotLink{display:inline-block;margin-top:2px}
+.wd-phone-card input{width:100%;box-sizing:border-box;margin:9px 0}
+#wdPhoneCaptcha{margin:12px 0;max-width:100%;overflow-x:auto}
+@media(max-width:380px){#onboard .wordii-auth-card{padding:27px 17px}}
