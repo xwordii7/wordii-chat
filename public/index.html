@@ -14,12 +14,12 @@
 <link rel="modulepreload" href="app.js?v=next-replies-activity">
 </head>
 <body>
-<div id="splash" role="status" aria-live="polite"><div class="splash-aura"></div><div class="splash-content"><div class="splash-logo-wrap"><img class="logo-img" src="wordii-mark.png" alt="Wordii Chat"></div><h1 class="splash-name">Wordii <span>Chat</span></h1><p class="splash-tagline">Chat beyond words</p><div class="splash-progress" aria-label="Starting Wordii Chat"><i></i></div><p class="splash-wait">Getting things ready</p></div><div class="splash-footer">CHAT BEYOND WORDS</div></div>
+<div id="splash" role="status" aria-live="polite"><div class="splash-aura"></div><div class="splash-content"><div class="splash-logo-wrap"><img class="logo-img" src="wordii-logo-e.png" data-wordii-brand="1" alt="Wordii Chat"></div><h1 class="splash-name">Wordii <span>Chat</span></h1><p class="splash-tagline">Chat beyond words</p><div class="splash-progress" aria-label="Starting Wordii Chat"><i></i></div><p class="splash-wait">Getting things ready</p></div><div class="splash-footer">CHAT BEYOND WORDS</div></div>
 
 <section id="onboard" class="screen hidden wordii-auth-screen">
   <div class="card center wordii-auth-card">
     <div class="wordii-auth-kicker">WELCOME TO WORDII</div>
-    <img class="logo-img" src="wordii-mark.png" alt="Wordii Chat">
+    <img class="logo-img" src="wordii-logo-e.png" data-wordii-brand="1" alt="Wordii Chat">
     <h1 class="auth-title">Wordii <span>Chat</span></h1><p class="auth-tag">CHAT BEYOND WORDS</p><div class="seg"><button id="modeNew" class="on">Sign up</button><button id="modeLogin">Log in</button></div>
     <div id="paneNew">
       <p class="muted">Choose your unique username, like <b>@xwordii</b>. Add your email to protect your account.</p>
@@ -53,7 +53,7 @@
 </section>
 
 <main id="app" class="hidden">
-  <header class="top"><div class="brand"><img class="brand-logo" src="wordii-mark.png" alt="">Wordii <span>Chat</span></div><div class="topright"><button id="bellBtn" class="bell" aria-label="Inbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><i id="bellCount" class="hidden"></i></button><div id="socials" class="hidden"></div><div id="topStats" class="chip hidden"></div><button id="homeCameraBtn" class="wd-action" type="button" aria-label="Camera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-3h6l2 3h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="14" r="4"/></svg></button><button id="quickSearchBtn" class="wd-action hidden" type="button" aria-label="Search accounts" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button><button id="wdLevelBtn" type="button" class="wd-level-pill" aria-label="Level and XP">Lv 1</button><button id="homeMenuBtn" class="wd-action" type="button" aria-label="More options" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button></div></header>
+  <header class="top"><div class="brand"><img class="brand-logo" src="wordii-logo-e.png" data-wordii-brand="1" alt="">Wordii <span>Chat</span></div><div class="topright"><button id="bellBtn" class="bell" aria-label="Inbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><i id="bellCount" class="hidden"></i></button><div id="socials" class="hidden"></div><div id="topStats" class="chip hidden"></div><button id="homeCameraBtn" class="wd-action" type="button" aria-label="Camera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-3h6l2 3h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="14" r="4"/></svg></button><button id="quickSearchBtn" class="wd-action hidden" type="button" aria-label="Search accounts" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button><button id="wdLevelBtn" type="button" class="wd-level-pill" aria-label="Level and XP">Lv 1</button><button id="homeMenuBtn" class="wd-action" type="button" aria-label="More options" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button></div></header>
   <div id="homeMenu" class="wd-popup hidden" role="menu"><button type="button" id="menuFindUsers" role="menuitem">🔎 Search all users</button><button type="button" id="menuCreateGroup" role="menuitem">👥 Create Group</button><button type="button" id="menuMyCode" role="menuitem">🔗 My Code</button><button type="button" id="menuSettings" role="menuitem">⚙ Settings</button><button type="button" id="menuProfile" role="menuitem">👤 Profile</button><button type="button" id="menuNotifications" role="menuitem">🔔 Notifications</button></div><div class="premium-tabs"><button type="button" class="on" data-premium-tab="chats">▣ Chats</button><button type="button" data-premium-tab="status">◉ Updates</button><button type="button" data-premium-tab="calls">♧ Calls</button></div>
   <section id="tab-chats" class="tab"><div class="story-rail" id="storyRail"></div><div class="chat-section-title hidden"><h2>Messages</h2></div>
     <button id="newGroupBtn" class="hidden" type="button" aria-hidden="true" tabindex="-1">New group</button>
@@ -76,7 +76,7 @@
       <p class="muted">Your code (share it with a friend)</p>
       <div id="myCode" class="code">······</div>
       <p id="codeTimer" class="tiny"></p>
-      <button id="newCodeBtn" class="btn ghost">New code</button>
+      <button id="newCodeBtn" class="btn ghost">Generate Code</button>
     </div>
     <div class="card">
       <p class="muted">Got a friend's code?</p>
@@ -148,7 +148,7 @@
 <section id="wordiiGroupInfo" class="hidden" role="dialog" aria-label="Group information"><header class="chat-top"><button id="wordiiGroupBack" class="icon" type="button">←</button><b>Group info</b></header><div id="wordiiGroupBody"></div><input id="wordiiGroupFile" type="file" accept="image/*" hidden></section>
 <section id="profileView" class="hidden"><header class="chat-top"><button id="pvBack" class="icon">←</button><b>Profile</b></header><div id="pvBody"></div></section>
 <section id="picker" class="hidden"><div class="card"><b id="pkTitle"></b><div id="pkList"></div><button id="pkOk" class="btn">Done</button><button id="pkCancel" class="btn ghost">Cancel</button></div></section>
-<section id="verifyGate" class="hidden"><div class="card center"><img class="logo-img" src="wordii-mark.png" alt="" style="width:90px;height:90px"><h2>Verify your Gmail</h2><p class="muted" id="vgText"></p>
+<section id="verifyGate" class="hidden"><div class="card center"><img class="logo-img" src="wordii-logo-e.png" data-wordii-brand="1" alt="" style="width:90px;height:90px"><h2>Verify your Gmail</h2><p class="muted" id="vgText"></p>
   <button id="vgDone" class="btn">I verified</button><button id="vgResend" class="btn ghost">Resend email</button><button id="vgOut" class="btn ghost">Log out</button><p class="tiny">Check your Spam folder too.</p></div></section>
 <section id="incoming" class="hidden"><div class="inc-card"><div id="incAva"></div><h2 id="incName"></h2><p id="incType"></p>
   <div class="inc-btns"><button id="incDecline" class="call-btn red" aria-label="Decline">✕</button><button id="incAccept" class="call-btn green" aria-label="Accept">✓</button></div></div></section>

@@ -42,7 +42,47 @@ if (firebaseConfig.apiKey.startsWith("PASTE")) { fatal(new Error("Open public/fi
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app), db = getFirestore(app);
 
-const WORDII_WEB_VERSION = "1.5.15";
+// Admin-managed in-app branding; not the installed Android launcher icon.
+const WORDII_DEFAULT_LOGO = "wordii-logo-e.png";
+let wordiiBrandLogo = WORDII_DEFAULT_LOGO;
+function wordiiApplyBrandLogo(src) {
+  wordiiBrandLogo = src || WORDII_DEFAULT_LOGO;
+  document.querySelectorAll('img[src="wordii-logo-e.png"], img[data-wordii-brand]').forEach(el => {
+    el.dataset.wordiiBrand = "1";
+    if (el.getAttribute("src") !== wordiiBrandLogo) el.src = wordiiBrandLogo;
+  });
+}
+onSnapshot(doc(db, "wordiiConfig", "appBranding"), snap => {
+  const v = snap.exists() ? snap.data().logo : "";
+  wordiiApplyBrandLogo(typeof v === "string" && /^data:image\/jpeg;base64,/.test(v) ? v : WORDII_DEFAULT_LOGO);
+}, () => {});
+async function wordiiSaveBrand(file) {
+  if (me?.admin !== true) throw new Error("Admin only");
+  const logo = await compress(file, {max:256,square:true,quality:0.65,limitLen:85000});
+  await setDoc(doc(db,"wordiiConfig","appBranding"), {logo,updatedAt:serverTimestamp(),updatedBy:uid});
+  wordiiApplyBrandLogo(logo);
+}
+document.addEventListener("change", e => {
+  if (e.target.id === "wdBrandFile" && e.target.files[0]) {
+    const f=e.target.files[0];
+    compress(f,{max:256,square:true,quality:0.65,limitLen:85000}).then(v=>{const img=document.getElementById("wdBrandPreview");if(img)img.src=v;}).catch(err=>toast(friendly(err)));
+  }
+});
+document.addEventListener("click", e => {
+  if(e.target.closest("#wdOpenCode")){ $("#settings").classList.add("hidden"); showTab("connect"); $("#myCode")?.scrollIntoView({block:"center"}); }
+  if (e.target.closest("#wdBrandSave")) act(async()=>{
+    const f=document.getElementById("wdBrandFile")?.files?.[0];
+    if(!f)throw new Error("Choose a logo image first");
+    await wordiiSaveBrand(f);toast("Logo applied for everyone");
+  },e.target.closest("#wdBrandSave"));
+  if (e.target.closest("#wdBrandReset")) act(async()=>{
+    if(me?.admin!==true)throw new Error("Admin only");
+    await setDoc(doc(db,"wordiiConfig","appBranding"),{logo:"",updatedAt:serverTimestamp(),updatedBy:uid});
+    wordiiApplyBrandLogo(WORDII_DEFAULT_LOGO);toast("Logo E restored");
+  },e.target.closest("#wdBrandReset"));
+});
+
+const WORDII_WEB_VERSION = "1.5.16";
 // Wordii Media API authentication self-test. Never logs or displays the ID token.
 async function wordiiTestMediaAuth() {
   const user = auth.currentUser;
@@ -281,7 +321,6 @@ function startApp() {
     renderWordiiGroupInfo();
   }, (e) => toast(friendly(e)));
   myCode = loadCode();
-  if (!myCode) maybeNewCode();
   renderCode();
   setInterval(tickCode, 1000);
   setInterval(tickMessages, 400);
@@ -400,7 +439,9 @@ function renderProfile() {
       ${row("notif", "🔔", "Notifications", "Message alerts on or off")}
       ${row("lang", "🌐", "App language", "English")}
       ${row("subs", "💎", "Subscriptions", "Explore premium benefits")}
+      ${me?.admin === true ? row("brand", "🎨", "App Logo Manager", "Change the in-app logo for everyone") : ""}
       ${row("updates", "🚀", "App Updates", "Check for new versions")}
+      ${row("codeSettings", "🔑", "My Connection Code", "Generate a temporary code to connect")}
       ${row("invite", "👥", "Invite a friend", "Share Wordii Chat")}
       ${canBTP() ? row("admin", "🛡️", "BTP badge panel", "Manage verified, premium and staff badges") + (me.admin ? row("dash", "📊", "Admin dashboard", "See who is using the app") + row("musicAdmin", "🎵", "Manage Music", "Publish licensed status clips") : "") + row("gifts", "🎁", "Level gifts", "Add, edit or remove rewards") : ""}
     </div>
@@ -436,7 +477,7 @@ function maybeNewCode() {
 }
 function renderCode() { $("#myCode").textContent = myCode && myCode.expires > Date.now() ? myCode.code.slice(0, 3) + " " + myCode.code.slice(3) : "······"; }
 function tickCode() {
-  if (!myCode || myCode.expires <= Date.now()) { renderCode(); $("#codeTimer").textContent = "Making a new code…"; maybeNewCode(); return; }
+  if (!myCode || myCode.expires <= Date.now()) { myCode = null; renderCode(); $("#codeTimer").textContent = "Tap Generate Code to connect"; return; }
   const s = Math.floor((myCode.expires - Date.now()) / 1000);
   $("#codeTimer").textContent = `Expires in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
@@ -559,6 +600,17 @@ function tickMessages() {
     b.classList.toggle("open", open);
   });
 }
+function wordiiShowPhoto(src) {
+  if (!/^data:image\/(jpeg|png|webp);base64,/.test(src)) return;
+  let overlay=document.getElementById("wdPhotoViewer");
+  if (!overlay) {
+    overlay=document.createElement("div");overlay.id="wdPhotoViewer";
+    overlay.innerHTML='<button type="button" aria-label="Close photo">✕</button><img alt="Chat photo">';
+    document.body.append(overlay);
+    overlay.addEventListener("click",e=>{if(e.target!==overlay.querySelector("img"))overlay.classList.remove("visible")});
+  }
+  overlay.querySelector("img").src=src;overlay.classList.add("visible");
+}
 let lp = null, longDone = false;
 const mbox = $("#msgs");
 mbox.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -574,7 +626,17 @@ mbox.addEventListener("click", (e) => {
   const el = e.target.closest(".msg"); if (!el) return;
   if(wdSelectionMode){wdSelected.has(el.dataset.id)?wdSelected.delete(el.dataset.id):wdSelected.add(el.dataset.id);wdSelectionSync();return;}
   const m = msgMap[el.dataset.id];
-  if (m.senderId !== uid) { toast("Received messages show only once"); return; }
+  if (m.img && String(m.img).startsWith("data:image/")) {
+    if (e.target.closest("img.photo")) { wordiiShowPhoto(m.img); return; }
+  }
+  if (m.senderId !== uid) {
+    if (m.img && String(m.img).startsWith("data:image/")) {
+      reveal[el.dataset.id] = Date.now() + 10000;
+      tickMessages();
+      return;
+    }
+    toast("Received messages show only once"); return;
+  }
   reveal[el.dataset.id] = Date.now() + 10000; tickMessages();
 });
 
@@ -663,7 +725,7 @@ $("#fileInput").addEventListener("change", (e) => {
   if (!f || !activeChat) return;
   act(async () => {
     toast("Sending photo…");
-    const img = await compress(f, { max: 1024, quality: 0.7, limitLen: 350000 });
+    const img = await compress(f, { max: 800, quality: 0.62, limitLen: 220000 });
     await sendMsg({ img });
   });
 });
@@ -1331,7 +1393,9 @@ function renderSettings(force) {
     </div>`,
     lang: () => `<div class="card tiny">English. Hindi is coming soon.</div>`,
     musicAdmin: () => me?.admin === true ? wordiiAdminMusicHTML() : `<div class="card">Access denied.</div>`,
+    codeSettings: () => `<div class="card"><h3>🔑 Connect by Code</h3><p class="tiny">Code tabhi banega jab Generate Code dabaaoge. Code 10 minutes valid rahega.</p><button type="button" class="btn" id="wdOpenCode">Open Generate Code</button></div>`,
     subs: () => wordiiFullSubscriptionHTML(),
+    brand: () => me?.admin === true ? `<div class="card wd-brand-manager"><h3>🎨 App Logo Manager</h3><p class="tiny">Only full admins can change the in-app logo. Home-screen icon requires a new APK.</p><img id="wdBrandPreview" src="${esc(wordiiBrandLogo)}" alt="Current Wordii logo"><input type="file" id="wdBrandFile" accept="image/png,image/jpeg,image/webp"><div class="row-btns"><button type="button" class="btn" id="wdBrandSave">Apply logo</button><button type="button" class="btn ghost" id="wdBrandReset">Reset to Logo E</button></div></div>` : `<div class="card">Admin only</div>`,
     admin: () => canBTP() ? `<div class="card"><b>🛡️ BTP — Badge & Trust Panel</b><p class="tiny">Search a username. Only Admin can assign Pre-Admin. Premium and Verified badges require payment approval.</p><div class="wd-badge-showcase" aria-label="Wordii role badges"><img src="wordii-badges/admin_full.png" alt="Admin role badge" loading="lazy"><img src="wordii-badges/pre_admin_full.png" alt="Pre-Admin role badge" loading="lazy"><img src="wordii-badges/premium_user_full.png" alt="Premium User role badge" loading="lazy"><img src="wordii-badges/verified_user_full.png" alt="Verified User role badge" loading="lazy"></div><input id="admSearch" placeholder="Search username" autocapitalize="none" autocomplete="off"><div id="admResults"></div></div>${me?.admin ? `<div class="card"><b>📩 Suspension appeals</b><div id="wdAppealAdminList">Loading…</div><button type="button" class="btn ghost" id="wdRefreshAppeals">Refresh appeals</button></div>` : ``}` : `<div class="card">Access denied.</div>`,
   };
   $("#settingsBody").innerHTML = (pages[subKey] || (() => ""))();
@@ -2946,14 +3010,14 @@ async function loadWordiiSubscription(){
     // Payment requests loading enabled.
     const mine=await getDocs(query(collection(db,'verifiedRequests'),where('uid','==',uid),limit(20)));
     const mineBox=$('#wordiiMyRequests');
-    if(mineBox)mineBox.innerHTML=mine.docs.map(d=>`<div class="wordii-request">Request: ₹${d.data().price} — <b>${esc(d.data().status)}</b></div>`).join('');
+    if(mineBox)mineBox.innerHTML=mine.docs.map(d=>`<div class="wordii-request">${d.data().plan==='premium'?'💎 Premium':'✔ Verified'} · ₹${d.data().price} — <b>${esc(d.data().status)}</b></div>`).join('');
     if(me?.admin===true)await loadWordiiAdminRequests();
   }catch(e){toast(friendly(e));}
 }
 async function loadWordiiAdminRequests(){
   const box=$('#wordiiAdminRequests');if(!box||me?.admin!==true)return;
   try{
-    const snap=await getDocs(query(collection(db,'verifiedRequests'),limit(100)));
+    const snap=await getDocs(query(collection(db,'verifiedRequests'),orderBy('createdAt','desc'),limit(100)));
     const rows=snap.docs.filter(d=>d.data().status==='pending');
     box.innerHTML=`<h4>Pending payments (${rows.length})</h4>`+(rows.length?rows.map(d=>{const v=d.data();return `<div class="wordii-request"><b>${esc(v.username)}</b> · ${v.plan==='premium'?'💎 Premium':'✔ Verified'} · ₹${v.price}<p class="tiny">UTR: ${esc(v.utr)}</p><img class="wordii-proof-preview" src="${esc(v.proof)}" alt="User payment screenshot"><div class="row-btns"><button class="btn sm" data-wordii-approve="${esc(d.id)}">Approve</button><button class="btn sm ghost" data-wordii-reject="${esc(d.id)}">Reject</button></div></div>`}).join(''):'<p class="tiny">No pending payments.</p>');
   }catch(e){box.textContent=friendly(e);}

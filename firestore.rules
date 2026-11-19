@@ -46,6 +46,12 @@ service cloud.firestore {
     // Public plan settings, but only an existing admin can change the price or availability.
     match /wordiiConfig/{configId} {
       allow read: if signedIn();
+      allow create, update: if isAdmin() && configId == 'appBranding'
+        && request.resource.data.keys().hasOnly(['logo','updatedAt','updatedBy'])
+        && request.resource.data.logo is string
+        && (request.resource.data.logo == '' || (request.resource.data.logo.matches('^data:image/jpeg;base64,.*') && request.resource.data.logo.size() <= 85000))
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.updatedBy == request.auth.uid;
       allow create, update: if isAdmin() && configId in ['verifiedPlan','premiumPlan']
         && request.resource.data.keys().hasOnly(['price','enabled','updatedAt','updatedBy'])
         && request.resource.data.price is int && request.resource.data.price >= 1 && request.resource.data.price <= 10000
