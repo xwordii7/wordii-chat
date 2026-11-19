@@ -2943,7 +2943,7 @@ async function loadWordiiSubscription(){
     if(subKey!=='subs')return;
     // Refresh content only after the initial plan load.
     $('#settingsBody').innerHTML=wordiiFullSubscriptionHTML();
-    return; // No payment records fetched in test build.
+    // Payment requests loading enabled.
     const mine=await getDocs(query(collection(db,'verifiedRequests'),where('uid','==',uid),limit(20)));
     const mineBox=$('#wordiiMyRequests');
     if(mineBox)mineBox.innerHTML=mine.docs.map(d=>`<div class="wordii-request">Request: ₹${d.data().price} — <b>${esc(d.data().status)}</b></div>`).join('');
