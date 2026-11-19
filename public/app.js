@@ -66,7 +66,7 @@ function wordiiNativeAdMob() {
 }
 function wordiiAdTestAllowed() {
   return !!(me && uid && !me.suspended && wordiiAdPolicy().enabled &&
-    !document.querySelector('#settings')?.classList.contains('hidden') && subKey === 'ads' &&
+    !document.querySelector('#settings')?.classList.contains('hidden') && (subKey === 'ads' || subKey === 'points') &&
     document.querySelector('#chat')?.classList.contains('hidden'));
 }
 async function wordiiInitTestAds() {
