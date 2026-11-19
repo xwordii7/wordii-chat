@@ -1,5 +1,5 @@
 // Minimal service worker: network first, cached copy if offline.
-const CACHE = "wordii-web-v1.5.7-20261118";
+const CACHE = "wordii-web-v1.5.18-20261119";
 self.addEventListener("install", (e) => { self.skipWaiting(); });
 self.addEventListener("activate", (e) => { e.waitUntil((async () => {
   const names = await caches.keys();
@@ -32,7 +32,7 @@ self.addEventListener("push", (e) => {
     if (wins.some((w) => w.visibilityState === "visible" && w.focused)) return;
     await self.registration.showNotification(d.title || "Wordii Chat", {
       body: d.body || "", tag: d.tag || "wordii", renotify: true,
-      icon: "icon-192.png", badge: "icon-192.png",
+      icon: "icon-192-v18.png", badge: "icon-192-v18.png",
       vibrate: d.call ? [300, 150, 300, 150, 300] : [150], requireInteraction: !!d.call,
     });
   })());

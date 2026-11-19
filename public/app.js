@@ -52,6 +52,14 @@ function wordiiApplyBrandLogo(src) {
     if (el.getAttribute("src") !== wordiiBrandLogo) el.src = wordiiBrandLogo;
   });
 }
+// Official bot announcements shown while Wordii is open. No background push is claimed.
+onSnapshot(doc(db,'wordiiConfig','botAnnouncement'),snap=>{
+  const data=snap.data();if(!data?.text||!data.updatedAt||!auth.currentUser||pref('notif','on')!=='on')return;
+  const stamp=data.updatedAt.seconds+'-'+data.updatedAt.nanoseconds;
+  if(sessionStorage.getItem('wd-bot-announcement')===stamp)return;
+  sessionStorage.setItem('wd-bot-announcement',stamp);
+  toast('📣 Wordii Assistant: '+data.text.slice(0,140));
+},()=>{});
 onSnapshot(doc(db, "wordiiConfig", "appBranding"), snap => {
   const v = snap.exists() ? snap.data().logo : "";
   wordiiApplyBrandLogo(typeof v === "string" && /^data:image\/jpeg;base64,/.test(v) ? v : WORDII_DEFAULT_LOGO);
@@ -82,7 +90,7 @@ document.addEventListener("click", e => {
   },e.target.closest("#wdBrandReset"));
 });
 
-const WORDII_WEB_VERSION = "1.5.17";
+const WORDII_WEB_VERSION = "1.5.18";
 // Wordii Media API authentication self-test. Never logs or displays the ID token.
 async function wordiiTestMediaAuth() {
   const user = auth.currentUser;
@@ -234,6 +242,23 @@ function setMode(m) {
   $("#modeNew").classList.toggle("on", m === "new"); $("#modeLogin").classList.toggle("on", m === "login");
   $("#paneAdmin").classList.add("hidden");
 }
+// Three-step signup UI. Existing Firebase registration remains unchanged.
+let wdSignupStep=0;
+function wdRenderSignup(){
+  document.querySelectorAll('#paneNew .wd-signup-step').forEach((el,i)=>el.classList.toggle('hidden',i!==wdSignupStep));
+  const labels=['Username','Email','Password'];
+  const progress=document.getElementById('wdSignupProgress');if(progress)progress.textContent=`Step ${wdSignupStep+1} of 3 · ${labels[wdSignupStep]}`;
+  document.getElementById('wdSignupBack')?.classList.toggle('hidden',wdSignupStep===0);
+  document.getElementById('wdSignupNext')?.classList.toggle('hidden',wdSignupStep===2);
+  document.getElementById('createBtn')?.classList.toggle('hidden',wdSignupStep!==2);
+}
+document.getElementById('wdSignupNext')?.addEventListener('click',()=>{
+  if(wdSignupStep===0 && !/^[a-zA-Z0-9_]{3,15}$/.test(document.getElementById('nameInput').value.trim())){toast('Use 3–15 letters, numbers or underscores.');return;}
+  if(wdSignupStep===1 && !EMAIL_RE.test(document.getElementById('newEmail').value.trim())){toast('Enter a valid Gmail address.');return;}
+  wdSignupStep=Math.min(2,wdSignupStep+1);wdRenderSignup();
+});
+document.getElementById('wdSignupBack')?.addEventListener('click',()=>{wdSignupStep=Math.max(0,wdSignupStep-1);wdRenderSignup();});
+wdRenderSignup();
 $("#modeNew").onclick = () => setMode("new");
 $("#modeLogin").onclick = () => setMode("login");
 $("#adminLink").onclick = (e) => { e.preventDefault(); $("#paneAdmin").classList.toggle("hidden"); };
@@ -1315,7 +1340,7 @@ async function wordiiSendPhoneOTP() {
   wordiiPhoneStatus('SMS sent. Enter the OTP to verify your number.');
 }
 async function wordiiConfirmPhoneOTP() {
-  if(!wdPhoneVerificationId)throw Error('Send an OTP first.');
+  if(!wdPhoneVerificationId)throw Error('OTP not sent yet. Complete reCAPTCHA and tap Send OTP.');
   const otp=String(document.getElementById('wdPhoneOtp')?.value||'').trim();
   if(!/^\d{6}$/.test(otp))throw Error('Enter the 6-digit OTP.');
   const user=auth.currentUser;
@@ -1333,7 +1358,7 @@ async function wordiiConfirmPhoneOTP() {
 const BG_SW = ["#2a1b4d", "radial-gradient(#7b2cff,#1d1040)", "linear-gradient(160deg,#064e5c,#0b1b3a)", "linear-gradient(160deg,#7c2d12,#4c1d95)", "#000"];
 let admList = [], admTimer;
 let subKey = "";
-const SUB_TITLES = { musicAdmin: "Manage Music", overview: "Settings", appearance: "Appearance", points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "BTP badge panel", dash: "Admin dashboard", gifts: "Level gifts", updates: "App Updates", assistant: "Wordii Assistant" };
+const SUB_TITLES = { musicAdmin: "Manage Music", overview: "Settings", appearance: "Appearance", points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "BTP badge panel", dash: "Admin dashboard", gifts: "Level gifts", updates: "App Updates", assistant: "Wordii Assistant", brand: "App Branding" };
 function openSub(k) { subKey = k; $("#setTitle").textContent = SUB_TITLES[k] || "Settings"; $("#settings").classList.remove("hidden"); renderSettings(true); }
 function wordiiProfileShareURL(){
   const name = String(me?.username || '').replace(/^@/, '');
@@ -1355,7 +1380,7 @@ function wordiiOpenSharedProfile(){
   }).catch(e => toast(friendly(e)));
 }
 function wordiiAssistantHTML(){
-  return `<div class="card"><h3>🤖 Wordii Assistant</h3><p class="tiny">Official offline help assistant. It does not read your chats.</p><div id="wdBotLog" aria-live="polite" style="max-height:320px;overflow:auto;display:grid;gap:8px;margin:12px 0"></div><form id="wdBotForm" style="display:flex;gap:8px"><input id="wdBotInput" maxlength="120" placeholder="Type /help" aria-label="Bot command" required style="min-width:0;flex:1"><button class="btn" type="submit">Send</button></form><p class="tiny">Try /help, /level, /profile, /rules, /updates, /support.</p></div>`;
+  return `<div class="card"><h3>🤖 Wordii Assistant</h3><p class="tiny">Official offline help assistant. It does not read your chats.</p><div id="wdBotLog" aria-live="polite" style="max-height:320px;overflow:auto;display:grid;gap:8px;margin:12px 0"></div><form id="wdBotForm" style="display:flex;gap:8px"><input id="wdBotInput" maxlength="120" placeholder="Type /help" aria-label="Bot command" required style="min-width:0;flex:1"><button class="btn" type="submit">Send</button></form><p class="tiny">Try /help, /level, /profile, /rules, /updates, /support.</p><div id="wdBotAnnouncement" class="wd-bot-announcement">Loading official announcement…</div>${me?.admin===true?`<div class="wd-bot-admin"><b>📣 Official announcement</b><textarea id="wdBotAnnouncementText" maxlength="500" placeholder="Message for all Wordii users"></textarea><button type="button" class="btn" id="wdBotPublish">Publish announcement</button><p class="tiny">Appears in the assistant and in-app notification while the app is open. Background push needs a separate server.</p></div>`:''}</div>`;
 }
 function wordiiBotReply(raw){
   const cmd=raw.trim().toLowerCase().split(/\s+/)[0];
@@ -1372,6 +1397,17 @@ function wordiiBindAssistant(){
   if(!log||!form)return;
   const add=(who,message)=>{const el=document.createElement('div');el.className='card';el.style.margin='0';const title=document.createElement('b');title.textContent=who;const content=document.createElement('p');content.style.whiteSpace='pre-wrap';content.style.overflowWrap='anywhere';content.textContent=message;el.append(title,content);log.append(el);log.scrollTop=log.scrollHeight;};
   add('Wordii Assistant','Welcome! Type /help for commands.');
+  const announcementRef=doc(db,'wordiiConfig','botAnnouncement');
+  const unsub=onSnapshot(announcementRef,snap=>{
+    if(subKey!=='assistant'){unsub();return;}
+    const data=snap.data(),box=document.getElementById('wdBotAnnouncement');
+    if(box)box.textContent=data?.text ? '📣 Official: '+data.text : 'No official announcement yet.';
+  },()=>{const box=document.getElementById('wdBotAnnouncement');if(box)box.textContent='Announcements unavailable.';});
+  document.getElementById('wdBotPublish')?.addEventListener('click',async e=>{
+    const b=e.currentTarget,content=document.getElementById('wdBotAnnouncementText')?.value.trim();
+    if(!content){toast('Write an announcement first.');return;}
+    await act(async()=>{if(me?.admin!==true)throw Error('Admin only');await setDoc(announcementRef,{text:content,updatedAt:serverTimestamp(),updatedBy:uid});toast('Announcement published');},b);
+  });
   form.addEventListener('submit',e=>{e.preventDefault();const input=document.getElementById('wdBotInput');const value=input.value.trim();if(!value)return;add('You',value);add('Wordii Assistant',wordiiBotReply(value));input.value='';});
 }
 function shareInvite() {
@@ -1387,7 +1423,7 @@ function renderSettings(force) {
   const pages = {
     assistant: () => wordiiAssistantHTML(),
     overview: () => `<div class="wd-settings-overview"><div class="wd-settings-person"><div class="wd-settings-avatar">${avatarHTML(me)}</div><div><strong>${esc(me.displayName || me.username)}</strong><p class="tiny">${esc(me.username)} · Level ${me.level || 1}</p></div></div>
-      ${[['👤','edit','Edit profile','Name, bio, profile photo and banner'],['🏆','points','Points & level','XP, progress and streak'],['🔑','account','Account','Login, email and account security'],['🔒','privacy','Privacy','Online status, public account'],['💬','chats','Chats','Chat wallpaper and theme'],['🎨','appearance','Appearance','Light and dark app theme'],['🔔','notif','Notifications','Message and push alerts'],['🌐','lang','App language','Current language options'],['💎','subs','Subscriptions','Available plans'],['🚀','updates','App Updates','Check the app version'],['🤖','assistant','Wordii Assistant','Help, rules and account commands']].map(([ico,k,label,desc])=>`<button type="button" class="wd-settings-link" data-wd-settings="${k}"><span class="wd-settings-ico">${ico}</span><span><b>${label}</b><small>${desc}</small></span><span class="wd-settings-arrow">›</span></button>`).join('')}</div>`,
+      ${[['👤','edit','Edit profile','Name, bio, profile photo and banner'],['🏆','points','Points & level','XP, progress and streak'],['🔑','account','Account','Login, email and account security'],['🔒','privacy','Privacy','Online status, public account'],['💬','chats','Chats','Chat wallpaper and theme'],['🎨','appearance','Appearance','Light and dark app theme'],['🔔','notif','Notifications','Message and push alerts'],['🌐','lang','App language','Current language options'],['💎','subs','Subscriptions','Available plans'],['🚀','updates','App Updates','Check the app version'],['🤖','assistant','Wordii Assistant','Help, rules and account commands'],...(me?.admin===true ? [['🎨','brand','App Branding','Upload or reset the Wordii logo']] : [])].map(([ico,k,label,desc])=>`<button type="button" class="wd-settings-link" data-wd-settings="${k}"><span class="wd-settings-ico">${ico}</span><span><b>${label}</b><small>${desc}</small></span><span class="wd-settings-arrow">›</span></button>`).join('')}</div>`,
     appearance: () => `<div class="card"><b>App theme</b><p class="tiny">Choose a theme for all screens.</p><select id="setTheme"><option value="dark" ${t==='dark'?'selected':''}>Dark</option><option value="light" ${t==='light'?'selected':''}>Light</option>${canGreenTheme(me) ? `<option value="green" ${t==='green'?'selected':''}>White + Green</option>` : ""}<option value="auto" ${t==='auto'?'selected':''}>System default</option></select></div>`,
     points: () => `<div class="card center"><div class="stats"><div><b>${me.level || 1}</b><span>Level</span></div><div><b>${me.points || 0}</b><span>Points</span></div><div><b>🔥 ${me.streak || 0}</b><span>Streak</span></div></div>
       <div class="bar"><i style="width:${((me.points || 0) % 10) * 10}%"></i></div><p class="tiny">${10 - ((me.points || 0) % 10)} more points to Level ${(me.level || 1) + 1}</p></div>
@@ -1404,7 +1440,7 @@ function renderSettings(force) {
         : `<div class="card tiny">✅ Account protected. On a new phone choose <b>Log in</b>. ${isFakeEmail(u?.email) ? "This is an old-style account: log in with your @username + password." : "Forgot your password? Tap <b>Forgot password?</b> on the Log in screen."}</div>`}
       ${!u?.isAnonymous && !isFakeEmail(u?.email) ? `<div class="card"><b>✉️ Change email</b><p class="tiny">A verification link will be sent to the new address. You may need to log in again first.</p><input id="changeEmailInput" type="email" placeholder="New email address" autocomplete="email"><button id="changeEmailBtn" class="btn">Send verification link</button><button id="resendEmailBtn" class="btn ghost">Verify current email</button></div>` : ""}
       <div class="card"><b>✏️ Change username</b><p class="tiny">3–15 letters, numbers or underscores. Your chats and badges stay with this account.</p><input id="wdNewUsername" maxlength="15" autocapitalize="none" autocomplete="off" placeholder="New username (without @)"><button type="button" class="btn" id="wdChangeUsername">Save username</button></div>
-      <div class="card wd-phone-card"><b>📱 Optional phone verification</b><p class="tiny">${u?.phoneNumber ? `✅ Verified: ${esc(u.phoneNumber)}` : 'Verify your number with a one-time SMS code. You can keep using Wordii without doing this.'}</p>${!u?.phoneNumber ? `<label for="wdPhoneNumber">Phone number with country code</label><input id="wdPhoneNumber" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91XXXXXXXXXX" maxlength="17"><div id="wdPhoneCaptcha"></div><button type="button" class="btn" id="wdPhoneSend">Send OTP</button><div id="wdPhoneOtpBox" class="hidden"><label for="wdPhoneOtp">6-digit SMS code</label><input id="wdPhoneOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Enter OTP"><button type="button" class="btn" id="wdPhoneConfirm">Verify number</button></div><p id="wdPhoneStatus" class="tiny" role="status"></p>` : '<p class="tiny">Your number is linked to this account.</p>'}<p class="tiny">Never share OTPs. SMS delivery requires Firebase Phone Authentication and billing configuration.</p></div>
+      <div class="card wd-phone-card"><b>📱 Optional phone verification</b><p class="tiny">${u?.phoneNumber ? `✅ Verified: ${esc(u.phoneNumber)}` : 'Verify your number with a one-time SMS code. You can keep using Wordii without doing this.'}</p>${!u?.phoneNumber ? `<label for="wdPhoneNumber">Phone number with country code</label><input id="wdPhoneNumber" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91XXXXXXXXXX" maxlength="17"><div id="wdPhoneCaptcha"></div><button type="button" class="btn" id="wdPhoneSend">Send OTP</button><div id="wdPhoneOtpBox"><label for="wdPhoneOtp">6-digit SMS code</label><input id="wdPhoneOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Enter OTP"><button type="button" class="btn" id="wdPhoneConfirm">Verify number</button></div><p id="wdPhoneStatus" class="tiny" role="status"></p>` : '<p class="tiny">Your number is linked to this account.</p>'}<p class="tiny">Never share OTPs. SMS delivery requires Firebase Phone Authentication and billing configuration.</p></div>
       <div class="card"><button class="btn ghost" id="setLogout">Log out</button></div>`,
     privacy: () => `<div class="card"><label class="setrow"><span><b>Public account</b></span><input type="checkbox" id="setPublic" ${me.isPublic ? "checked" : ""}></label>
         <p class="tiny">Public: anyone who finds your username can message you directly. Private: they must send a request and you accept it. Anyone with your 6-digit code can always connect.</p></div>
@@ -3065,7 +3101,7 @@ async function loadWordiiSubscription(){
 async function loadWordiiAdminRequests(){
   const box=$('#wordiiAdminRequests');if(!box||me?.admin!==true)return;
   try{
-    const snap=await getDocs(query(collection(db,'verifiedRequests'),orderBy('createdAt','desc'),limit(100)));
+    const snap=await getDocs(query(collection(db,'verifiedRequests'),limit(100)));
     const rows=snap.docs.filter(d=>d.data().status==='pending');
     box.innerHTML=`<h4>Pending payments (${rows.length})</h4>`+(rows.length?rows.map(d=>{const v=d.data();return `<div class="wordii-request"><b>${esc(v.username)}</b> · ${v.plan==='premium'?'💎 Premium':'✔ Verified'} · ₹${v.price}<p class="tiny">UTR: ${esc(v.utr)}</p><img class="wordii-proof-preview" src="${esc(v.proof)}" alt="User payment screenshot"><div class="row-btns"><button class="btn sm" data-wordii-approve="${esc(d.id)}">Approve</button><button class="btn sm ghost" data-wordii-reject="${esc(d.id)}">Reject</button></div></div>`}).join(''):'<p class="tiny">No pending payments.</p>');
   }catch(e){box.textContent=friendly(e);}
@@ -3080,7 +3116,9 @@ async function wordiiImageData(file){
   if(result.length>180000)throw Error('Screenshot is too large. Crop it and try again.');
   return result;
 }
-function wordiiFullSubscriptionHTML(){ return wordiiOriginalSubscriptionHTML(); }
+function wordiiFullSubscriptionHTML(){
+  return `<div class="wd-sub-hero"><span class="wd-sub-crown">♛</span><h2>Wordii Membership</h2><p>Choose your badge. Every payment is reviewed manually.</p><div class="wd-sub-chips"><span>✦ Premium</span><span>✓ Verified</span><span>🔒 Private proof</span></div></div>` + wordiiOriginalSubscriptionHTML();
+}
 async function handleWordiiSubscriptionClick(e){ return wordiiOriginalSubscriptionClick(e); }
 async function wordiiOriginalSubscriptionClick(e){
   if(e.target.closest('#wordiiPremiumPurchase')){$('#wordiiPremiumPanel')?.classList.remove('hidden');return true;}

@@ -1141,3 +1141,13 @@ small .wd-role-icon { width:18px; height:18px; }
 .wd-phone-card input{width:100%;box-sizing:border-box;margin:9px 0}
 #wdPhoneCaptcha{margin:12px 0;max-width:100%;overflow-x:auto}
 @media(max-width:380px){#onboard .wordii-auth-card{padding:27px 17px}}
+
+/* v1.5.18 */
+.wd-signup-progress{font-weight:700;color:#ff6387;text-align:center;margin:12px 0 18px;letter-spacing:.05em}
+.wd-signup-nav{display:flex;gap:10px;margin:12px 0}.wd-signup-nav .btn{flex:1}
+.wd-sub-hero{text-align:center;margin:16px 12px 20px;padding:26px 18px;border:1px solid #f3266355;border-radius:24px;background:radial-gradient(circle at 50% 0%,#69172e,#121116 72%);color:#fff}
+.wd-sub-hero h2{font-size:25px;margin:5px 0}.wd-sub-hero p{color:#bcb4bd}.wd-sub-crown{font-size:48px;color:#ffc76e}.wd-sub-chips{display:flex;gap:7px;justify-content:center;flex-wrap:wrap}.wd-sub-chips span{border:1px solid #ff52754d;border-radius:999px;padding:7px 10px;font-size:12px}
+.wordii-subscription{border:1px solid #ff37643d!important;border-radius:22px!important;background:linear-gradient(150deg,#181117,#0d0d10)!important;box-shadow:0 10px 30px #0005}
+.wordii-subscription h3{font-size:22px}.wordii-subscription .btn{background:linear-gradient(90deg,#e60038,#ff315d)}
+.wd-bot-announcement{margin-top:14px;padding:14px;border-radius:14px;background:#f02b571a;border:1px solid #f02b5755;overflow-wrap:anywhere}
+.wd-bot-admin{margin-top:16px}.wd-bot-admin textarea{min-height:90px}
