@@ -54,11 +54,8 @@ function wordiiAdPolicy(user = me) {
 // Never place ads inside message composer or during a conversation.
 window.wordiiAdPolicy = () => wordiiAdPolicy();
 
-// Wordii AdMob TEST bridge. Android-only; no production ad requests or EXP writes.
-const WORDII_TEST_AD_IDS = Object.freeze({
-  banner: 'ca-app-pub-3940256099942544/6300978111',
-  rewarded: 'ca-app-pub-3940256099942544/5224354917'
-});
+// Wordii AdMob production bridge: real ad unit IDs. No client-side XP grants.
+// Real impressions and revenue depend on AdMob approval and policy compliance.
 let wordiiAdMobInit = null;
 let wordiiTestBannerShown = false;
 function wordiiNativeAdMob() {
@@ -71,9 +68,9 @@ function wordiiAdTestAllowed() {
 }
 async function wordiiInitTestAds() {
   const sdk = wordiiNativeAdMob();
-  if (!sdk) throw new Error('Test ads require the updated Android APK, not the browser.');
+  if (!sdk) throw new Error('Ads require the updated Android APK.');
   if (!wordiiAdMobInit) {
-    wordiiAdMobInit = sdk.initialize({ initializeForTesting: true, maxAdContentRating: 'General' })
+    wordiiAdMobInit = sdk.initialize({ initializeForTesting: false, maxAdContentRating: 'General' })
       .catch(err => { wordiiAdMobInit = null; throw err; });
   }
   await wordiiAdMobInit;
@@ -88,19 +85,18 @@ async function wordiiShowTestBanner() {
   if (!wordiiAdTestAllowed()) throw new Error('Ads are disabled for this account or screen.');
   const sdk = await wordiiInitTestAds();
   if (!wordiiAdTestAllowed()) return;
-  await sdk.showBanner({ adId: WORDII_TEST_AD_IDS.banner, isTesting: true, position: 'BOTTOM_CENTER' });
+  await sdk.showBanner({ adId: WORDII_AD_IDS.banner, isTesting: false, position: 'BOTTOM_CENTER' });
   wordiiTestBannerShown = true;
 }
 async function wordiiShowTestRewarded() {
   if (!wordiiAdTestAllowed()) throw new Error('Ads are disabled for this account or screen.');
   const sdk = await wordiiInitTestAds();
   if (!wordiiAdTestAllowed()) return;
-  await sdk.prepareRewardVideoAd({ adId: WORDII_TEST_AD_IDS.rewarded, isTesting: true });
+  await sdk.prepareRewardVideoAd({ adId: WORDII_AD_IDS.rewarded, isTesting: false });
   if (!wordiiAdTestAllowed()) return;
   await sdk.showRewardVideoAd();
-  // IMPORTANT: never award XP here. Server-side AdMob SSV is required first.
+  // EXP intentionally disabled until verified AdMob SSV backend exists.
 }
-
 
 const canGreenTheme = (u) => u?.admin === true || u?.preAdmin === true || u?.premium === true;
 const wordiiStoryRole = (u) => u?.admin === true || u?.preAdmin === true ? 'story-gold-flame' : u?.premium === true ? 'story-purple-flame' : '';
@@ -1634,9 +1630,9 @@ function renderSettings(force) {
     assistant: () => wordiiAssistantHTML(),
     ads: () => `<div class="card"><h3>📢 Ad Preferences</h3>
       ${canBTP() ? `<label class="setrow"><span><b>Show Ads</b><small>Admin and Pre-Admin: OFF by default</small></span><input type="checkbox" id="wdStaffAds" ${wordiiStaffAdsEnabled() ? 'checked' : ''}></label><p class="tiny">Turn ON only if you want to see ads. You can switch OFF anytime. This choice is saved on this device.</p>` : `<p class="tiny">${me?.premium ? 'Premium: fewer ads, with longer breaks.' : 'Standard: limited ads with breaks.'}</p>`}
-      <p class="tiny">No ads in private chats. These buttons show Google TEST ads only in the updated Android APK. No EXP is awarded during testing.</p>
-      <div class="row-btns"><button type="button" class="btn sm" id="wdTestBanner">Show test banner</button><button type="button" class="btn sm ghost" id="wdHideBanner">Hide banner</button><button type="button" class="btn sm" id="wdTestRewarded">Watch test rewarded ad</button></div>
-      <p class="tiny">TEST MODE — no live ad earnings.</p></div>`,
+      <p class="tiny">Ads are optional on this screen. Live ads depend on AdMob approval. No EXP is awarded for rewarded ads yet.</p>
+      <div class="row-btns"><button type="button" class="btn sm" id="wdTestBanner">Show banner</button><button type="button" class="btn sm ghost" id="wdHideBanner">Hide banner</button><button type="button" class="btn sm" id="wdTestRewarded">Watch rewarded ad</button></div>
+      <p class="tiny">Real AdMob IDs configured. Earnings begin only if AdMob approves ad serving; no XP rewards yet.</p></div>`,
 
     overview: () => `<div class="wd-settings-overview"><div class="wd-settings-person"><div class="wd-settings-avatar">${avatarHTML(me)}</div><div><strong>${esc(me.displayName || me.username)}</strong><p class="tiny">${esc(me.username)} · Level ${me.level || 1}</p></div></div>
       ${[['👤','edit','Edit profile','Name, bio, profile photo and banner'],['🏆','points','Points & level','XP, progress and streak'],['🔑','account','Account','Login, email and account security'],['🔒','privacy','Privacy','Online status, public account'],['💬','chats','Chats','Chat wallpaper and theme'],['🎨','appearance','Appearance','Light and dark app theme'],['🔔','notif','Notifications','Message and push alerts'],['🌐','lang','App language','Current language options'],['💎','subs','Subscriptions','Available plans'],['📢','ads','Ad Preferences','Manage ad visibility and frequency'],['🚀','updates','App Updates','Check the app version'],['🤖','assistant','Wordii Assistant','Help, rules and account commands'],...(me?.admin===true ? [['🎨','brand','App Branding','Upload or reset the Wordii logo']] : [])].map(([ico,k,label,desc])=>`<button type="button" class="wd-settings-link" data-wd-settings="${k}"><span class="wd-settings-ico">${ico}</span><span><b>${label}</b><small>${desc}</small></span><span class="wd-settings-arrow">›</span></button>`).join('')}</div>`,
@@ -1652,9 +1648,9 @@ function renderSettings(force) {
           <div class="wd-rewards-progress-label"><span>Level progress</span><b>${progress} / 10 XP</b></div><p>${10-progress} more points to Level ${level+1}</p></div>
         <div class="wd-rewards-tiles"><div class="wd-rewards-tile"><span>🔥</span><strong>${Math.max(0,Number(me.streak)||0)} Day</strong><small>Daily streak</small></div><div class="wd-rewards-tile"><span>🎁</span><strong>+4 XP</strong><small>Daily streak reward</small></div></div>
         <div class="wd-rewards-info"><b>How to earn points</b><p>+4 once a day for your streak and +1 for every active minute. Every 10 points = 1 level.</p></div>
-        <div class="wd-rewards-ad"><div class="wd-rewards-ad-top"><div><b>🎬 Watch & Earn</b><small>Optional rewarded advertisement</small></div><span class="wd-rewards-chip">+8 XP*</span></div>
-          <button type="button" class="btn wd-rewards-watch" id="wdPointsTestRewarded">▶ Watch Rewarded Test Ad</button>
-          <p>*Test mode only: no XP is awarded. Verified rewards will be enabled in a future update.</p></div>
+        <div class="wd-rewards-ad"><div class="wd-rewards-ad-top"><div><b>🎬 Rewarded Ad</b><small>Optional rewarded advertisement</small></div><span class="wd-rewards-chip">XP pending</span></div>
+          <button type="button" class="btn wd-rewards-watch" id="wdPointsTestRewarded">▶ Watch Rewarded Ad</button>
+          <p>*No XP is awarded yet. Verified rewards will be enabled in a future update.</p></div>
       </section>`;
     },
     edit: () => `<div class="card center"><div class="you-ava">${avatarHTML(me, true)}</div><br><button id="logoBtn" class="btn sm ghost" style="margin-top:12px">Change logo</button><input id="logoInput" type="file" accept="image/*" hidden></div>
@@ -1734,8 +1730,8 @@ $("#settingsBody").addEventListener("click", e => {
   const task = b.id === 'wdTestBanner' ? wordiiShowTestBanner()
     : b.id === 'wdHideBanner' ? wordiiHideTestBanner() : wordiiShowTestRewarded();
   Promise.resolve(task).then(() => {
-    if (b.id === 'wdTestRewarded') toast('Test finished. No EXP awarded.');
-  }).catch(err => toast('Ad test: ' + String(err?.message || err).slice(0, 120)))
+    if (b.id === 'wdTestRewarded') toast('Ad finished. No EXP awarded.');
+  }).catch(err => toast('Ad: ' + String(err?.message || err).slice(0, 120)))
     .finally(() => { b.disabled = false; });
 });
 // Points page: use the existing Android test-ad flow, never grant client-side EXP.
@@ -1743,8 +1739,8 @@ $("#settingsBody").addEventListener("click", e => {
   const b = e.target.closest("#wdPointsTestRewarded");
   if (!b || b.disabled) return;
   b.disabled = true;
-  wordiiShowTestRewarded().then(() => toast("Test ad completed. No EXP awarded yet."))
-    .catch(err => toast("Rewarded test ad unavailable: " + (err?.message || err)))
+  wordiiShowTestRewarded().then(() => toast("Ad completed. No EXP awarded yet."))
+    .catch(err => toast("Rewarded ad unavailable: " + (err?.message || err)))
     .finally(() => { if (b.isConnected) b.disabled = false; });
 });
 $("#settingsBody").addEventListener("change", (e) => {
