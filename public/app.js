@@ -42,7 +42,7 @@ if (firebaseConfig.apiKey.startsWith("PASTE")) { fatal(new Error("Open public/fi
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app), db = getFirestore(app);
 
-const WORDII_WEB_VERSION = "1.5.14";
+const WORDII_WEB_VERSION = "1.5.15";
 // Wordii Media API authentication self-test. Never logs or displays the ID token.
 async function wordiiTestMediaAuth() {
   const user = auth.currentUser;
