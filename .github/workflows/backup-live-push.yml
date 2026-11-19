@@ -1,0 +1,29 @@
+name: Backup Live Wordii Push Worker
+
+on:
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download live Worker source
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          curl --fail-with-body -sSL \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/scripts/wordii-push" \
+            -o wordii-push-live.js
+
+          test -s wordii-push-live.js
+          echo "Live Worker backup downloaded"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wordii-push-live-backup
+          path: wordii-push-live.js
+          retention-days: 7
