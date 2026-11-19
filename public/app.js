@@ -451,7 +451,7 @@ function renderProfile() {
       <div class="you-icons"><button class="icon" data-go="invite" aria-label="Share">🔗</button><button class="icon" data-go="edit" aria-label="Edit">✏️</button></div>
       <div class="bio-bubble" data-go="edit">${esc(me.bio || "Add a bio")}</div>
       <div class="you-ava">${avatarHTML(me, true)}<button class="plus" data-go="edit" aria-label="Change logo">+</button></div>
-      <h2>${esc(nameOf(me))}${vb(me)}</h2>
+      <div class="wd-profile-eyebrow">MY WORDII SPACE</div><h2>${esc(nameOf(me))}${vb(me)}</h2>
       ${me.displayName ? `<p class="muted">${esc(me.username)}</p>` : ""}
       <button type="button" class="btn ghost" data-go="followers">👥 ${me.followersCount || 0} followers · View list</button><p class="tiny">${following.size} following</p>
     </div>
@@ -1255,17 +1255,32 @@ async function startPublicChat(other) {
 async function wordiiShowFollowers(target) {
   const userSnap = await getDoc(doc(db, 'users', target));
   if (!userSnap.exists()) throw Error('Profile not found');
-  const owner = target === uid;
-  if (!owner && userSnap.data().isPublic !== true) {
-    toast('Follower list is private'); return;
+  if (target !== uid && userSnap.data().isPublic !== true) { toast('Follower list is private'); return; }
+  let overlay = document.getElementById('wdFollowersOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'wdFollowersOverlay'; overlay.className = 'wd-followers-overlay';
+    overlay.innerHTML = `<section class="wd-followers-sheet" role="dialog" aria-modal="true" aria-label="Followers"><header class="wd-followers-header"><button type="button" data-wdf-close aria-label="Close followers">←</button><div><strong>Followers</strong><small>Wordii community</small></div><span>👥</span></header><div class="wd-followers-list" id="wdFollowersList"></div></section>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay || e.target.closest('[data-wdf-close]')) { overlay.remove(); return; }
+      const row = e.target.closest('[data-wdf-user]');
+      if (row) { const id = row.dataset.wdfUser; overlay.remove(); if (id === uid) { document.querySelector('[data-tab="profile"]')?.click(); } else openProfileView(id); }
+    });
   }
-  const snap = await getDocs(query(collection(db, 'follows'), where('target', '==', target), limit(100)));
-  const rows = await Promise.all(snap.docs.map(async d => {
-    const x = await getDoc(doc(db, 'users', d.data().follower));
-    return x.exists() ? x.data().username || 'User' : null;
-  }));
-  const names = rows.filter(Boolean);
-  alert(names.length ? 'Followers (first 100):\n' + names.join('\n') : 'No followers yet.');
+  const list = overlay.querySelector('#wdFollowersList');
+  list.innerHTML = '<p class="wd-followers-empty">Loading followers…</p>';
+  try {
+    const snap = await getDocs(query(collection(db, 'follows'), where('target', '==', target), limit(100)));
+    const rows = await Promise.all(snap.docs.map(async d => {
+      const followerId = d.data().follower;
+      if (!followerId) return null;
+      try { const u = await getDoc(doc(db, 'users', followerId)); return u.exists() ? {id:followerId, data:u.data()} : null; } catch { return null; }
+    }));
+    if (!overlay.isConnected) return;
+    const valid = rows.filter(Boolean);
+    list.innerHTML = valid.length ? valid.map(({id,data:u}) => `<button type="button" class="wd-follower-row" data-wdf-user="${esc(id)}"><span class="wd-follower-avatar">${avatarHTML(u)}</span><span class="wd-follower-details"><strong>${esc(nameOf(u))}${vb(u)}</strong><small>${esc(u.username || 'Wordii user')}</small></span><span class="wd-follower-chevron">›</span></button>`).join('') : '<div class="wd-followers-empty">👥<h3>No followers yet</h3><p>When someone follows this profile, they will appear here.</p></div>';
+  } catch (err) { if (overlay.isConnected) list.innerHTML = '<p class="wd-followers-empty">Unable to load followers. Please try again.</p>'; throw err; }
 }
 // --- someone's profile (tap their name in a chat, or a search result) ---
 let pvUnsub = null, pvId = null;
@@ -1286,7 +1301,7 @@ function renderPV() {
     : incoming.some((r) => r.id === id) ? `<button class="btn" data-pv="acc">Accept request</button>`
     : `<button class="btn" data-pv="req">✉️ Send request</button>`;
   body.innerHTML = `<div class="pv-banner" ${hasBanner(u) ? `style="background:${bannerCss(u)}"` : ""}></div><div class="pv-ava">${avatarHTML(u, true)}</div>
-    <div class="pv-info"><h2>${esc(nameOf(u))}${vb(u)}</h2><p class="muted">${esc(u.username)}</p><p class="presence ${isOnline(u) ? "on" : ""}">${esc(presenceText(u))}</p>
+    <div class="pv-info"><div class="wd-profile-eyebrow">WORDII PROFILE</div><h2>${esc(nameOf(u))}${vb(u)}</h2><p class="muted">${esc(u.username)}</p><p class="presence ${isOnline(u) ? "on" : ""}">${esc(presenceText(u))}</p>
     ${u.bio ? `<p class="bio">${esc(u.bio)}</p>` : `<p class="tiny">No bio yet.</p>`}
     <button type="button" class="btn ghost" data-pv="followers">👥 ${u.followersCount || 0} followers · View list</button>
     <p class="tiny">${u.isPublic ? "🌍 Public account" : "🔒 Private account"}</p>
@@ -1427,7 +1442,7 @@ function renderSettings(force) {
     appearance: () => `<div class="card"><b>App theme</b><p class="tiny">Choose a theme for all screens.</p><select id="setTheme"><option value="dark" ${t==='dark'?'selected':''}>Dark</option><option value="light" ${t==='light'?'selected':''}>Light</option>${canGreenTheme(me) ? `<option value="green" ${t==='green'?'selected':''}>White + Green</option>` : ""}<option value="auto" ${t==='auto'?'selected':''}>System default</option></select></div>`,
     points: () => `<div class="card center"><div class="stats"><div><b>${me.level || 1}</b><span>Level</span></div><div><b>${me.points || 0}</b><span>Points</span></div><div><b>🔥 ${me.streak || 0}</b><span>Streak</span></div></div>
       <div class="bar"><i style="width:${((me.points || 0) % 10) * 10}%"></i></div><p class="tiny">${10 - ((me.points || 0) % 10)} more points to Level ${(me.level || 1) + 1}</p></div>
-      <div class="card tiny">Earn points: +4 once a day (streak) and +1 for every active minute. Every 10 points = 1 level.</div>`,
+      <div class="card tiny">Earn points: +4 once a day (streak) and +1 for every active minute. Every 10 points = 1 level.</div><div class="card wd-ad-preview"><b>🎬 Watch Ad & Earn +8 Points</b><p class="tiny">Coming soon. Rewards will be enabled after secure AdMob rewarded-ad verification is connected.</p><button type="button" class="btn" disabled aria-disabled="true">Rewarded ads not available yet</button></div>`,
     edit: () => `<div class="card center"><div class="you-ava">${avatarHTML(me, true)}</div><br><button id="logoBtn" class="btn sm ghost" style="margin-top:12px">Change logo</button><input id="logoInput" type="file" accept="image/*" hidden></div>
       <div class="card"><b>Your name</b><p class="tiny">Friends see this name. Your @username stays the same.</p><input id="dnInput" maxlength="30" placeholder="Display name" value="${esc(me.displayName || "")}"><button id="saveName" class="btn">Save name</button></div>
       <div class="card"><b>About you</b><p class="tiny">Your bio and banner show when people open your profile.</p>

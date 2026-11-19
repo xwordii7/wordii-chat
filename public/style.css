@@ -1151,3 +1151,24 @@ small .wd-role-icon { width:18px; height:18px; }
 .wordii-subscription h3{font-size:22px}.wordii-subscription .btn{background:linear-gradient(90deg,#e60038,#ff315d)}
 .wd-bot-announcement{margin-top:14px;padding:14px;border-radius:14px;background:#f02b571a;border:1px solid #f02b5755;overflow-wrap:anywhere}
 .wd-bot-admin{margin-top:16px}.wd-bot-admin textarea{min-height:90px}
+
+/* Wordii v1.5.19 visual refresh */
+.you-top,.pv-info{position:relative}
+.you-top{border-radius:26px;overflow:hidden;padding-bottom:20px!important;box-shadow:0 14px 36px #0002}
+.you-top h2,.pv-info h2{font-weight:850;letter-spacing:-.6px}
+.wd-profile-eyebrow{font-size:10px;font-weight:850;letter-spacing:2px;opacity:.7;margin:12px 0 4px;text-transform:uppercase}
+.you-top [data-go="followers"],.pv-info [data-pv="followers"]{border-radius:18px!important;font-weight:750!important}
+.pv-banner{height:175px;border-radius:0 0 28px 28px}
+.pv-ava{margin-top:-52px}.pv-ava .avatar{box-shadow:0 7px 22px #0004;border-width:4px}
+.pv-info{padding:12px 22px 36px}
+.pv-info .bio{line-height:1.55}
+.wd-followers-overlay{position:fixed;inset:0;background:#080514a8;backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:flex-end;justify-content:center}
+.wd-followers-sheet{background:var(--bg);color:var(--text);width:100%;max-width:760px;height:min(78vh,750px);border-radius:28px 28px 0 0;box-shadow:0 -16px 50px #0005;display:flex;flex-direction:column;overflow:hidden}
+.wd-followers-header{padding:20px 22px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--line);background:var(--card)}
+.wd-followers-header button{border:0;border-radius:13px;padding:10px 15px;background:var(--panel);color:var(--text);font-size:23px;cursor:pointer}
+.wd-followers-header div{flex:1;display:flex;flex-direction:column;gap:3px}.wd-followers-header strong{font-size:20px}.wd-followers-header small{font-size:12px;color:var(--muted)}
+.wd-followers-list{padding:16px;overflow:auto;flex:1}
+.wd-follower-row{display:flex;align-items:center;text-align:left;width:100%;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:18px;color:var(--text);padding:12px;margin-bottom:10px;cursor:pointer}
+.wd-follower-avatar{flex:none}.wd-follower-details{min-width:0;flex:1;display:flex;flex-direction:column;gap:5px}.wd-follower-details strong{font-size:15px;overflow-wrap:anywhere}.wd-follower-details small{font-size:13px;color:var(--muted);overflow-wrap:anywhere}.wd-follower-chevron{font-size:28px;color:var(--muted)}
+.wd-followers-empty{text-align:center;padding:48px 15px;color:var(--muted)}.wd-followers-empty h3{color:var(--text)}
+.wd-ad-preview{border:1px dashed var(--accent)}.wd-ad-preview .btn{box-shadow:none}
