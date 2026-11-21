@@ -285,7 +285,14 @@ function showLevelCelebration(level) {
 // ---------- auth + profile ----------
 let authStarted = false;
 onAuthStateChanged(auth, (u) => {
-  if (!u) { signInAnonymously(auth).catch(fatal); return; }
+  if (!u) {
+    if (wordiiOneSignalStarted && wordiiOneSignal()) {
+      wordiiOneSignal().logout();
+      wordiiOneSignalUser = null;
+    }
+    signInAnonymously(auth).catch(fatal);
+    return;
+  }
   if (authStarted) return;
   authStarted = true; uid = u.uid;
   onSnapshot(doc(db, "users", uid), (s) => {
@@ -294,6 +301,8 @@ onAuthStateChanged(auth, (u) => {
     const incoming = s.data();
     if (incoming.suspended === true) {
       me = incoming;
+    wordiiInitOneSignal();
+    wordiiSyncOneSignalUser();
       showSuspendedAccount();
       return;
     }
@@ -1666,6 +1675,7 @@ function renderSettings(force) {
       ${!u?.isAnonymous && !isFakeEmail(u?.email) ? `<div class="card"><b>✉️ Change email</b><p class="tiny">A verification link will be sent to the new address. You may need to log in again first.</p><input id="changeEmailInput" type="email" placeholder="New email address" autocomplete="email"><button id="changeEmailBtn" class="btn">Send verification link</button><button id="resendEmailBtn" class="btn ghost">Verify current email</button></div>` : ""}
       <div class="card"><b>✏️ Change username</b><p class="tiny">3–15 letters, numbers or underscores. Your chats and badges stay with this account.</p><input id="wdNewUsername" maxlength="15" autocapitalize="none" autocomplete="off" placeholder="New username (without @)"><button type="button" class="btn" id="wdChangeUsername">Save username</button></div>
       <div class="card wd-phone-card"><b>📱 Optional phone verification</b><p class="tiny">${u?.phoneNumber ? `✅ Verified: ${esc(u.phoneNumber)}` : 'Verify your number with a one-time SMS code. You can keep using Wordii without doing this.'}</p>${!u?.phoneNumber ? `<label for="wdPhoneNumber">Phone number with country code</label><input id="wdPhoneNumber" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91XXXXXXXXXX" maxlength="17"><div id="wdPhoneCaptcha"></div><button type="button" class="btn" id="wdPhoneSend">Send OTP</button><div id="wdPhoneOtpBox"><label for="wdPhoneOtp">6-digit SMS code</label><input id="wdPhoneOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Enter OTP"><button type="button" class="btn" id="wdPhoneConfirm">Verify number</button></div><p id="wdPhoneStatus" class="tiny" role="status"></p>` : '<p class="tiny">Your number is linked to this account.</p>'}<p class="tiny">Never share OTPs. SMS delivery requires Firebase Phone Authentication and billing configuration.</p></div>
+      <div class="card"><b>🔒 Privacy & Data Control</b><p class="tiny">Request deletion of your account or selected personal data. Requests are reviewed after ownership verification.</p><a class="btn ghost" style="display:block;text-align:center;margin:10px 0" href="mailto:officialwordii@gmail.com?subject=Wordii%20Chat%20Account%20Deletion">🗑️ Delete My Account</a><a class="btn ghost" style="display:block;text-align:center;margin:10px 0" href="mailto:officialwordii@gmail.com?subject=Wordii%20Chat%20Data%20Deletion%20Only">🔐 Delete My Data Only</a><p class="tiny">Include your username and the data you want deleted. Never send your password or OTP. Your request does not delete data immediately.</p></div>
       <div class="card"><button class="btn ghost" id="setLogout">Log out</button></div>`,
     privacy: () => `<div class="card"><label class="setrow"><span><b>Public account</b></span><input type="checkbox" id="setPublic" ${me.isPublic ? "checked" : ""}></label>
         <p class="tiny">Public: anyone who finds your username can message you directly. Private: they must send a request and you accept it. Anyone with your 6-digit code can always connect.</p></div>
@@ -2321,6 +2331,54 @@ $("#cMute").onclick = () => { const t = call?.stream?.getAudioTracks()[0]; if (!
 $("#cCam").onclick = () => { const t = call?.stream?.getVideoTracks()[0]; if (!t) return; t.enabled = !t.enabled; $("#cCam").textContent = t.enabled ? "📷" : "🚫"; };
 $("#cEnd").onclick = () => endCall(true, "Call ended");
 
+
+// === WORDII ONESIGNAL NATIVE ANDROID ===
+const WORDII_ONESIGNAL_APP_ID = "ff9056ae-43a8-4dae-96f7-047e5e56be93";
+let wordiiOneSignalStarted = false;
+let wordiiOneSignalUser = null;
+
+function wordiiOneSignal() {
+  if (!window.Capacitor?.isNativePlatform?.()) return null;
+  return window.plugins?.OneSignal || null;
+}
+
+function wordiiInitOneSignal() {
+  const os = wordiiOneSignal();
+  if (!os || wordiiOneSignalStarted) return false;
+  os.initialize(WORDII_ONESIGNAL_APP_ID);
+  wordiiOneSignalStarted = true;
+  return true;
+}
+
+function wordiiSyncOneSignalUser() {
+  const os = wordiiOneSignal();
+  if (!os || !wordiiOneSignalStarted) return;
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous || !me || me.suspended === true) {
+    if (wordiiOneSignalUser) {
+      os.logout();
+      wordiiOneSignalUser = null;
+    }
+    return;
+  }
+  if (wordiiOneSignalUser !== user.uid) {
+    os.login(user.uid);
+    wordiiOneSignalUser = user.uid;
+  }
+}
+
+async function wordiiEnableOneSignal() {
+  if (!wordiiInitOneSignal()) throw Error("OneSignal unavailable");
+  wordiiSyncOneSignalUser();
+  const accepted = await wordiiOneSignal().Notifications.requestPermission(false);
+  if (!accepted) throw Error("Allow notifications in Android settings.");
+}
+
+function wordiiDisableOneSignal() {
+  const os = wordiiOneSignal();
+  if (os) os.User.pushSubscription.optOut();
+}
+
 // ================= v13: phone push notifications (app closed) =================
 
 const wordiiNativePush = () =>
@@ -2404,6 +2462,11 @@ async function wordiiRegisterNativePush() {
 }
 
 async function enablePush() {
+  if (wordiiOneSignal()) {
+    await wordiiEnableOneSignal();
+    setPref("push","on");
+    return;
+  }
   if (wordiiNativePush()) {
     const plugin = window.Capacitor.Plugins.PushNotifications;
     let permission = await plugin.checkPermissions();
@@ -2422,6 +2485,10 @@ async function enablePush() {
 
 async function disablePush() {
   setPref("push","off");
+  if (wordiiOneSignal()) {
+    wordiiDisableOneSignal();
+    return;
+  }
   if (wordiiNativePush()) {
     try {
       const ref = doc(db,"users",uid,"private","push");
@@ -2447,7 +2514,11 @@ async function disablePush() {
 async function syncPush() {
   if (!pushOn()) return;
   try {
-    if (wordiiNativePush()) await wordiiRegisterNativePush();
+    if (wordiiOneSignal()) {
+      wordiiInitOneSignal();
+      wordiiSyncOneSignalUser();
+      wordiiOneSignal().User.pushSubscription.optIn();
+    } else if (wordiiNativePush()) await wordiiRegisterNativePush();
     else if (pushSupported()) await savePushSub(await getSub());
   } catch(e) { console.error("Push sync failed",e); }
 }
@@ -2535,24 +2606,30 @@ function wordiiLoadCatalog(){
   })();return wordiiCatalogPromise;
 }
 // Small, licensed MP3 status clips; metadata and audio stored separately.
-const WORDII_CLIP_MAX = 450000;
+const WORDII_CLIP_MAX = 2 * 1024 * 1024;
 async function wordiiLoadAdminTracks(){
-  const snap=await getDocs(query(collection(db,'wordiiAdminMusic'),limit(100)));
+  const snap=await getDocs(query(collection(db,'wordiiAdminMusic'),limit(500)));
   for(let i=wordiiTracks.length-1;i>=0;i--)if(wordiiTracks[i].adminClip)wordiiTracks.splice(i,1);
   for(const d of snap.docs){const t=d.data();if(/^am_[a-zA-Z0-9]+$/.test(d.id)&&typeof t.title==='string')wordiiTracks.push({id:d.id,title:t.title,artist:t.artist,category:t.category,enabled:t.enabled===true,adminClip:true});}
 }
 async function wordiiAudioSource(t){
   if(!t.adminClip)return wordiiTrackURL(t);
+  const meta=await getDoc(doc(db,'wordiiAdminMusic',t.id));
+  const path=meta.data()?.storagePath;
+  if(typeof path==='string' && /^wordii-admin-music\/am_[A-Za-z0-9]+\.mp3$/.test(path)){
+    const blob=await getBlob(storageRef(getStorage(),path));
+    return URL.createObjectURL(blob);
+  }
   const d=await getDoc(doc(db,'wordiiAdminMusicAudio',t.id));
   const audio=d.data()?.audio;
   if(typeof audio!=='string'||!/^data:audio\/mpeg;base64,[A-Za-z0-9+/=]+$/.test(audio)||audio.length>600100)throw Error('Music is unavailable');
   return audio;
 }
-function wordiiAdminMusicHTML(){return `<div class="card"><h3>🎵 Manage Music</h3><p class="tiny">Upload original or licensed MP3 clips only. Max 450 KB per clip, up to 100 tracks. Published clips are available to registered users.</p><label>Song name</label><input id="wmTitle" maxlength="100"><label>Artist</label><input id="wmArtist" maxlength="80"><label>Category</label><select id="wmCategory"><option>Sad / Lo-fi</option><option>Romantic</option><option>Punjabi</option><option>Other</option></select><input id="wmFile" type="file" accept="audio/mpeg,.mp3"><label><input id="wmRights" type="checkbox"> I have permission to publish this music for users.</label><button id="wmUpload" class="btn">Upload Music</button><div id="wmList">Loading…</div></div>`;}
+function wordiiAdminMusicHTML(){return `<div class="card"><h3>🎵 Manage Music</h3><p class="tiny">Upload original or licensed MP3 clips only. Max 2 MB per clip (website uploads), up to 100 tracks. Published clips are available to registered users.</p><label>Song name</label><input id="wmTitle" maxlength="100"><label>Artist</label><input id="wmArtist" maxlength="80"><label>Category</label><select id="wmCategory"><option>Sad / Lo-fi</option><option>Romantic</option><option>Punjabi</option><option>Other</option></select><input id="wmFile" type="file" accept="audio/mpeg,.mp3"><label><input id="wmRights" type="checkbox"> I have permission to publish this music for users.</label><button id="wmUpload" class="btn">Upload Music</button><div id="wmList">Loading…</div></div>`;}
 async function wordiiBindAdminMusic(){
   const list=$('#wmList'),btn=$('#wmUpload');if(!list||!btn||me?.admin!==true)return;
   async function refresh(){try{await wordiiLoadAdminTracks();if(!list.isConnected)return;list.textContent='';for(const t of wordiiTracks.filter(t=>t.adminClip)){const row=document.createElement('div');row.className='card';const title=document.createElement('p');title.textContent=t.title+' · '+t.artist;row.append(title);const toggle=document.createElement('button');toggle.className='btn sm ghost';toggle.textContent=t.enabled?'Disable':'Enable';toggle.onclick=()=>act(async()=>{await updateDoc(doc(db,'wordiiAdminMusic',t.id),{enabled:!t.enabled});await refresh();},toggle);row.append(toggle);const del=document.createElement('button');del.className='btn sm ghost';del.textContent='Delete';del.onclick=()=>act(async()=>{if(!confirm('Delete music? Existing statuses will lose this audio.'))return;const batch=writeBatch(db);batch.delete(doc(db,'wordiiAdminMusic',t.id));batch.delete(doc(db,'wordiiAdminMusicAudio',t.id));await batch.commit();await refresh();},del);row.append(del);list.append(row);}if(!list.children.length)list.textContent='No uploaded music yet.';}catch(e){list.textContent=friendly(e);}}
-  btn.onclick=()=>act(async()=>{if(me?.admin!==true)throw Error('Admin only');const title=$('#wmTitle').value.trim(),artist=$('#wmArtist').value.trim(),category=$('#wmCategory').value,f=$('#wmFile').files[0];if(!title||!artist||!f||!$('#wmRights').checked)throw Error('Enter details, select MP3 and confirm rights.');if(!/\.mp3$/i.test(f.name)||f.size<1||f.size>WORDII_CLIP_MAX)throw Error('Choose an MP3 clip under 450 KB.');await wordiiLoadAdminTracks();if(wordiiTracks.filter(t=>t.adminClip).length>=100)throw Error('Library limit reached.');const audio=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve('data:audio/mpeg;base64,'+String(r.result).split(',')[1]);r.onerror=reject;r.readAsDataURL(f);});const id='am_'+doc(collection(db,'wordiiAdminMusic')).id;const batch=writeBatch(db);batch.set(doc(db,'wordiiAdminMusic',id),{title,artist,category,enabled:true});batch.set(doc(db,'wordiiAdminMusicAudio',id),{audio});await batch.commit();toast('Music published');if(btn.isConnected){$('#wmTitle').value='';$('#wmArtist').value='';$('#wmFile').value='';$('#wmRights').checked=false;await refresh();}},btn);
+  btn.onclick=()=>act(async()=>{if(me?.admin!==true)throw Error('Admin only');const title=$('#wmTitle').value.trim(),artist=$('#wmArtist').value.trim(),category=$('#wmCategory').value,f=$('#wmFile').files[0];if(!title||!artist||!f||!$('#wmRights').checked)throw Error('Enter details, select MP3 and confirm rights.');if(!/\.mp3$/i.test(f.name)||f.size<1||f.size>450000)throw Error('For songs up to 2 MB, use wordii-music.web.app. In-app legacy uploads must be under 450 KB.');await wordiiLoadAdminTracks();if(wordiiTracks.filter(t=>t.adminClip).length>=100)throw Error('Library limit reached.');const audio=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve('data:audio/mpeg;base64,'+String(r.result).split(',')[1]);r.onerror=reject;r.readAsDataURL(f);});const id='am_'+doc(collection(db,'wordiiAdminMusic')).id;const batch=writeBatch(db);batch.set(doc(db,'wordiiAdminMusic',id),{title,artist,category,enabled:true});batch.set(doc(db,'wordiiAdminMusicAudio',id),{audio});await batch.commit();toast('Music published');if(btn.isConnected){$('#wmTitle').value='';$('#wmArtist').value='';$('#wmFile').value='';$('#wmRights').checked=false;await refresh();}},btn);
   await refresh();
 }
 const wordiiEffects = [
