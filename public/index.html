@@ -110,7 +110,7 @@
   <div class="wsc-bottom"><button id="wscGallery">▧<small>Gallery</small></button><button id="wscShutter" aria-label="Take photo"><span></span></button><button id="wscCamera">◉<small>Camera</small></button></div>
   <p class="wsc-note" id="wscNote">Camera access requires permission. Choose Gallery to post an image.</p>
 </section>
-<section id="storyEdit" class="hidden" role="dialog" aria-modal="true" aria-label="Edit photo story"><header class="story-edit-head"><button id="seClose">✕</button><b>EDIT STORY</b><button id="seShare">Share →</button></header><div class="story-edit-preview"><img id="seImage" alt="Story photo"><div id="seCaption"></div>
+<section id="storyEdit" class="hidden" role="dialog" aria-modal="true" aria-label="Edit photo story"><header class="story-edit-head"><button id="seClose">✕</button><b>EDIT STORY</b><button id="seShare">Share →</button></header><div class="story-edit-preview" id="wdEditorStage"><img id="seImage" alt="Story photo"><canvas id="wdDrawLayer" aria-label="Drawing overlay"></canvas><div id="wdStickerLayer" aria-hidden="true"></div><div id="seCaption"></div>
 <button type="button" id="wordiiCoverToggle" class="wordii-cover-toggle" hidden>♫ Hide Cover</button>
     <div id="wordiiMusicCover" class="wordii-music-cover" hidden>
   <div class="wordii-music-art">♫</div>
@@ -118,7 +118,7 @@
     <div id="wordiiMusicCoverTitle" class="wordii-music-title">Music</div>
     <div class="wordii-music-artist">Wordii Music</div>
   </div>
-</div></div><div class="story-edit-tools"><label class="wordii-size-control" for="seTextSize">
+</div></div><div class="wd-editor-actions" role="toolbar" aria-label="Story editing tools"><button type="button" id="wdLayoutBtn">▧ Layout</button><button type="button" id="wdStickerBtn">☺ Sticker</button><button type="button" id="wdDrawBtn">✎ Draw</button><button type="button" id="wdTextStyleBtn">Aa Style</button><button type="button" id="wdResetBtn">↺ Reset</button></div><div id="wdEditorOptions" class="wd-editor-options hidden"></div><div class="story-edit-tools"><label class="wordii-size-control" for="seTextSize">
   <span>ᴀᴀ</span>
   <input id="seTextSize" type="range" min="16" max="64" value="32" step="1">
   <span>AA</span>
@@ -142,7 +142,7 @@
   <div id="stColors" class="colors"></div>
   <button id="stPost" class="btn">Post</button><button id="stCancel" class="btn ghost">Cancel</button>
 </div></section>
-<section id="statusView" class="hidden"><div id="svTop"></div><div id="svBody"></div><div id="svBar"></div><button id="svClose" class="icon" aria-label="Close">✕</button></section>
+<section id="statusView" class="hidden"><div id="svTop"></div><div id="svBody"></div><div id="svBar"></div><button id="wdStatusMore" class="icon hidden" type="button" aria-label="Status options">⋮</button><div id="wdStatusMenu" class="hidden"><button id="wdStatusDelete" type="button">🗑 Delete status</button></div><button id="svClose" class="icon" aria-label="Close">✕</button></section>
 <aside id="inbox" class="hidden"><div class="inbox-head"><b>Inbox</b><button id="inboxClose" class="icon" aria-label="Close">✕</button></div><div id="inboxBody"></div></aside>
 <section id="settings" class="hidden"><header class="chat-top"><button id="setBack" class="icon">←</button><b id="setTitle">Settings</b></header><div id="settingsBody"></div></section>
 <section id="wordiiGroupInfo" class="hidden" role="dialog" aria-label="Group information"><header class="chat-top"><button id="wordiiGroupBack" class="icon" type="button">←</button><b>Group info</b></header><div id="wordiiGroupBody"></div><input id="wordiiGroupFile" type="file" accept="image/*" hidden></section>
@@ -154,8 +154,8 @@
   <div class="inc-btns"><button id="incDecline" class="call-btn red" aria-label="Decline">✕</button><button id="incAccept" class="call-btn green" aria-label="Accept">✓</button></div></div></section>
 <section id="callUI" class="hidden"><video id="remoteVideo" autoplay playsinline></video><video id="localVideo" autoplay playsinline muted></video>
   <div id="callInfo"><div id="callAva"></div><h2 id="callName"></h2><p id="callState"></p></div>
-  <div class="call-bar"><button id="cMute" class="call-btn" aria-label="Mute">🎙️</button><button id="cCam" class="call-btn" aria-label="Camera">📷</button><button id="cEnd" class="call-btn red" aria-label="End call">📵</button></div></section>
-<div id="toast"></div>
+  <button id="wdCallMinimize" class="icon" type="button" aria-label="Minimize call">⌄ Chat</button><div class="call-bar"><button id="cMute" class="call-btn" aria-label="Mute">🎙️</button><button id="cCam" class="call-btn" aria-label="Camera">📷</button><button id="cEnd" class="call-btn red" aria-label="End call">📵</button></div></section>
+<button id="wdCallReturn" class="hidden" type="button">📞 Return to call</button><div id="toast"></div>
 <script type="module" src="app.js?v=1520u1"></script>
 <script>if("serviceWorker" in navigator){addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));}</script>
 
@@ -166,7 +166,7 @@
   </div>
   <input id="stMusicSearch" placeholder="Search music, artist or category..." style="width:100%;margin:12px 0">
   <p class="tiny">Original instrumental loops generated for Wordii. No commercial songs.</p>
-  <div id="stMusicResults"></div><hr><label for="wordiiAudioFile">Or choose audio from your phone (MP3, M4A, WAV; max 8 MB)</label><input id="wordiiAudioFile" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,audio/aac" style="width:100%;margin:12px 0"><p id="wordiiMusicSelected" class="tiny"></p><div class="wordii-trim"><label for="wordiiMusicStart">Song start (seconds)</label><input id="wordiiMusicStart" type="number" min="0" max="3600" step="1" value="0" style="width:90px"><label for="wordiiMusicDuration">Duration</label><select id="wordiiMusicDuration"><option value="15">15 sec</option><option value="20">20 sec</option><option value="30">30 sec</option></select><button type="button" id="wordiiMusicPreviewClip" class="btn sm ghost">▶ Preview clip</button></div><button type="button" id="wordiiMusicDone" class="btn">✓ Done</button> <button id="wordiiMusicClear" class="btn sm ghost">Remove music</button>
+  <div id="stMusicResults"></div><hr><label for="wordiiAudioFile">Or choose audio from your phone (MP3, M4A, WAV; max 8 MB)</label><input id="wordiiAudioFile" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,audio/aac" style="width:100%;margin:12px 0"><p id="wordiiMusicSelected" class="tiny"></p><div class="wordii-trim"><label for="wordiiMusicStart">Song start (seconds)</label><input id="wordiiMusicStart" type="number" min="0" max="3600" step="1" value="0" style="width:90px"><label for="wordiiMusicDuration">Duration</label><select id="wordiiMusicDuration"><option value="10">10 sec</option><option value="15">15 sec</option><option value="20">20 sec</option><option value="30">30 sec</option></select><button type="button" id="wordiiMusicPreviewClip" class="btn sm ghost">▶ Preview clip</button></div><button type="button" id="wordiiMusicDone" class="btn">✓ Done</button> <button id="wordiiMusicClear" class="btn sm ghost">Remove music</button>
 </div>
 
 <div id="wordiiEffects" class="hidden" role="dialog" aria-label="Story effects"><div class="we-card"><h3>✨ Photo Effects</h3><div id="wordiiEffectsList"></div><button id="wordiiEffectsClose" class="btn">Done</button></div></div></body>
