@@ -615,7 +615,7 @@ function renderProfile() {
       <div class="you-icons"><button class="icon" data-go="invite" aria-label="Share">🔗</button><button class="icon" data-go="edit" aria-label="Edit">✏️</button></div>
       <div class="bio-bubble" data-go="edit">${esc(me.bio || "Add a bio")}</div>
       <div class="you-ava">${avatarHTML(me, true)}<button class="plus" data-go="edit" aria-label="Change logo">+</button></div>
-      <div class="wd-profile-eyebrow">MY WORDII SPACE</div><h2>${esc(nameOf(me))}${vb(me)}</h2>
+      <div class="wd-profile-eyebrow">✦ WORDII PROFILE</div><h2>${esc(nameOf(me))}${vb(me)}</h2>
       ${me.displayName ? `<p class="muted">${esc(me.username)}</p>` : ""}
       <button type="button" class="btn ghost" data-go="followers">👥 ${me.followersCount || 0} followers · View list</button><p class="tiny">${following.size} following</p>
     </div>
@@ -1063,7 +1063,23 @@ $("#tab-status").addEventListener("click", (e) => {
 let sv = { list: [], i: 0, t: null };
 let wordiiStoryTimerToken = 0;
 let wordiiVideoObjectUrl = null;
-function openSV(list, i = 0) { if (!list.length) return; sv = { list, i, t: null }; $("#statusView").classList.remove("hidden"); drawSV(); }
+function openSV(list, i = 0) { if (!list.length) return; sv = { list, i: Math.max(0,Math.min(i,list.length-1)), t: null }; $("#statusView").classList.remove("hidden"); drawSV(); }
+function wordiiGoStatus(direction=1) {
+  if (!sv.list.length || $("#statusView").classList.contains("hidden")) return;
+  sv.i += direction;
+  if (sv.i < 0) sv.i = 0;
+  if (sv.i >= sv.list.length) { closeSV(); return; }
+  drawSV();
+}
+function wordiiScheduleStatusNext(token, duration) {
+  clearTimeout(sv.t);
+  sv.t = setTimeout(() => {
+    if (token !== wordiiStoryTimerToken || $("#statusView").classList.contains("hidden")) return;
+    if (!document.getElementById("seenPanel")?.classList.contains("hidden")) return;
+    wordiiGoStatus(1);
+  }, duration);
+}
+
 function closeSV() { wordiiStoryTimerToken++; if(wordiiVideoObjectUrl){URL.revokeObjectURL(wordiiVideoObjectUrl);wordiiVideoObjectUrl=null;} stopWordiiStoryAudio(); clearTimeout(sv.t); $("#statusView").classList.add("hidden"); }
 function drawSV() {
   const timerToken = ++wordiiStoryTimerToken;
@@ -1083,24 +1099,27 @@ function drawSV() {
     const v=document.createElement('video');v.controls=true;v.playsInline=true;v.autoplay=true;v.style.cssText='width:100%;height:100%;object-fit:contain';body.append(v);
     const expected=st.id;
     getBlob(storageRef(getStorage(),st.videoPath)).then(blob=>{
-      if(sv.list[sv.i]?.id!==expected)return;
+      if(timerToken!==wordiiStoryTimerToken || sv.list[sv.i]?.id!==expected)return;
       wordiiVideoObjectUrl=URL.createObjectURL(blob);v.src=wordiiVideoObjectUrl;
-      v.onended=()=>{if(sv.list[sv.i]?.id===expected){sv.i++;drawSV();}};
+      v.onended=()=>{if(sv.list[sv.i]?.id===expected)wordiiGoStatus(1);};
+      v.onerror=()=>{if(timerToken===wordiiStoryTimerToken)wordiiGoStatus(1);};
       v.play().catch(()=>{});
-    }).catch(err=>{toast('Video unavailable: '+friendly(err));if(timerToken===wordiiStoryTimerToken){clearTimeout(sv.t);sv.t=setTimeout(()=>{if(timerToken===wordiiStoryTimerToken){sv.i++;drawSV();}},2500);}});
+    }).catch(err=>{toast('Video unavailable: '+friendly(err));if(timerToken===wordiiStoryTimerToken){clearTimeout(sv.t);wordiiScheduleStatusNext(timerToken,2500);}});
   }
   else if (stIsPhoto(st)) { const im = new Image(); im.src = st.img; im.className = "sv-img"; body.append(im); body.style.background = "#000"; if(st.overlayText){const d=document.createElement("div");d.className="story-view-caption";d.textContent=st.overlayText;d.style.color=/^#[0-9a-fA-F]{6}$/.test(st.overlayColor||"")?st.overlayColor:"#ffffff";body.append(d);} }
   else { body.style.background = ST_BG[st.bg] || ST_BG[0]; const d = document.createElement("div"); d.className = "sv-text"; d.textContent = st.text || ""; body.append(d); }
   playWordiiStoryAudio(st, body);
   drawSVBar(st);
-  if(!st.videoPath)sv.t = setTimeout(() => {
-    if (timerToken !== wordiiStoryTimerToken || $("#statusView").classList.contains("hidden")) return;
-    if (!$("#seenPanel")?.classList.contains("hidden")) return;
-    if (sv.list[sv.i]?.id !== st.id) return;
-    sv.i++; drawSV();
-  }, st.musicId||st.audioPath?Math.max(6000,Math.min(30000,Number(st.musicDuration||15)*1000)):6000);
+  if(!st.videoPath) wordiiScheduleStatusNext(timerToken,
+    st.musicId||st.audioPath ? Math.max(6000,Math.min(30000,Number(st.musicDuration||15)*1000)) : 6000);
 }
-$("#svBody").addEventListener("click", (e) => { if(e.target.closest("button, audio, video, input"))return; if(!$("#seenPanel")?.classList.contains("hidden"))return; sv.i++; drawSV(); });
+// Tap left third to go back; tap right two thirds to skip ahead.
+$("#svBody").addEventListener("click", (e) => {
+  if(e.target.closest("button, audio, video, input, a")) return;
+  if(!$("#seenPanel")?.classList.contains("hidden")) return;
+  const rect=e.currentTarget.getBoundingClientRect();
+  wordiiGoStatus(e.clientX - rect.left < rect.width * .32 ? -1 : 1);
+});
 let wordiiStatusTouch=null;
 $("#statusView").addEventListener("touchstart",e=>{if(e.touches.length===1)wordiiStatusTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};},{passive:true});
 $("#statusView").addEventListener("touchend",e=>{if(!wordiiStatusTouch||!e.changedTouches.length)return;const dy=e.changedTouches[0].clientY-wordiiStatusTouch.y;wordiiStatusTouch=null;const st=sv.list[sv.i];if(dy< -75&&st?.ownerUid===uid)showSeenBy(st).catch(err=>toast(friendly(err)));},{passive:true});
@@ -2848,17 +2867,22 @@ async function playWordiiStoryAudio(st, body) {
       if (!active() || finished) return;
       if (audio.currentTime >= start + duration) { finished = true; audio.pause(); }
     });
+    let playbackStarted = false;
+    const startPlayback = () => {
+      if (!active() || finished || playbackStarted) return;
+      playbackStarted = true;
+      audio.play().catch(() => { playbackStarted = false; showPlayButton(); });
+    };
     audio.addEventListener('loadedmetadata', () => {
       if (!active()) return;
       const seek = Number.isFinite(audio.duration) ? Math.min(start, Math.max(0, audio.duration - .1)) : start;
-      try { audio.currentTime = seek; } catch (_) {}
+      if (seek > .05) {
+        audio.addEventListener('seeked', startPlayback, {once:true});
+        try { audio.currentTime = seek; } catch (_) { startPlayback(); }
+      } else startPlayback();
     }, {once:true});
-    audio.addEventListener('canplay', () => {
-      if (!active() || finished) return;
-      audio.play().catch(showPlayButton);
-    }, {once:true});
+    audio.addEventListener('canplay', () => { if(start < .05) startPlayback(); }, {once:true});
     audio.load();
-    if (audio.readyState >= 2) audio.play().catch(showPlayButton);
   } catch (e) {
     if (active()) { audio.remove(); toast('Music unavailable: ' + friendly(e)); }
   }

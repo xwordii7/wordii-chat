@@ -1230,3 +1230,15 @@ html[data-wd-theme="light"] .wd-rewards-progress-label b{color:#281521}
 #callUI.wd-call-minimized .call-bar{transform:scale(.65);transform-origin:bottom center;flex-shrink:0}
 #callUI.wd-call-minimized #localVideo{display:none}
 .wd-reply-quote{border-left:3px solid #fa405b;padding:5px 8px;margin:3px 0 6px;background:#ffffff14;border-radius:4px;font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* v1.6 profile refresh and story tap navigation */
+#tab-profile .you-top {padding:78px 18px 26px!important;border-radius:0 0 30px 30px!important;background:radial-gradient(ellipse at 50% 0%,rgba(237,37,78,.32),transparent 65%),linear-gradient(150deg,#18121e,#09090e)!important;box-shadow:0 20px 48px #0006!important;}
+#tab-profile .you-top .you-ava {filter:drop-shadow(0 5px 16px rgba(255,55,95,.32));}
+#tab-profile .you-top h2 {font-size:27px!important;letter-spacing:-.7px;font-weight:850;}
+#tab-profile .wd-profile-eyebrow {letter-spacing:2.5px;text-transform:uppercase;color:#ff6687;font-size:10px;font-weight:850;margin-top:12px;}
+#tab-profile .wlist {display:grid;gap:9px;padding:12px 3px 20px;background:transparent!important;}
+#tab-profile .wrow {border:1px solid rgba(255,255,255,.09)!important;background:linear-gradient(125deg,#1b1922,#101015)!important;border-radius:16px!important;padding:15px 13px!important;box-shadow:0 6px 20px #0002;}
+#tab-profile .wrow .wi {background:rgba(255,65,105,.12);border-radius:13px;}
+#tab-profile .wrow b {font-weight:750;}
+#svBody {touch-action:pan-y;cursor:pointer;}
+html[data-wd-theme="light"] #tab-profile .wrow {background:#fff!important;border-color:#e9e9ef!important;}
