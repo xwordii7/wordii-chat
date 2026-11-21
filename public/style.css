@@ -1338,3 +1338,56 @@ html[data-wd-theme="light"] #tab-profile .wrow {background:#fff!important;border
 #statusView #svBody{min-height:0}
 #statusView #svBody img.sv-img{object-fit:contain}
 @media(max-height:650px){#storyEdit .story-edit-tools{max-height:75px}#storyEdit .wordii-layout-rail{max-height:70px}#storyEdit .wd-editor-actions{display:none}}
+
+/* Wordii combined patch: photo gestures */
+#wdPhotoViewer img{touch-action:none;user-select:none;transform-origin:center center;will-change:transform;}
+
+/* Wordii Profile-first navigation, Phase 1 */
+#menuSettings{display:none!important}
+.wd-couple-card{line-height:1.6}
+.wd-couple-preview{padding:18px;text-align:center;border:1px solid #e77bb3;border-radius:18px;margin:12px 0;font-weight:800;letter-spacing:1px;background:linear-gradient(125deg,rgba(255,84,155,.15),rgba(125,75,255,.12))}
+.wd-couple-preview small{display:block;font-weight:400;letter-spacing:0;opacity:.7}
+
+/* Wordii Story audience picker: uses existing Close Friends selection */
+#wordiiStoryCamera .wd-story-audience-panel{position:absolute;z-index:100;left:14px;right:14px;bottom:85px;padding:16px;border-radius:18px;background:#18151c;color:white;border:1px solid #59414a;box-shadow:0 8px 30px #000a;display:grid;gap:8px}
+#wordiiStoryCamera .wd-story-audience-panel button{color:white;background:#30252f;border:1px solid #51414b;border-radius:12px;text-align:left;padding:12px;font-size:14px}
+
+/* Wordii Story portrait camera composition */
+#wordiiStoryCamera .wsc-view{width:min(calc(100% - 24px),calc((100dvh - 255px)*9/16));max-width:100%;margin:8px auto;aspect-ratio:9/16;flex:1 1 auto;}
+#wordiiStoryCamera #wscVideo{object-fit:cover;object-position:center;}
+
+/* WORDII COMBINED VISUAL REFRESH - reversible, no data model changes */
+#splash{background:radial-gradient(ellipse at 50% 38%,rgba(190,18,58,.32),transparent 52%),linear-gradient(160deg,#100b13,#030306 72%)!important}
+#splash .splash-logo-wrap{width:118px;height:118px;border-radius:32px!important;border:1px solid rgba(255,72,108,.65)!important;box-shadow:0 0 50px rgba(224,25,72,.32),inset 0 0 18px rgba(255,60,98,.09)!important;animation:splash-enter .38s ease-out both!important}
+#splash .logo-img{width:106px;height:106px;border-radius:26px!important}
+#splash .splash-name{font-size:31px;font-weight:900;letter-spacing:-1.3px;margin-top:20px}
+#splash .splash-tagline{margin-bottom:30px;letter-spacing:1px}
+#splash .splash-progress{height:3px;width:155px}
+#splash .splash-progress i{animation-duration:.95s}
+#tab-profile .you-top{padding:46px 18px 22px!important;border-radius:0 0 25px 25px!important;background:radial-gradient(circle at 50% 0%,rgba(211,19,65,.27),transparent 64%),linear-gradient(150deg,#18121c,#09090d)!important}
+#tab-profile .you-top.has-banner{background-size:cover!important;background-position:center!important}
+#tab-profile .you-top h2{font-size:24px!important}
+#tab-profile .wlist{gap:7px!important}
+#tab-profile .wrow{padding:13px!important;border-radius:15px!important}
+#wordiiEffects{align-items:end!important;padding:0!important;background:rgba(0,0,0,.68)!important;backdrop-filter:blur(8px)}
+#wordiiEffects .we-card{width:100%!important;max-width:none!important;border-radius:25px 25px 0 0!important;padding:18px 14px calc(18px + env(safe-area-inset-bottom))!important;background:linear-gradient(180deg,#1b1420,#09090d)!important;border:1px solid #49303c!important}
+#wordiiEffects .we-card h3{margin:2px 0 12px;font-size:17px}
+#wordiiEffectsList{display:flex!important;gap:11px!important;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;padding:8px 4px 14px;margin:0!important}
+#wordiiEffectsList::-webkit-scrollbar{display:none}
+#wordiiEffectsList .we-filter-choice{flex:0 0 78px;display:flex;flex-direction:column;align-items:center;gap:8px;background:transparent!important;border:0!important;padding:3px!important;scroll-snap-align:center;color:#e9e3e9!important}
+#wordiiEffectsList .we-filter-thumb{display:block;width:66px;height:66px;overflow:hidden;border-radius:50%;border:2px solid #6a5867;box-shadow:0 4px 14px #0009}
+#wordiiEffectsList .we-filter-thumb img{width:100%;height:100%;object-fit:cover}
+#wordiiEffectsList .selected .we-filter-thumb{border:3px solid #ff416c;box-shadow:0 0 0 3px #ff416c3a,0 5px 15px #000a;transform:scale(1.06)}
+#wordiiEffectsList .we-filter-name{font-size:10px;line-height:1.2;text-align:center;min-height:24px}
+#wordiiEffects .we-card>#wordiiEffectsClose{width:100%;border-radius:20px;background:#d51c49;color:white}
+@media(prefers-reduced-motion:reduce){#splash .splash-logo-wrap{animation:none!important}}
+
+/* Wordii message editor */
+.wd-edit-overlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.76);backdrop-filter:blur(8px)}
+.wd-edit-panel{box-sizing:border-box;width:min(100%,430px);border:1px solid #59303b;border-radius:24px;background:linear-gradient(160deg,#261820,#101015);box-shadow:0 24px 70px #000b;padding:24px;color:#f9f5f6}
+.wd-edit-mark{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:#e92c5633;color:#ff6b8a;font-size:25px}
+.wd-edit-panel h3{font-size:21px;margin:14px 0 6px}.wd-edit-panel p{font-size:13px;color:#c4b8bf;line-height:1.5;margin:0 0 17px}
+.wd-edit-panel textarea{box-sizing:border-box;width:100%;resize:vertical;min-height:108px;max-height:240px;background:#0c0c11;border:1px solid #65404b;border-radius:15px;color:white;font:inherit;font-size:15px;line-height:1.5;padding:13px;outline:none}
+.wd-edit-panel textarea:focus{border-color:#ff4772;box-shadow:0 0 0 3px #ff47721c}
+.wd-edit-count{text-align:right;font-size:12px;color:#b6a9af;margin:7px 1px 16px}
+.wd-edit-actions{display:flex;gap:10px}.wd-edit-actions button{flex:1;border:0;border-radius:13px;padding:13px 9px;font:inherit;font-weight:700;cursor:pointer}.wd-edit-cancel{background:#383039;color:white}.wd-edit-save{background:linear-gradient(110deg,#ff345e,#c91845);color:white}.wd-edit-save:disabled{opacity:.45;cursor:not-allowed}

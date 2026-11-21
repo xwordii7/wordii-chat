@@ -301,6 +301,66 @@ service cloud.firestore {
       allow delete: if isBTP();
     }
 
+    // One active partner per account. Lock writes must be atomic with the invite status.
+    match /couplePartnerLocks/{personId} {
+      allow get: if signedIn() && (request.auth.uid == personId || request.auth.uid == resource.data.partnerUid);
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['pairId','partnerUid'])
+        && request.resource.data.partnerUid is string
+        && request.resource.data.partnerUid != personId
+        && request.auth.uid in [personId, request.resource.data.partnerUid]
+        && request.resource.data.pairId == (personId < request.resource.data.partnerUid
+            ? personId + '_' + request.resource.data.partnerUid
+            : request.resource.data.partnerUid + '_' + personId)
+        && getAfter(/databases/$(database)/documents/coupleInvites/$(request.resource.data.pairId)).data.status == 'accepted'
+        && !exists(/databases/$(database)/documents/couplePartnerLocks/$(personId));
+      allow delete: if signedIn()
+        && request.auth.uid in [personId, resource.data.partnerUid]
+        && getAfter(/databases/$(database)/documents/coupleInvites/$(resource.data.pairId)).data.status == 'disconnected';
+      allow update: if false;
+    }
+
+    // Couple invitations: consent only; no client can grant a paid badge.
+    match /coupleInvites/{pairId} {
+      allow get, list: if signedIn() && request.auth.uid in resource.data.members;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['members','from','to','fromName','toName','status','createdAt'])
+        && request.resource.data.from == request.auth.uid
+        && request.resource.data.to is string
+        && request.resource.data.to != request.auth.uid
+        && request.resource.data.members is list
+        && request.resource.data.members.size() == 2
+        && request.resource.data.members[0] < request.resource.data.members[1]
+        && request.resource.data.members[0] in [request.auth.uid, request.resource.data.to]
+        && request.resource.data.members[1] in [request.auth.uid, request.resource.data.to]
+        && pairId == request.resource.data.members[0] + '_' + request.resource.data.members[1]
+        && exists(/databases/$(database)/documents/users/$(request.resource.data.to))
+        && request.resource.data.fromName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username
+        && request.resource.data.toName == get(/databases/$(database)/documents/users/$(request.resource.data.to)).data.username
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time;
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.members
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt','updatedBy'])
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time
+        && (
+          (resource.data.status == 'pending' && request.auth.uid == resource.data.to
+            && request.resource.data.status == 'rejected')
+          || (resource.data.status == 'pending' && request.auth.uid == resource.data.to
+            && request.resource.data.status == 'accepted'
+            && getAfter(/databases/$(database)/documents/couplePartnerLocks/$(resource.data.from)).data.pairId == pairId
+            && getAfter(/databases/$(database)/documents/couplePartnerLocks/$(resource.data.to)).data.pairId == pairId)
+          || (resource.data.status in ['pending','accepted']
+            && request.resource.data.status == 'disconnected'
+            && (resource.data.status != 'accepted'
+              || (!existsAfter(/databases/$(database)/documents/couplePartnerLocks/$(resource.data.from))
+                && !existsAfter(/databases/$(database)/documents/couplePartnerLocks/$(resource.data.to)))))
+        );
+      allow delete: if false;
+    }
+
     // Temporary 6-digit friend codes. Can be fetched by exact code only (no listing).
     match /connectCodes/{code} {
       allow get: if signedIn();
@@ -546,6 +606,16 @@ service cloud.firestore {
           && request.resource.data.reactions.diff(resource.data.get('reactions', {})).affectedKeys().hasOnly([request.auth.uid])
           && (! (request.auth.uid in request.resource.data.reactions)
               || request.resource.data.reactions[request.auth.uid] in ['❤️','😂','😮','😢','👍','🔥']);
+        // Sender may edit only their own text, with server-verified timestamp.
+        allow update: if signedIn()
+          && request.auth.uid in chatMembers(chatId)
+          && resource.data.senderId == request.auth.uid
+          && 'text' in resource.data
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'editedAt'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 8000
+          && request.resource.data.editedAt == request.time;
         // The receiver (not the sender) may stamp "seen" once.
         allow update: if signedIn()
           && request.auth.uid in chatMembers(chatId)

@@ -628,6 +628,10 @@ function renderProfile() {
       ${row("notif", "🔔", "Notifications", "Message alerts on or off")}
       ${row("lang", "🌐", "App language", "English")}
       ${row("subs", "💎", "Subscriptions", "Explore premium benefits")}
+      ${row("couple", "💞", "Couple Badge", "Partner connection · disconnect · badge status")}
+      ${row("appearance", "🎨", "Appearance", "Light and dark themes")}
+      ${row("ads", "📢", "Ad Preferences", "Manage ad visibility")}
+      ${row("assistant", "🤖", "Wordii Assistant", "Help and app commands")}
       ${me?.admin === true ? row("brand", "🎨", "App Logo Manager", "Change the in-app logo for everyone") : ""}
       ${row("updates", "🚀", "App Updates", "Check for new versions")}
       ${row("codeSettings", "🔑", "My Connection Code", "Generate a temporary code to connect")}
@@ -754,7 +758,7 @@ function renderMessages() {
   const box = $("#msgs");
   box.innerHTML = msgs.filter(m=>!wdHiddenIds().has(m.id)).map((m) => {
     const t = m.createdAt?.toDate?.().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) || "";
-    return `<div class="msg ${m.senderId === uid ? "mine" : "theirs"}" data-id="${esc(m.id)}">${m.replyTo?`<div class="wd-reply-quote">↩ ${esc(nameOf(person(msgMap[m.replyTo]?.senderId) || (msgMap[m.replyTo]?.senderId === uid ? me : null)) || "Message")} · ${esc((msgMap[m.replyTo]?.text ? (decodeMessage(msgMap[m.replyTo].text) || "Message") : msgMap[m.replyTo]?.img ? "📷 Photo" : msgMap[m.replyTo]?.videoPath ? "🎥 Video" : "Message").slice(0,90))}</div>`:""}${m.reactions && Object.keys(m.reactions).length ? `<div class="wd-reactions">${Object.values(m.reactions).map(x=>esc(x)).join(" ")}</div>` : ""}${activeChat?.group && m.senderId !== uid ? `<small class="sname">${esc(nameOf(person(m.senderId)))}${vb(person(m.senderId))}</small>` : ""}<div class="bubble ${m.img ? "imgmsg" : m.aud ? "audmsg" : m.videoPath ? "videomsg" : ""}"></div><time>${t}${m.senderId === uid && m.seenAt ? " · Seen" : ""}</time></div>`;
+    return `<div class="msg ${m.senderId === uid ? "mine" : "theirs"}" data-id="${esc(m.id)}">${m.replyTo?`<div class="wd-reply-quote">↩ ${esc(nameOf(person(msgMap[m.replyTo]?.senderId) || (msgMap[m.replyTo]?.senderId === uid ? me : null)) || "Message")} · ${esc((msgMap[m.replyTo]?.text ? (decodeMessage(msgMap[m.replyTo].text) || "Message") : msgMap[m.replyTo]?.img ? "📷 Photo" : msgMap[m.replyTo]?.videoPath ? "🎥 Video" : "Message").slice(0,90))}</div>`:""}${m.reactions && Object.keys(m.reactions).length ? `<div class="wd-reactions">${Object.values(m.reactions).map(x=>esc(x)).join(" ")}</div>` : ""}${activeChat?.group && m.senderId !== uid ? `<small class="sname">${esc(nameOf(person(m.senderId)))}${vb(person(m.senderId))}</small>` : ""}<div class="bubble ${m.img ? "imgmsg" : m.aud ? "audmsg" : m.videoPath ? "videomsg" : ""}"></div><time>${t}${m.senderId === uid && m.seenAt ? " · Seen" : ""}${m.editedAt ? " · Edited" : ""}</time></div>`;
   }).join("");
   tickMessages();
   wdSelectionSync();
@@ -808,17 +812,32 @@ function tickMessages() {
     b.classList.toggle("open", open);
   });
 }
+function wordiiClosePhoto(){
+  const overlay=document.getElementById('wdPhotoViewer');
+  if(overlay)overlay.classList.remove('visible');
+}
 function wordiiShowPhoto(src) {
   if (!/^data:image\/(jpeg|png|webp);base64,/.test(src)) return;
-  let overlay=document.getElementById("wdPhotoViewer");
+  let overlay=document.getElementById('wdPhotoViewer');
   if (!overlay) {
-    overlay=document.createElement("div");overlay.id="wdPhotoViewer";
+    overlay=document.createElement('div');overlay.id='wdPhotoViewer';
     overlay.innerHTML='<button type="button" aria-label="Close photo">✕</button><img alt="Chat photo">';
     document.body.append(overlay);
-    overlay.addEventListener("click",e=>{if(e.target!==overlay.querySelector("img"))overlay.classList.remove("visible")});
+    const img=overlay.querySelector('img');
+    let scale=1,tx=0,ty=0,lastTap=0;const pointers=new Map();let startDistance=0,startScale=1,dragX=0,dragY=0;
+    const paint=()=>{img.style.transform=`translate(${tx}px,${ty}px) scale(${scale})`;};
+    const reset=()=>{scale=1;tx=0;ty=0;pointers.clear();paint();};
+    overlay.addEventListener('click',e=>{if(e.target!==img){wordiiClosePhoto();reset();}});
+    img.addEventListener('dblclick',e=>{e.preventDefault();scale=scale>1?1:2.5;tx=ty=0;paint();});
+    img.addEventListener('pointerdown',e=>{e.preventDefault();img.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});dragX=e.clientX;dragY=e.clientY;if(pointers.size===2){const [a,b]=[...pointers.values()];startDistance=Math.hypot(a.x-b.x,a.y-b.y);startScale=scale;}});
+    img.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const old=pointers.get(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===2){const [a,b]=[...pointers.values()];scale=Math.max(1,Math.min(5,startScale*Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,startDistance)));if(scale===1)tx=ty=0;}else if(scale>1){tx+=e.clientX-old.x;ty+=e.clientY-old.y;}paint();});
+    const end=e=>{pointers.delete(e.pointerId);if(pointers.size===1){const pt=[...pointers.values()][0];dragX=pt.x;dragY=pt.y;}};
+    img.addEventListener('pointerup',end);img.addEventListener('pointercancel',end);
+    overlay.wordiiReset=reset;
   }
-  overlay.querySelector("img").src=src;overlay.classList.add("visible");
+  overlay.wordiiReset?.();overlay.querySelector('img').src=src;overlay.classList.add('visible');
 }
+
 let lp = null, longDone = false;
 const mbox = $("#msgs");
 mbox.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -868,6 +887,35 @@ async function wordiiSetReaction(id,emoji){
   });
  }catch(e){toast(friendly(e));}
 }
+function wordiiEditDialog(initial){
+ return new Promise(resolve=>{
+  document.getElementById('wdEditOverlay')?.remove();
+  const overlay=document.createElement('div');overlay.id='wdEditOverlay';overlay.className='wd-edit-overlay';
+  overlay.innerHTML=`<section class="wd-edit-panel" role="dialog" aria-modal="true" aria-labelledby="wdEditHeading"><div class="wd-edit-mark">✎</div><h3 id="wdEditHeading">Edit message</h3><p>Update your message. Everyone in this chat will see the change.</p><textarea id="wdEditText" maxlength="800" rows="4" aria-label="Message text"></textarea><div class="wd-edit-count" id="wdEditCount"></div><div class="wd-edit-actions"><button type="button" class="wd-edit-cancel">Cancel</button><button type="button" class="wd-edit-save">Save changes</button></div></section>`;
+  document.body.append(overlay);
+  const field=overlay.querySelector('textarea'),count=overlay.querySelector('#wdEditCount');field.value=initial;
+  const update=()=>{count.textContent=field.value.length+' / 800';overlay.querySelector('.wd-edit-save').disabled=!field.value.trim()||field.value.trim()===initial||field.value.length>800;};
+  const close=v=>{overlay.remove();document.removeEventListener('keydown',onKey);resolve(v);};
+  const onKey=e=>{if(e.key==='Escape')close(null);if((e.ctrlKey||e.metaKey)&&e.key==='Enter')close(field.value);};
+  document.addEventListener('keydown',onKey);field.addEventListener('input',update);
+  overlay.querySelector('.wd-edit-cancel').onclick=()=>close(null);
+  overlay.querySelector('.wd-edit-save').onclick=()=>{if(field.value.trim())close(field.value);};
+  overlay.addEventListener('click',e=>{if(e.target===overlay)close(null);});update();field.focus();field.setSelectionRange(field.value.length,field.value.length);
+ });
+}
+async function wordiiEditMessage(id){
+ const m=msgMap[id],chatId=activeChat?.id;
+ if(!m||!chatId||m.senderId!==uid||!m.text)return;
+ const previous=plain(m);
+ const changed=await wordiiEditDialog(previous);
+ if(changed===null||changed.trim()===previous)return;
+ const next=changed.trim();
+ if(!next||next.length>800){toast('Message must be 1–800 characters');return;}
+ try{
+  await updateDoc(doc(db,'chats',chatId,'messages',id),{text:encodeMessage(next),editedAt:serverTimestamp()});
+  delete decoded[id];toast('Message edited');
+ }catch(e){toast(friendly(e));}
+}
 function wordiiShowMessageMenu(id){
  const m=msgMap[id];if(!m)return;
  let menu=document.getElementById('wordiiMessageMenu');if(!menu){menu=document.createElement('div');menu.id='wordiiMessageMenu';menu.className='wd-message-menu';document.body.append(menu);}
@@ -881,6 +929,7 @@ function wordiiShowMessageMenu(id){
  menu.append(reactions);
  if(m.reactions?.[uid])add('Remove reaction',()=>wordiiSetReaction(id,null));
  add('↩ Reply',()=>wordiiReplyStart(id));
+ if(m.text&&m.senderId===uid)add('✎ Edit message',()=>wordiiEditMessage(id));
  if(m.text)add('Copy message',()=>navigator.clipboard?.writeText(plain(m)).then(()=>toast('Copied')).catch(()=>toast('Copy unavailable')));
  add('Select / Delete',()=>wdSelectionStart(id));
  add('Cancel',()=>{});
@@ -897,7 +946,7 @@ input.addEventListener("input", () => { // pasting a valid symbol message auto-d
 });
 $("#composer").addEventListener("submit", (e) => {
   e.preventDefault();
-  const text = input.value.trim(); if (!text || !activeChat) return;
+  const text = input.value.trim(); if (!text) return; if (!activeChat) { toast("Chat not ready. Reopen the conversation."); console.error("WORDII_SEND: activeChat missing"); return; }
   const chatId=activeChat.id;const reply=wordiiReply?.chatId===chatId?wordiiReply:null;
   input.value="";wordiiDrafts.set(chatId,"");wordiiReplyClear();
   sendMsg({text:encodeMessage(text),...(reply?{replyTo:reply.id}: {})},chatId)
@@ -1062,10 +1111,15 @@ $("#tab-status").addEventListener("click", (e) => {
 
 let sv = { list: [], i: 0, t: null };
 let wordiiStoryTimerToken = 0;
+let wordiiStoryHold = false;
+let wordiiStoryRemaining = 0;
+let wordiiStoryDeadline = 0;
+let wordiiStoryPointer = null;
 let wordiiVideoObjectUrl = null;
 function openSV(list, i = 0) {
   if (!list.length) return;
   clearTimeout(sv.t);
+  wordiiStoryHold = false;
   wordiiStoryTimerToken++;
   stopWordiiStoryAudio();
   sv = { list: [...list], i: Math.max(0, Math.min(i, list.length - 1)), t: null };
@@ -1081,6 +1135,9 @@ function wordiiGoStatus(direction=1) {
 }
 function wordiiScheduleStatusNext(token, duration) {
   clearTimeout(sv.t);
+  wordiiStoryRemaining = duration;
+  wordiiStoryDeadline = Date.now() + duration;
+  if(wordiiStoryHold)return;
   sv.t = setTimeout(() => {
     if (token !== wordiiStoryTimerToken || $("#statusView").classList.contains("hidden")) return;
     if (document.getElementById("seenPanel") && !document.getElementById("seenPanel").classList.contains("hidden")) {
@@ -1091,8 +1148,10 @@ function wordiiScheduleStatusNext(token, duration) {
   }, duration);
 }
 
-function closeSV() { wordiiStoryTimerToken++; if(wordiiVideoObjectUrl){URL.revokeObjectURL(wordiiVideoObjectUrl);wordiiVideoObjectUrl=null;} stopWordiiStoryAudio(); clearTimeout(sv.t); $("#statusView").classList.add("hidden"); }
+function closeSV() { document.getElementById('wordiiStatusProgress')?.classList.remove('paused');wordiiStoryHold=false;wordiiStoryPointer=null;clearTimeout(wordiiStoryPointerTimer);wordiiStoryTimerToken++; if(wordiiVideoObjectUrl){URL.revokeObjectURL(wordiiVideoObjectUrl);wordiiVideoObjectUrl=null;} stopWordiiStoryAudio(); clearTimeout(sv.t); $("#statusView").classList.add("hidden"); }
 function drawSV() {
+  wordiiStoryHold=false;wordiiStoryPointer=null;
+  document.getElementById('wordiiStatusProgress')?.classList.remove('paused');
   const timerToken = ++wordiiStoryTimerToken;
   stopWordiiStoryAudio();
   if(wordiiVideoObjectUrl){URL.revokeObjectURL(wordiiVideoObjectUrl);wordiiVideoObjectUrl=null;}
@@ -1114,9 +1173,9 @@ function drawSV() {
     getBlob(storageRef(getStorage(),st.videoPath)).then(blob=>{
       if(timerToken!==wordiiStoryTimerToken || sv.list[sv.i]?.id!==expected)return;
       wordiiVideoObjectUrl=URL.createObjectURL(blob);v.src=wordiiVideoObjectUrl;
-      v.onended=()=>{if(sv.list[sv.i]?.id===expected)wordiiGoStatus(1);};
+      v.onended=()=>{if(timerToken===wordiiStoryTimerToken && sv.list[sv.i]?.id===expected)wordiiGoStatus(1);};
       v.onerror=()=>{if(timerToken===wordiiStoryTimerToken)wordiiGoStatus(1);};
-      v.play().catch(()=>{});
+      if(!wordiiStoryHold)v.play().catch(()=>{});
     }).catch(err=>{toast('Video unavailable: '+friendly(err));if(timerToken===wordiiStoryTimerToken){clearTimeout(sv.t);wordiiScheduleStatusNext(timerToken,2500);}});
   }
   else if (stIsPhoto(st)) { const im = new Image(); im.src = st.img; im.className = "sv-img"; body.append(im); body.style.background = "#000"; if(st.overlayText){const d=document.createElement("div");d.className="story-view-caption";d.textContent=st.overlayText;d.style.color=/^#[0-9a-fA-F]{6}$/.test(st.overlayColor||"")?st.overlayColor:"#ffffff";body.append(d);} }
@@ -1126,8 +1185,44 @@ function drawSV() {
   if(!st.videoPath) wordiiScheduleStatusNext(timerToken,
     st.musicId||st.audioPath ? Math.max(6000,Math.min(30000,Number(st.musicDuration||15)*1000)) : 6000);
 }
+// Press and hold a story to pause it; release to resume the remaining time.
+// Excludes interactive controls so video seeking and buttons still work.
+const wordiiStoryBody = document.getElementById('svBody');
+function wordiiStoryPause(){
+  if(wordiiStoryHold || document.getElementById('statusView').classList.contains('hidden'))return;
+  wordiiStoryHold=true;
+  wordiiStoryRemaining=Math.max(100,wordiiStoryDeadline-Date.now());
+  clearTimeout(sv.t);
+  wordiiStoryBody.querySelector('video')?.pause();
+  if(wordiiStatusAudio)wordiiStatusAudio.pause();
+  document.getElementById('wordiiStatusProgress')?.classList.add('paused');
+}
+function wordiiStoryResume(){
+  if(!wordiiStoryHold)return;
+  wordiiStoryHold=false;
+  document.getElementById('wordiiStatusProgress')?.classList.remove('paused');
+  const v=wordiiStoryBody.querySelector('video');
+  if(v){v.play().catch(()=>{});}else{wordiiScheduleStatusNext(wordiiStoryTimerToken,wordiiStoryRemaining);}
+  if(wordiiStatusAudio)wordiiStatusAudio.play().catch(()=>{});
+}
+wordiiStoryBody.addEventListener('pointerdown',e=>{
+  if(e.target.closest('button, audio, video, input, a'))return;
+  wordiiStoryPointer={id:e.pointerId,x:e.clientX,y:e.clientY,at:Date.now(),held:false};
+  clearTimeout(wordiiStoryPointerTimer);
+  wordiiStoryPointerTimer=setTimeout(()=>{
+    if(wordiiStoryPointer?.id===e.pointerId){wordiiStoryPointer.held=true;wordiiStoryPause();}
+  },250);
+});
+let wordiiStoryPointerTimer=null;
+for(const event of ['pointerup','pointercancel','pointerleave'])wordiiStoryBody.addEventListener(event,()=>{
+  clearTimeout(wordiiStoryPointerTimer);
+  if(wordiiStoryPointer?.held){wordiiStorySuppressClick=true;wordiiStoryResume();}
+  wordiiStoryPointer=null;
+});
+let wordiiStorySuppressClick=false;
 // Tap left third to go back; tap right two thirds to skip ahead.
 $("#svBody").addEventListener("click", (e) => {
+  if(wordiiStorySuppressClick){wordiiStorySuppressClick=false;return;}
   if(e.target.closest("button, audio, video, input, a")) return;
   if(document.getElementById("seenPanel") && !document.getElementById("seenPanel").classList.contains("hidden")) return;
   const rect=e.currentTarget.getBoundingClientRect();
@@ -1610,7 +1705,7 @@ async function wordiiConfirmPhoneOTP() {
 const BG_SW = ["#2a1b4d", "radial-gradient(#7b2cff,#1d1040)", "linear-gradient(160deg,#064e5c,#0b1b3a)", "linear-gradient(160deg,#7c2d12,#4c1d95)", "#000"];
 let admList = [], admTimer;
 let subKey = "";
-const SUB_TITLES = { ads: "Ad Preferences", musicAdmin: "Manage Music", overview: "Settings", appearance: "Appearance", points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "BTP badge panel", dash: "Admin dashboard", gifts: "Level gifts", updates: "App Updates", assistant: "Wordii Assistant", brand: "App Branding" };
+const SUB_TITLES = { ads: "Ad Preferences", musicAdmin: "Manage Music", overview: "Profile options", couple: "Couple Badge", appearance: "Appearance", points: "Points & level", edit: "Edit profile", account: "Account", privacy: "Privacy", chats: "Chats", notif: "Notifications", lang: "App language", subs: "Subscriptions", admin: "BTP badge panel", dash: "Admin dashboard", gifts: "Level gifts", updates: "App Updates", assistant: "Wordii Assistant", brand: "App Branding" };
 function openSub(k) { if (k !== "ads") void wordiiHideTestBanner(); subKey = k; $("#setTitle").textContent = SUB_TITLES[k] || "Settings"; $("#settings").classList.remove("hidden"); renderSettings(true); }
 function wordiiProfileShareURL(){
   const name = String(me?.username || '').replace(/^@/, '');
@@ -1747,6 +1842,7 @@ function renderSettings(force) {
     musicAdmin: () => me?.admin === true ? wordiiAdminMusicHTML() : `<div class="card">Access denied.</div>`,
     codeSettings: () => `<div class="card"><h3>🔑 Connect by Code</h3><p class="tiny">Code tabhi banega jab Generate Code dabaaoge. Code 10 minutes valid rahega.</p><button type="button" class="btn" id="wdOpenCode">Open Generate Code</button></div>`,
     subs: () => wordiiFullSubscriptionHTML(),
+    couple: () => wordiiCouplePage(),
     brand: () => me?.admin === true ? `<div class="card wd-brand-manager"><h3>🎨 App Logo Manager</h3><p class="tiny">Only full admins can change the in-app logo. Home-screen icon requires a new APK.</p><img id="wdBrandPreview" src="${esc(wordiiBrandLogo)}" alt="Current Wordii logo"><input type="file" id="wdBrandFile" accept="image/png,image/jpeg,image/webp"><div class="row-btns"><button type="button" class="btn" id="wdBrandSave">Apply logo</button><button type="button" class="btn ghost" id="wdBrandReset">Reset to Logo E</button></div></div>` : `<div class="card">Admin only</div>`,
     admin: () => canBTP() ? `<div class="card"><b>🛡️ BTP — Badge & Trust Panel</b><p class="tiny">Search a username. Only Admin can assign Pre-Admin. Premium and Verified badges require payment approval.</p><div class="wd-badge-showcase" aria-label="Wordii role badges"><img src="wordii-badges/admin_full.png" alt="Admin role badge" loading="lazy"><img src="wordii-badges/pre_admin_full.png" alt="Pre-Admin role badge" loading="lazy"><img src="wordii-badges/premium_user_full.png" alt="Premium User role badge" loading="lazy"><img src="wordii-badges/verified_user_full.png" alt="Verified User role badge" loading="lazy"></div><input id="admSearch" placeholder="Search username" autocapitalize="none" autocomplete="off"><div id="admResults"></div></div>${me?.admin ? `<div class="card"><b>📩 Suspension appeals</b><div id="wdAppealAdminList">Loading…</div><button type="button" class="btn ghost" id="wdRefreshAppeals">Refresh appeals</button></div>` : ``}` : `<div class="card">Access denied.</div>`,
   };
@@ -2587,6 +2683,7 @@ document.addEventListener("click",e=>{
   let lastBack = 0;
   const visible = (id) => { const el = document.getElementById(id); return !!el && !el.classList.contains("hidden"); };
   function goBack() {
+    if(document.getElementById("wdPhotoViewer")?.classList.contains("visible")){wordiiClosePhoto();return;}
     // Close transient overlays before navigating away from the current screen.
     const overlays = ["homeMenu", "chatMoreMenu", "wdGlobalSearch", "wordiiContacts"];
     for (const id of overlays) {
@@ -2833,6 +2930,41 @@ document.getElementById('wordiiMusicPreviewClip').onclick=()=>{
   wordiiPreviewStopHandler=()=>{if(preview.currentTime>=start+Math.max(1,Math.min(30,Number(document.getElementById("wordiiMusicDuration")?.value)||15))){preview.pause();preview.removeEventListener('timeupdate',wordiiPreviewStopHandler);wordiiPreviewStopHandler=null;}};
   preview.addEventListener('timeupdate',wordiiPreviewStopHandler);
 };
+/* WORDII STORY MUSIC TRIM CONTROL V1 — local-only UI enhancement */
+(function wordiiMusicTrimControls(){
+ const panel=document.getElementById('stMusicPanel');
+ const start=document.getElementById('wordiiMusicStart');
+ const duration=document.getElementById('wordiiMusicDuration');
+ if(!panel||!start||!duration||document.getElementById('wordiiTrimControls'))return;
+ const wrap=document.createElement('section');wrap.id='wordiiTrimControls';
+ wrap.setAttribute('aria-label','Music clip trim controls');
+ wrap.style.cssText='padding:12px;margin:8px 0;border:1px solid rgba(255,255,255,.22);border-radius:12px;color:inherit';
+ const heading=document.createElement('div');heading.textContent='♫ Choose your music clip';heading.style.cssText='font-weight:700;margin-bottom:8px';
+ const label=document.createElement('label');label.htmlFor='wordiiTrimSlider';label.textContent='Start position';
+ const slider=document.createElement('input');slider.id='wordiiTrimSlider';slider.type='range';slider.min='0';slider.max='180';slider.step='.5';slider.value=String(Math.max(0,Number(start.value)||0));slider.style.cssText='width:100%;display:block;margin:12px 0;accent-color:#ff416c';
+ const info=document.createElement('output');info.id='wordiiTrimInfo';info.style.cssText='display:block;font-size:13px;margin:6px 0';
+ const help=document.createElement('small');help.textContent='Drag to choose where music begins. Preview plays only your chosen clip.';
+ wrap.append(heading,label,slider,info,help);
+ const existing=document.getElementById('wordiiMusicPreviewClip');
+ (existing?.parentElement||panel).insertBefore(wrap,existing||null);
+ const format=s=>{s=Math.max(0,Math.floor(Number(s)||0));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
+ function sync(){
+   const audio=wordiiAudioPreview;
+   const available=Number.isFinite(audio?.duration)&&audio.duration>0?audio.duration:null;
+   const length=Math.max(1,Math.min(30,Number(duration.value)||15));
+   const max=Math.max(0,(available??180)-length);
+   slider.max=String(max);
+   let position=Math.max(0,Math.min(max,Number(start.value)||0));
+   start.value=String(position);slider.value=String(position);
+   info.textContent=`${format(position)} – ${format(position+length)} (${length}s clip)`;
+ }
+ slider.addEventListener('input',()=>{start.value=slider.value;sync();});
+ start.addEventListener('input',sync);duration.addEventListener('input',sync);duration.addEventListener('change',sync);
+ panel.addEventListener('click',()=>{queueMicrotask(sync);});
+ // Audio is loaded asynchronously after a track is selected.
+ panel.addEventListener('loadedmetadata',sync,true);
+ sync();
+})();
 document.getElementById('wordiiMusicDone').onclick=()=>{
   if(!wordiiSelectedMusic){toast('Select music first');return;}
   wordiiCloseMusic();
@@ -2841,7 +2973,16 @@ document.getElementById('wordiiMusicDone').onclick=()=>{
 document.getElementById('wordiiMusicClear').onclick=()=>{wordiiStopPreview();wordiiSelectedMusic=null;document.getElementById('wordiiAudioFile').value='';wordiiMusicLabel();wordiiRenderMusic();};
 function wordiiOpenEffects(){
   const list=document.getElementById('wordiiEffectsList');list.textContent='';
-  wordiiEffects.forEach((effect,i)=>{const b=document.createElement('button');b.textContent=effect.name;if(i===wordiiEffect)b.classList.add('selected');b.onclick=()=>{wordiiEffect=i;document.getElementById('seImage').style.filter=effect.css;wordiiOpenEffects();};list.append(b);});
+  wordiiEffects.forEach((effect,i)=>{
+    const b=document.createElement('button');b.type='button';b.className='we-filter-choice';
+    b.setAttribute('aria-label',effect.name);b.setAttribute('aria-pressed',String(i===wordiiEffect));
+    if(i===wordiiEffect)b.classList.add('selected');
+    const thumb=document.createElement('span');thumb.className='we-filter-thumb';
+    const photo=document.createElement('img');photo.alt='';photo.src=document.getElementById('seImage').src;photo.style.filter=effect.css;
+    thumb.append(photo);const label=document.createElement('span');label.className='we-filter-name';label.textContent=effect.name;
+    b.append(thumb,label);
+    b.onclick=()=>{wordiiEffect=i;document.getElementById('seImage').style.filter=effect.css;wordiiOpenEffects();};list.append(b);
+  });
   document.getElementById('wordiiEffects').classList.remove('hidden');
 }
 document.getElementById('wordiiEffectsClose').onclick=()=>document.getElementById('wordiiEffects').classList.add('hidden');
@@ -2948,38 +3089,67 @@ document.getElementById('wscCamera').onclick=startWordiiCamera;
 document.getElementById('wscGallery').onclick=()=>{closeWordiiStory();document.getElementById('stFile').click();};
 document.getElementById('wscText').onclick=()=>{closeWordiiStory();document.getElementById('stTextBtn').click();};
 document.getElementById('wscMusic').onclick=()=>{closeWordiiStory();wordiiOpenMusic();};
-document.getElementById('wscPrivacy').onclick=()=>{document.getElementById('wscNote').textContent='Audience settings: Close Friends and mentions are available in the existing story settings. Full editor integration is pending.';};
+// Use the existing Status audience state; do not invent a separate privacy setting.
+function wordiiStoryAudiencePicker(){
+  const old=document.getElementById('wdStoryAudiencePanel');if(old){old.remove();return;}
+  const panel=document.createElement('div');panel.id='wdStoryAudiencePanel';panel.className='wd-story-audience-panel';
+  panel.innerHTML='<strong>Who can see this story?</strong><button type="button" data-wd-audience="friends">👥 Friends</button><button type="button" data-wd-audience="close">🔒 Close Friends</button><button type="button" data-wd-audience="choose">✏️ Choose Close Friends</button><button type="button" data-wd-audience="cancel">Cancel</button>';
+  panel.addEventListener('click',e=>{
+    const b=e.target.closest('[data-wd-audience]');if(!b)return;
+    const action=b.dataset.wdAudience;
+    if(action==='friends')document.getElementById('stClose').checked=false;
+    if(action==='close'){
+      if(!closeIds.length){document.getElementById('wscNote').textContent='Choose Close Friends first.';return;}
+      document.getElementById('stClose').checked=true;
+    }
+    panel.remove();
+    if(action==='choose'){
+      closeWordiiStory();document.getElementById('stPick').click();return;
+    }
+    if(action!=='cancel')document.getElementById('wscNote').textContent=action==='friends'?'Audience: Friends':'Audience: Close Friends';
+  });
+  document.getElementById('wordiiStoryCamera').append(panel);
+}
+document.getElementById('wscPrivacy').onclick=wordiiStoryAudiencePicker;
 document.getElementById('wscShutter').onclick=()=>{
   const video=document.getElementById('wscVideo');
   if(!wordiiStoryStream || !video.videoWidth){document.getElementById('wscGallery').click();return;}
   const canvas=document.createElement('canvas');
-  const scale=Math.min(1,1024/Math.max(video.videoWidth,video.videoHeight));
-  canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
+  // Instagram-style portrait crop: match the center of the live cover preview.
+  const targetWidth=720,targetHeight=1280,ratio=9/16;
+  canvas.width=targetWidth;canvas.height=targetHeight;
+  const sourceWidth=video.videoWidth,sourceHeight=video.videoHeight;
+  const cropWidth=Math.min(sourceWidth,sourceHeight*ratio);
+  const cropHeight=Math.min(sourceHeight,sourceWidth/ratio);
+  const sx=(sourceWidth-cropWidth)/2,sy=(sourceHeight-cropHeight)/2;
   const ctx=canvas.getContext('2d');
-  // Keep the saved selfie consistent with the mirrored live preview.
+  if(!ctx){document.getElementById('wscNote').textContent='Camera capture failed. Try Gallery.';return;}
+  // Match selfie mirroring to the preview without changing the rear camera.
   if(wordiiStoryFacing==='user') {ctx.translate(canvas.width,0);ctx.scale(-1,1);}
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  ctx.drawImage(video,sx,sy,cropWidth,cropHeight,0,0,targetWidth,targetHeight);
   canvas.toBlob(blob=>{
     if(!blob)return;
-    const file=new File([blob],'wordii-story.jpg',{type:'image/jpeg'});
-    const dt=new DataTransfer();dt.items.add(file);
-    const input=document.getElementById('stFile');input.files=dt.files;
-    closeWordiiStory();input.dispatchEvent(new Event('change',{bubbles:true}));
+    try {
+      const file=new File([blob],'wordii-story.jpg',{type:'image/jpeg'});
+      const dt=new DataTransfer();dt.items.add(file);
+      const input=document.getElementById('stFile');input.files=dt.files;
+      closeWordiiStory();input.dispatchEvent(new Event('change',{bubbles:true}));
+    } catch(err) {document.getElementById('wscNote').textContent='Could not open editor. Please use Gallery.';}
   },'image/jpeg',0.75);
 };
 
 // Wordii Story Studio: all decorative layers are exported into the posted JPEG.
-let wdLayout="classic",wdSticker="",wdStickerX=50,wdStickerY=50,wdTextStyle=0,wdDrawing=false,wdHasDrawing=false;
+let wdLayout="classic",wdSticker="",wdStickerX=50,wdStickerY=50,wdStickerScale=1,wdTextStyle=0,wdDrawing=false,wdHasDrawing=false;
 const wdLayouts=["classic","polaroid","film","torn","heart","circle","gradient","minimal"];
 const wdStickers=["❤️","✨","🔥","🌸","💫","⭐","🎮","🎉","😍","💖","🌙","☁️"];
 const wdStage=document.getElementById("wdEditorStage"),wdCanvas=document.getElementById("wdDrawLayer"),wdStickerLayer=document.getElementById("wdStickerLayer"),wdOptions=document.getElementById("wdEditorOptions");
 function wdResizeDrawing(){const r=wdStage.getBoundingClientRect();if(!r.width||!r.height)return;const old=document.createElement('canvas');old.width=wdCanvas.width;old.height=wdCanvas.height;if(old.width&&old.height)old.getContext('2d').drawImage(wdCanvas,0,0);wdCanvas.width=Math.round(r.width*devicePixelRatio);wdCanvas.height=Math.round(r.height*devicePixelRatio);if(old.width&&old.height)wdCanvas.getContext('2d').drawImage(old,0,0,wdCanvas.width,wdCanvas.height);}
-function wdResetEditor(){wdLayout="classic";wdSticker="";wdStickerX=50;wdStickerY=50;wdTextStyle=0;wdDrawing=false;wdHasDrawing=false;wdOptions?.classList.add('hidden');wdStickerLayer?.replaceChildren();if(wdCanvas){wdCanvas.getContext('2d').clearRect(0,0,wdCanvas.width,wdCanvas.height);wdCanvas.classList.remove('wd-drawing');}wdStage?.setAttribute('data-layout','classic');}
+function wdResetEditor(){wdLayout="classic";wdSticker="";wdStickerX=50;wdStickerY=50;wdStickerScale=1;wdTextStyle=0;wdDrawing=false;wdHasDrawing=false;wdOptions?.classList.add('hidden');wdStickerLayer?.replaceChildren();if(wdCanvas){wdCanvas.getContext('2d').clearRect(0,0,wdCanvas.width,wdCanvas.height);wdCanvas.classList.remove('wd-drawing');}wdStage?.setAttribute('data-layout','classic');}
 function wdSetLayout(v){wdLayout=v;wdStage.dataset.layout=v;wdOptions.classList.add('hidden');wordiiUpdateLayoutSelection();}
-function wdStickerRefresh(){wdStickerLayer.replaceChildren();if(!wdSticker)return;const e=document.createElement('span');e.textContent=wdSticker;e.className='wd-sticker';e.style.left=wdStickerX+'%';e.style.top=wdStickerY+'%';wdStickerLayer.append(e);}
+function wdStickerRefresh(){wdStickerLayer.replaceChildren();if(!wdSticker)return;const e=document.createElement('span');e.textContent=wdSticker;e.className='wd-sticker';e.style.left=wdStickerX+'%';e.style.top=wdStickerY+'%';e.style.fontSize=(Math.round(48*wdStickerScale))+'px';wdStickerLayer.append(e);}
 function wdOptionsShow(items){wdOptions.replaceChildren();items.forEach(([label,fn])=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=fn;wdOptions.append(b);});wdOptions.classList.remove('hidden');}
 document.getElementById('wdLayoutBtn').onclick=()=>wdOptionsShow(wdLayouts.map(v=>[v[0].toUpperCase()+v.slice(1),()=>wdSetLayout(v)]));
-document.getElementById('wdStickerBtn').onclick=()=>wdOptionsShow([...wdStickers.map(v=>[v,()=>{wdSticker=v;wdStickerRefresh();wdOptions.classList.add('hidden');}]),['Remove',()=>{wdSticker='';wdStickerRefresh();wdOptions.classList.add('hidden');}]]);
+document.getElementById('wdStickerBtn').onclick=()=>wdOptionsShow([...wdStickers.map(v=>[v,()=>{wdSticker=v;wdStickerRefresh();wdOptions.classList.add('hidden');}]),...[["Small",0.65],["Medium",1],["Large",1.6]].map(([name,size])=>[name,()=>{wdStickerScale=size;wdStickerRefresh();wdOptions.classList.add('hidden');}]),['Remove',()=>{wdSticker='';wdStickerRefresh();wdOptions.classList.add('hidden');}]]);
 document.getElementById('wdTextStyleBtn').onclick=()=>{wdTextStyle=(wdTextStyle+1)%3;wdStage.dataset.textStyle=String(wdTextStyle);document.getElementById('wdTextStyleBtn').textContent=['Aa Style','Aa Shadow','Aa Highlight'][wdTextStyle];};
 document.getElementById('wdDrawBtn').onclick=()=>{wdDrawing=!wdDrawing;wdResizeDrawing();wdCanvas.classList.toggle('wd-drawing',wdDrawing);document.getElementById('wdDrawBtn').classList.toggle('wd-selected',wdDrawing);};
 document.getElementById('wdResetBtn').onclick=()=>{wdResetEditor();document.getElementById('wdTextStyleBtn').textContent='Aa Style';wdStage.dataset.textStyle='0';};
@@ -2991,7 +3161,7 @@ wdStickerLayer.addEventListener('pointerdown',e=>{if(!wdSticker)return;e.prevent
 wdStickerLayer.addEventListener('pointermove',e=>{if(!wdSticker||!wdStickerLayer.hasPointerCapture(e.pointerId))return;const r=wdStickerLayer.getBoundingClientRect();wdStickerX=Math.max(5,Math.min(95,100*(e.clientX-r.left)/r.width));wdStickerY=Math.max(5,Math.min(95,100*(e.clientY-r.top)/r.height));wdStickerRefresh();});
 function wdPaintLayout(ctx,w,h){const lw=Math.max(7,w*.025);ctx.save();if(wdLayout==='gradient'){const g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,'rgba(235,30,75,.25)');g.addColorStop(1,'rgba(20,10,35,.35)');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);}else if(wdLayout==='polaroid'){ctx.strokeStyle='#fff';ctx.lineWidth=lw;ctx.strokeRect(lw,lw,w-2*lw,h-3*lw);ctx.fillStyle='white';ctx.fillRect(0,h-lw*2,w,lw*2);}else if(wdLayout==='film'){ctx.fillStyle='#121018';ctx.fillRect(0,0,w,lw*2);ctx.fillRect(0,h-lw*2,w,lw*2);ctx.fillStyle='white';for(let x=lw;x<w;x+=lw*2){ctx.fillRect(x,lw*.4,lw, lw*.75);ctx.fillRect(x,h-lw*1.2,lw,lw*.75);}}else if(wdLayout==='torn'){ctx.strokeStyle='#fff';ctx.lineWidth=lw*.65;ctx.setLineDash([lw*1.4,lw*.45,lw*.8,lw*.5]);ctx.strokeRect(lw,lw,w-2*lw,h-2*lw);}else if(wdLayout==='circle'||wdLayout==='heart'){ctx.strokeStyle='#fff';ctx.lineWidth=lw;ctx.beginPath();if(wdLayout==='circle')ctx.ellipse(w/2,h/2,w*.43,Math.min(w*.43,h*.42),0,0,Math.PI*2);else{ctx.moveTo(w*.5,h*.75);ctx.bezierCurveTo(-w*.1,h*.35,w*.2,h*.05,w*.5,h*.3);ctx.bezierCurveTo(w*.8,h*.05,w*1.1,h*.35,w*.5,h*.75);}ctx.stroke();}else if(wdLayout==='minimal'){ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=lw*.3;ctx.strokeRect(lw*1.3,lw*1.3,w-2.6*lw,h-2.6*lw);}ctx.restore();}
 function wdPaintDrawing(ctx,w,h){if(wdHasDrawing&&wdCanvas.width&&wdCanvas.height){const r=wdStage.getBoundingClientRect();const im=document.getElementById('seImage');const scale=Math.min(r.width/im.naturalWidth,r.height/im.naturalHeight);const dw=im.naturalWidth*scale,dh=im.naturalHeight*scale;ctx.drawImage(wdCanvas,-(r.width-dw)/2/dw*w,-(r.height-dh)/2/dh*h,r.width/dw*w,r.height/dh*h);}}
-function wdPaintSticker(ctx,w,h){if(!wdSticker)return;ctx.save();ctx.font=`${Math.round(w*.14)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(wdSticker,w*wdStickerX/100,h*wdStickerY/100);ctx.restore();}
+function wdPaintSticker(ctx,w,h){if(!wdSticker)return;ctx.save();ctx.font=`${Math.round(w*.14*wdStickerScale)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(wdSticker,w*wdStickerX/100,h*wdStickerY/100);ctx.restore();}
 requestAnimationFrame(()=>{if(wdStage)wdResizeDrawing();});
 
 // Wordii reference-inspired controls: existing publishing logic remains unchanged.
@@ -3359,7 +3529,7 @@ document.getElementById("seShare").onclick=e=>act(async()=>{
   });
   document.getElementById('menuCreateGroup').addEventListener('click',()=>{closeMenu();document.getElementById('newGroupBtn').click();});
   document.getElementById('menuMyCode').addEventListener('click',()=>{closeMenu();showTab('connect');document.getElementById('myCode').scrollIntoView({block:'center',behavior:'smooth'});});
-  document.getElementById('menuSettings').addEventListener('click',()=>{closeMenu();openSub('overview');});
+  document.getElementById('menuSettings')?.addEventListener('click',()=>{closeMenu();document.querySelector('[data-tab="profile"]')?.click();});
   document.addEventListener('click',e=>{if(!menu.contains(e.target)&&!menuBtn.contains(e.target))closeMenu();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeMenu();closeSearch();}});
   document.querySelectorAll('.bottom button').forEach(b=>b.addEventListener('click',()=>{closeMenu();closeSearch();}));
@@ -3648,3 +3818,77 @@ for (const [quick, existing] of Object.entries({
     else target.click();
   });
 }
+
+
+// Couple invitations only. Paid badge activation is intentionally NOT implemented.
+function wordiiCouplePair(a,b){return [a,b].sort().join('_');}
+function wordiiCouplePage(){
+  return `<div class="card wd-couple-card"><h3>💞 Couple Connection</h3><p class="tiny">Invite someone only if they want to connect. Either person can disconnect at any time. No paid badge is active yet.</p>
+  <label>Partner's exact username</label><input id="wdCoupleUsername" maxlength="40" placeholder="@username">
+  <button type="button" class="btn" id="wdCoupleInvite">Send invitation</button>
+  <button type="button" class="btn ghost" id="wdCoupleRefresh">Refresh requests</button>
+  <div id="wdCoupleRequests" aria-live="polite"><p class="tiny">Tap Refresh to view invitations.</p></div>
+  <div class="card wd-couple-payment"><h4>💞 Couple Badge · ₹40 per person</h4><p class="tiny">Both partners must accept and each submit their own payment proof after payment verification is enabled.</p><img class="wordii-pay-qr" src="couple-payment-qr.jpg" alt="Wordii Couple Badge QR preview" loading="lazy"><p class="tiny"><b>QR preview only — do not pay yet.</b> Admin verification is not active.</p><label>UTR / Transaction ID</label><input maxlength="45" placeholder="Available after payment activation" disabled><label>Payment screenshot</label><input type="file" accept="image/*" disabled><button type="button" class="btn" disabled>Payment submission coming soon</button><p class="tiny">Badge is granted only after both partners consent and both payments are verified. Disconnecting will remove both badges when the secure badge system is implemented.</p></div></div>`;
+}
+async function wordiiCoupleRefresh(){
+  const box=document.getElementById('wdCoupleRequests');if(!box||!uid)return;
+  box.textContent='Loading…';
+  try{
+    const snap=await getDocs(query(collection(db,'coupleInvites'),where('members','array-contains',uid),limit(40)));
+    if(!document.getElementById('wdCoupleRequests'))return;
+    box.innerHTML=snap.empty?'<p class="tiny">No invitations yet.</p>':snap.docs.map(d=>{
+      const x=d.data(),other=x.members.find(v=>v!==uid);
+      const label=uid===x.from?x.toName:x.fromName;
+      const actions=x.status==='pending'&&x.to===uid?`<button class="btn sm" data-wd-couple-act="accepted" data-pair="${esc(d.id)}">Accept</button> <button class="btn sm ghost" data-wd-couple-act="rejected" data-pair="${esc(d.id)}">Reject</button>`:'';
+      const disconnect=x.status==='accepted'||x.status==='pending'?`<button class="btn sm ghost" data-wd-couple-act="disconnected" data-pair="${esc(d.id)}">Disconnect 💔</button>`:'';
+      return `<div class="card"><b>${esc(label||other)}</b><p class="tiny">${esc(x.status)} · ${x.status==='accepted'?'Connection accepted (badge not active)':'No badge active'}</p>${actions}${disconnect}</div>`;
+    }).join('');
+  }catch(e){box.textContent=friendly(e);}
+}
+async function wordiiCoupleInvite(){
+  const input=document.getElementById('wdCoupleUsername');let name=(input?.value||'').trim().toLowerCase();
+  if(!/^@[a-z0-9_]{3,15}(?:#[0-9]{3})?$/.test(name))throw Error('Enter an exact username, e.g. @example');
+  const found=await getDocs(query(collection(db,'users'),where('username','==',name),limit(2)));
+  if(found.empty)throw Error('Username not found');
+  const target=found.docs[0];if(target.id===uid)throw Error('Cannot invite yourself');
+  const pair=wordiiCouplePair(uid,target.id);
+  await runTransaction(db,async tx=>{
+    const ref=doc(db,'coupleInvites',pair),old=await tx.get(ref);
+    if(old.exists())throw Error('Invitation already exists for this pair');
+    tx.set(ref,{members:[uid,target.id].sort(),from:uid,to:target.id,fromName:me.username,toName:name,status:'pending',createdAt:serverTimestamp()});
+  });
+  toast('Invitation sent');await wordiiCoupleRefresh();
+}
+async function wordiiCoupleAction(pair,status){
+  if(!['accepted','rejected','disconnected'].includes(status))return;
+  if(status==='disconnected'&&!confirm('Disconnect? The connection will end for both people.'))return;
+  await runTransaction(db,async tx=>{
+    const ref=doc(db,'coupleInvites',pair),snap=await tx.get(ref);
+    if(!snap.exists())throw Error('Invitation no longer exists');
+    const d=snap.data();if(!d.members.includes(uid))throw Error('Not a participant');
+    if(status==='accepted'&&(d.to!==uid||d.status!=='pending'))throw Error('Only invited partner can accept');
+    if(status==='rejected'&&(d.to!==uid||d.status!=='pending'))throw Error('Only invited partner can reject');
+    if(status==='disconnected'&&!['pending','accepted'].includes(d.status))throw Error('Already ended');
+    const lockA=doc(db,'couplePartnerLocks',d.from),lockB=doc(db,'couplePartnerLocks',d.to);
+    if(status==='accepted'){
+      const la=await tx.get(lockA),lb=await tx.get(lockB);
+      if(la.exists()||lb.exists())throw Error('One partner is already connected. Disconnect first.');
+      tx.set(lockA,{pairId:pair,partnerUid:d.to});
+      tx.set(lockB,{pairId:pair,partnerUid:d.from});
+    }
+    if(status==='disconnected'&&d.status==='accepted'){
+      const la=await tx.get(lockA),lb=await tx.get(lockB);
+      if(!la.exists()||!lb.exists()||la.data().pairId!==pair||lb.data().pairId!==pair)throw Error('Partner lock mismatch; contact admin.');
+      tx.delete(lockA);tx.delete(lockB);
+    }
+    tx.update(ref,{status,updatedAt:serverTimestamp(),updatedBy:uid});
+  });
+  toast('Connection updated');await wordiiCoupleRefresh();
+}
+document.getElementById('settingsBody')?.addEventListener('click',e=>{
+  if(subKey!=='couple')return;
+  const btn=e.target.closest('#wdCoupleInvite,#wdCoupleRefresh,[data-wd-couple-act]');if(!btn)return;
+  btn.disabled=true;
+  const job=btn.id==='wdCoupleInvite'?wordiiCoupleInvite():btn.id==='wdCoupleRefresh'?wordiiCoupleRefresh():wordiiCoupleAction(btn.dataset.pair,btn.dataset.wdCoupleAct);
+  Promise.resolve(job).catch(e=>toast(String(e.message||e).slice(0,120))).finally(()=>{if(btn.isConnected)btn.disabled=false;});
+});
