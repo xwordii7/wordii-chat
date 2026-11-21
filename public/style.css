@@ -1222,3 +1222,11 @@ html[data-wd-theme="light"] .wd-rewards-hero{background:linear-gradient(145deg,#
 html[data-wd-theme="light"] .wd-rewards-hero-top span,html[data-wd-theme="light"] .wd-rewards-progress-label,html[data-wd-theme="light"] .wd-rewards-hero>p{color:#765564}
 html[data-wd-theme="light"] .wd-rewards-progress-label b{color:#281521}
 @media(max-width:350px){.wd-rewards-hero{padding:17px}.wd-rewards-total strong{font-size:20px}}
+
+/* Wordii v1.6 status actions and in-call multitasking */
+#wordiiStatusMore{position:absolute;right:62px;top:calc(12px + env(safe-area-inset-top));z-index:5;background:#222;color:white;border:1px solid #555;border-radius:50%;width:42px;height:42px;font-size:28px}
+#callUI.wd-call-minimized{inset:auto 12px calc(76px + env(safe-area-inset-bottom)) auto;width:172px;height:218px;border:1px solid #ff405d;border-radius:18px;overflow:hidden;box-shadow:0 5px 30px #0009;z-index:80}
+#callUI.wd-call-minimized #callInfo{margin:10px 0 auto;transform:scale(.7);transform-origin:top center}
+#callUI.wd-call-minimized .call-bar{transform:scale(.65);transform-origin:bottom center;flex-shrink:0}
+#callUI.wd-call-minimized #localVideo{display:none}
+.wd-reply-quote{border-left:3px solid #fa405b;padding:5px 8px;margin:3px 0 6px;background:#ffffff14;border-radius:4px;font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

@@ -128,7 +128,7 @@ onSnapshot(doc(db,'wordiiConfig','botAnnouncement'),snap=>{
   const stamp=data.updatedAt.seconds+'-'+data.updatedAt.nanoseconds;
   if(sessionStorage.getItem('wd-bot-announcement')===stamp)return;
   sessionStorage.setItem('wd-bot-announcement',stamp);
-  toast('📣 Wordii Assistant: '+data.text.slice(0,140));
+  // Announcements are read in the Wordii Assistant conversation, not as startup popups.
 },()=>{});
 onSnapshot(doc(db, "wordiiConfig", "appBranding"), snap => {
   const v = snap.exists() ? snap.data().logo : "";
@@ -694,7 +694,7 @@ let activeChat = null, unsubMsgs = null, msgs = [], msgMap = {}, reveal = {}, de
 let wordiiChatGeneration = 0, wordiiReply = null;
 const wordiiDrafts = new Map();
 function wordiiReplyClear(){wordiiReply=null;const p=document.getElementById("wordiiReplyPreview");if(p){p.textContent="";p.classList.add("hidden");}}
-function wordiiReplyStart(id){const m=msgMap[id];if(!m||!activeChat)return;wordiiReply={id:m.id,chatId:activeChat.id,senderId:m.senderId,preview:m.text?"Message":m.img?"Photo":m.videoPath?"Video":"Voice message"};const p=document.getElementById("wordiiReplyPreview");p.classList.remove("hidden");p.textContent="↩ Reply to "+(m.senderId===uid?"you":"message")+" · "+wordiiReply.preview+"  ✕";document.getElementById("msgInput").focus();}
+function wordiiReplyStart(id){const m=msgMap[id];if(!m||!activeChat)return;wordiiReply={id:m.id,chatId:activeChat.id,senderId:m.senderId,preview:m.text?(decodeMessage(m.text)||"Message").slice(0,100):m.img?"Photo":m.videoPath?"Video":"Voice message"};const p=document.getElementById("wordiiReplyPreview");p.classList.remove("hidden");p.textContent="↩ Reply to "+(m.senderId===uid?"you":"message")+" · "+wordiiReply.preview+"  ✕";document.getElementById("msgInput").focus();}
 document.getElementById("wordiiReplyPreview")?.addEventListener("click",wordiiReplyClear);
 function openChat(c) {
   if (!c) return;
@@ -722,7 +722,7 @@ function renderChatTitle() {
   $("#callBtn").classList.toggle("hidden", !!activeChat.group); $("#vidBtn").classList.toggle("hidden", !!activeChat.group);
   if (activeChat.group) { $("#chatTitle").innerHTML = `<div class="avwrap">${avatarHTML({ username: "@" + activeChat.name, avatar: activeChat.avatar })}</div><span>${esc(activeChat.name)}<br><small class="presence">${activeChat.members.length} members</small></span>`; return; }
   const f = friends[activeChat.members.find((m) => m !== uid)];
-  $("#chatTitle").innerHTML = `${avWithDot(f)}<span>${esc(nameOf(f))}${vb(f)}<br><small class="presence ${isOnline(f) ? "on" : ""}">${esc(presenceText(f))}</small></span>`;
+  $("#chatTitle").innerHTML = `${avWithDot(f)}<span>${esc(nameOf(f))}${vb(f)}<br><small class="presence ${isOnline(f) ? "on" : ""}">${(me?.blockedUsers||[]).includes(f?.uid||activeChat.members.find(m=>m!==uid))?"🚫 Blocked · Unblock from chat menu":esc(presenceText(f))}</small></span>`;
 }
 // Own messages: readable for 10 s only right after you send them.
 // Received messages: readable for 10 s from the moment you first see them, then stars.
@@ -754,7 +754,7 @@ function renderMessages() {
   const box = $("#msgs");
   box.innerHTML = msgs.filter(m=>!wdHiddenIds().has(m.id)).map((m) => {
     const t = m.createdAt?.toDate?.().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) || "";
-    return `<div class="msg ${m.senderId === uid ? "mine" : "theirs"}" data-id="${esc(m.id)}">${m.replyTo?`<div class="wd-reply-quote">↩ Reply to message</div>`:""}${m.reactions && Object.keys(m.reactions).length ? `<div class="wd-reactions">${Object.values(m.reactions).map(x=>esc(x)).join(" ")}</div>` : ""}${activeChat?.group && m.senderId !== uid ? `<small class="sname">${esc(nameOf(person(m.senderId)))}${vb(person(m.senderId))}</small>` : ""}<div class="bubble ${m.img ? "imgmsg" : m.aud ? "audmsg" : m.videoPath ? "videomsg" : ""}"></div><time>${t}${m.senderId === uid && m.seenAt ? " · Seen" : ""}</time></div>`;
+    return `<div class="msg ${m.senderId === uid ? "mine" : "theirs"}" data-id="${esc(m.id)}">${m.replyTo?`<div class="wd-reply-quote">↩ ${esc(nameOf(person(msgMap[m.replyTo]?.senderId) || (msgMap[m.replyTo]?.senderId === uid ? me : null)) || "Message")} · ${esc((msgMap[m.replyTo]?.text ? (decodeMessage(msgMap[m.replyTo].text) || "Message") : msgMap[m.replyTo]?.img ? "📷 Photo" : msgMap[m.replyTo]?.videoPath ? "🎥 Video" : "Message").slice(0,90))}</div>`:""}${m.reactions && Object.keys(m.reactions).length ? `<div class="wd-reactions">${Object.values(m.reactions).map(x=>esc(x)).join(" ")}</div>` : ""}${activeChat?.group && m.senderId !== uid ? `<small class="sname">${esc(nameOf(person(m.senderId)))}${vb(person(m.senderId))}</small>` : ""}<div class="bubble ${m.img ? "imgmsg" : m.aud ? "audmsg" : m.videoPath ? "videomsg" : ""}"></div><time>${t}${m.senderId === uid && m.seenAt ? " · Seen" : ""}</time></div>`;
   }).join("");
   tickMessages();
   wdSelectionSync();
@@ -940,7 +940,7 @@ $("#fileInput").addEventListener("change", (e) => {
       const path=`chat-video/${chatId}/${uid}/${messageId}/clip.${extension}`;
       toast('Uploading video…');
       await uploadBytes(storageRef(getStorage(),path),f,{contentType:f.type});
-      await sendMsg({videoPath:path});
+      await sendMsg({videoPath:path},chatId);
       toast('Video sent');
     } else {
       toast('Sending photo…');
@@ -1074,6 +1074,9 @@ function drawSV() {
   const st = sv.list[sv.i]; if (!st) { closeSV(); return; }
   const owner = st.ownerUid === uid ? me : friends[st.ownerUid];
   $("#svTop").innerHTML = `${avatarHTML(owner)}<div><b>${esc(nameOf(owner))}${vb(owner)}</b><br><small>${esc(ago(stTime(st)))} · ${sv.i + 1}/${sv.list.length}</small></div>`;
+  let options = document.getElementById("wordiiStatusMore");
+  if (!options) { options = document.createElement("button"); options.id="wordiiStatusMore"; options.type="button"; options.textContent="⋮"; options.setAttribute("aria-label","Status options"); document.getElementById("statusView").append(options); }
+  options.classList.toggle("hidden",st.ownerUid!==uid);
   const body = $("#svBody"); body.textContent = "";
   if(st.videoPath){
     body.style.background='#000';
@@ -1082,8 +1085,9 @@ function drawSV() {
     getBlob(storageRef(getStorage(),st.videoPath)).then(blob=>{
       if(sv.list[sv.i]?.id!==expected)return;
       wordiiVideoObjectUrl=URL.createObjectURL(blob);v.src=wordiiVideoObjectUrl;
+      v.onended=()=>{if(sv.list[sv.i]?.id===expected){sv.i++;drawSV();}};
       v.play().catch(()=>{});
-    }).catch(err=>toast('Video unavailable: '+friendly(err)));
+    }).catch(err=>{toast('Video unavailable: '+friendly(err));if(timerToken===wordiiStoryTimerToken){clearTimeout(sv.t);sv.t=setTimeout(()=>{if(timerToken===wordiiStoryTimerToken){sv.i++;drawSV();}},2500);}});
   }
   else if (stIsPhoto(st)) { const im = new Image(); im.src = st.img; im.className = "sv-img"; body.append(im); body.style.background = "#000"; if(st.overlayText){const d=document.createElement("div");d.className="story-view-caption";d.textContent=st.overlayText;d.style.color=/^#[0-9a-fA-F]{6}$/.test(st.overlayColor||"")?st.overlayColor:"#ffffff";body.append(d);} }
   else { body.style.background = ST_BG[st.bg] || ST_BG[0]; const d = document.createElement("div"); d.className = "sv-text"; d.textContent = st.text || ""; body.append(d); }
@@ -1101,6 +1105,13 @@ let wordiiStatusTouch=null;
 $("#statusView").addEventListener("touchstart",e=>{if(e.touches.length===1)wordiiStatusTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};},{passive:true});
 $("#statusView").addEventListener("touchend",e=>{if(!wordiiStatusTouch||!e.changedTouches.length)return;const dy=e.changedTouches[0].clientY-wordiiStatusTouch.y;wordiiStatusTouch=null;const st=sv.list[sv.i];if(dy< -75&&st?.ownerUid===uid)showSeenBy(st).catch(err=>toast(friendly(err)));},{passive:true});
 $("#svClose").onclick = closeSV;
+document.getElementById("statusView").addEventListener("click",async e=>{
+  if(!e.target.closest("#wordiiStatusMore"))return;
+  const st=sv.list[sv.i];if(!st||st.ownerUid!==uid)return;
+  clearTimeout(sv.t);stopWordiiStoryAudio();
+  if(!confirm("Delete this status permanently?")){drawSV();return;}
+  try{await deleteDoc(doc(db,"statuses",st.id));sv.list.splice(sv.i,1);if(sv.i>=sv.list.length)sv.i=0;drawSV();toast("Status deleted");}catch(err){toast(friendly(err));drawSV();}
+});
 
 function drawColors() {
   $("#stPreview").style.background = ST_BG[stBg];
@@ -1155,7 +1166,7 @@ async function sendMsg(payload, targetChatId=activeChat?.id) {
   if(!targetChatId)throw new Error("No chat selected");
   const targetChat=chats.find(c=>c.id===targetChatId)|| (activeChat?.id===targetChatId?activeChat:null);
   if(!targetChat)throw new Error("Chat changed. Try again.");
-  if(!targetChat.group){const other=targetChat.members.find(x=>x!==uid);if((me?.blockedUsers||[]).includes(other))throw new Error("Unblock this contact before sending");}
+  if(!targetChat.group){const other=targetChat.members.find(x=>x!==uid);if((me?.blockedUsers||[]).includes(other))throw new Error("Unblock this contact before sending");if((friends[other]?.blockedUsers||[]).includes(uid))throw new Error("This contact is not accepting your messages");}
 
   const b = writeBatch(db);
   const wordiiMessageRef = doc(collection(db, "chats", targetChatId, "messages"));
@@ -2224,6 +2235,7 @@ function openCallUI(peerId, type, state) {
   watchPerson(peerId);
   const p = person(peerId);
   $("#callUI").className = type === "video" ? "" : "audio";
+  $("#callUI").classList.remove("hidden","wd-call-minimized");
   $("#callAva").innerHTML = avatarHTML(p, true); $("#callName").textContent = nameOf(p);
   $("#cCam").classList.toggle("hidden", type !== "video");
   $("#cMute").textContent = "🎙️"; $("#cCam").textContent = "📷"; setCallState(state);
@@ -2249,7 +2261,7 @@ function endCall(sendEnd, msg) {
   c.stream?.getTracks().forEach((t) => t.stop());
   $("#remoteVideo").srcObject = null; $("#localVideo").srcObject = null;
   if (sendEnd) updateDoc(doc(db, "calls", c.id), { status: c.role === "caller" && !c.connected ? "cancelled" : "ended" }).catch(() => {});
-  setCallState(msg || "Call ended"); setTimeout(() => { if (!call) $("#callUI").classList.add("hidden"); }, 1200);
+  setCallState(msg || "Call ended"); $("#callUI").classList.remove("wd-call-minimized"); setTimeout(() => { if (!call) $("#callUI").classList.add("hidden"); }, 1200);
 }
 function watchCandidates(callId, which, pc, unsubs) {
   unsubs.push(onSnapshot(collection(db, "calls", callId, which), (s) => s.docChanges().forEach((ch) => {
@@ -3350,6 +3362,7 @@ document.getElementById('chatMenuBlock').onclick=e=>act(async()=>{
   if(blocking)ids.add(other);else ids.delete(other);
   me.blockedUsers=[...ids];
   wdBlockLabel();
+  renderChatTitle();
   toast(blocking?'Contact blocked':'Contact unblocked');
 },document.getElementById('chatMenuBlock'));
 document.addEventListener('click',e=>{if(!wdChatMore.contains(e.target)&&!document.getElementById('chatMoreBtn').contains(e.target))wdCloseChatMenu();});
@@ -3492,3 +3505,11 @@ document.getElementById('profile')?.addEventListener('click', e => {
   e.stopImmediatePropagation();
   act(async () => wordiiShowFollowers(uid), b);
 }, true);
+
+// Wordii v1.6: keep a live call running while browsing chats or gallery.
+(function(){
+ const ui=document.getElementById('callUI');if(!ui)return;
+ const bar=ui.querySelector('.call-bar');if(!bar)return;
+ const btn=document.createElement('button');btn.id='wdCallMinimize';btn.className='call-btn';btn.type='button';btn.textContent='↙';btn.title='Browse while calling';btn.setAttribute('aria-label','Minimize call');bar.prepend(btn);
+ btn.onclick=()=>{if(!call)return;ui.classList.toggle('wd-call-minimized');btn.textContent=ui.classList.contains('wd-call-minimized')?'↗':'↙';};
+})();
