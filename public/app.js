@@ -1063,7 +1063,15 @@ $("#tab-status").addEventListener("click", (e) => {
 let sv = { list: [], i: 0, t: null };
 let wordiiStoryTimerToken = 0;
 let wordiiVideoObjectUrl = null;
-function openSV(list, i = 0) { if (!list.length) return; sv = { list, i: Math.max(0,Math.min(i,list.length-1)), t: null }; $("#statusView").classList.remove("hidden"); drawSV(); }
+function openSV(list, i = 0) {
+  if (!list.length) return;
+  clearTimeout(sv.t);
+  wordiiStoryTimerToken++;
+  stopWordiiStoryAudio();
+  sv = { list: [...list], i: Math.max(0, Math.min(i, list.length - 1)), t: null };
+  $("#statusView").classList.remove("hidden");
+  drawSV();
+}
 function wordiiGoStatus(direction=1) {
   if (!sv.list.length || $("#statusView").classList.contains("hidden")) return;
   sv.i += direction;
@@ -1075,7 +1083,10 @@ function wordiiScheduleStatusNext(token, duration) {
   clearTimeout(sv.t);
   sv.t = setTimeout(() => {
     if (token !== wordiiStoryTimerToken || $("#statusView").classList.contains("hidden")) return;
-    if (document.getElementById("seenPanel") && !document.getElementById("seenPanel").classList.contains("hidden")) return;
+    if (document.getElementById("seenPanel") && !document.getElementById("seenPanel").classList.contains("hidden")) {
+      wordiiScheduleStatusNext(token, 1000);
+      return;
+    }
     wordiiGoStatus(1);
   }, duration);
 }
@@ -2859,8 +2870,11 @@ async function playWordiiStoryAudio(st, body) {
   }
   try {
     if (st.musicId) {
-      await wordiiLoadCatalog();
       let track = wordiiTracks.find(t => t.id === st.musicId);
+      if (!track && !/^am_[a-zA-Z0-9]+$/.test(st.musicId)) {
+        await wordiiLoadCatalog();
+        track = wordiiTracks.find(t => t.id === st.musicId);
+      }
       if (/^am_[a-zA-Z0-9]+$/.test(st.musicId)) track = {id:st.musicId, adminClip:true};
       if (!track) return;
       const src = await wordiiCachedAudioSource(track);
