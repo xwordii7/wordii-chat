@@ -42,10 +42,24 @@ service cloud.firestore {
     function chatMembers(chatId) {
       return get(/databases/$(database)/documents/chats/$(chatId)).data.members;
     }
+    function chatNotBlocked(chatId) {
+      let members = chatMembers(chatId);
+      return members.size() != 2 || (
+        !(members[0] in get(/databases/$(database)/documents/users/$(members[1])).data.get('blockedUsers', []))
+        && !(members[1] in get(/databases/$(database)/documents/users/$(members[0])).data.get('blockedUsers', []))
+      );
+    }
 
     // Public plan settings, but only an existing admin can change the price or availability.
     match /wordiiConfig/{configId} {
       allow read: if signedIn();
+      allow create, update: if isAdmin() && configId == 'botWelcome'
+        && request.resource.data.keys().hasOnly(['text','updatedAt','updatedBy'])
+        && request.resource.data.text is string
+        && request.resource.data.text.size() >= 1
+        && request.resource.data.text.size() <= 500
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.updatedBy == request.auth.uid;
       allow create, update: if isAdmin() && configId == 'botAnnouncement'
         && request.resource.data.keys().hasOnly(['text','updatedAt','updatedBy'])
         && request.resource.data.text is string
@@ -114,6 +128,23 @@ service cloud.firestore {
         && request.resource.data.reviewedBy == request.auth.uid
         && request.resource.data.reviewedAt == request.time;
       allow delete: if false;
+    }
+
+    // Admin-created deletion requests. A trusted Admin SDK script must execute them.
+    match /accountDeletionRequests/{targetUid} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin()
+        && request.auth.uid != targetUid
+        && exists(/databases/$(database)/documents/users/$(targetUid))
+        && get(/databases/$(database)/documents/users/$(targetUid)).data.get('admin', false) != true
+        && request.resource.data.keys().hasOnly(['targetUid', 'targetUsername', 'requestedBy', 'requestedAt', 'status'])
+        && request.resource.data.targetUid == targetUid
+        && request.resource.data.targetUsername is string
+        && request.resource.data.targetUsername.size() <= 120
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.requestedAt == request.time
+        && request.resource.data.status == 'pending';
+      allow update, delete: if false;
     }
 
     // One profile per account, created once, never edited.
@@ -449,6 +480,7 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
       // Members may only stamp "last message" info (used for unread dots and notifications).
       allow update: if signedIn() && request.auth.uid in resource.data.members
+        && chatNotBlocked(chatId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastAt', 'lastBy'])
         && request.resource.data.lastBy == request.auth.uid
         && request.resource.data.lastAt == request.time;
@@ -477,22 +509,28 @@ service cloud.firestore {
         allow read: if signedIn() && request.auth.uid in chatMembers(chatId);
         allow create: if signedIn()
           && request.auth.uid in chatMembers(chatId)
-          && request.resource.data.keys().hasOnly(['senderId', 'text', 'img', 'aud', 'dur', 'createdAt', 'replyTo'])
+          && chatNotBlocked(chatId)
+          && request.resource.data.keys().hasOnly(['senderId', 'text', 'img', 'aud', 'dur', 'videoPath', 'createdAt', 'replyTo'])
           && request.resource.data.senderId == request.auth.uid
           && (!('replyTo' in request.resource.data) || (request.resource.data.replyTo is string && request.resource.data.replyTo.size() <= 150))
           && request.resource.data.createdAt == request.time
           && (
-            ('text' in request.resource.data && !('img' in request.resource.data) && !('aud' in request.resource.data)
+            ('text' in request.resource.data && !('img' in request.resource.data) && !('aud' in request.resource.data) && !('videoPath' in request.resource.data)
               && request.resource.data.text is string
               && request.resource.data.text.size() > 0
               && request.resource.data.text.size() <= 8000)
             ||
-            ('img' in request.resource.data && !('text' in request.resource.data) && !('aud' in request.resource.data)
+            ('img' in request.resource.data && !('text' in request.resource.data) && !('aud' in request.resource.data) && !('videoPath' in request.resource.data)
               && request.resource.data.img is string
               && request.resource.data.img.size() > 100
               && request.resource.data.img.size() <= 400000)
             ||
-            ('aud' in request.resource.data && !('text' in request.resource.data) && !('img' in request.resource.data)
+            ('videoPath' in request.resource.data && !('text' in request.resource.data)
+              && !('img' in request.resource.data) && !('aud' in request.resource.data)
+              && request.resource.data.videoPath is string
+              && request.resource.data.videoPath.matches('^chat-video/' + chatId + '/' + request.auth.uid + '/[A-Za-z0-9_-]{1,100}/clip[.](mp4|webm)$'))
+            ||
+            ('aud' in request.resource.data && !('text' in request.resource.data) && !('img' in request.resource.data) && !('videoPath' in request.resource.data)
               && request.resource.data.aud is string
               && request.resource.data.aud.size() > 100
               && request.resource.data.aud.size() <= 400000

@@ -1,11 +1,53 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    // Full-admin music uploads, readable only by signed-in Wordii accounts.
+    match /wordii-admin-music/{fileName} {
+      allow create: if request.auth != null
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('admin', false) == true
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('suspended', false) != true
+        && fileName.matches('^am_[A-Za-z0-9]+[.]mp3$')
+        && request.resource.size > 0
+        && request.resource.size <= 2 * 1024 * 1024
+        && request.resource.contentType == 'audio/mpeg';
+      allow read: if request.auth != null
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('suspended', false) != true;
+      allow delete: if request.auth != null
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('admin', false) == true;
+      allow update: if false;
+    }
+    match /chat-video/{chatId}/{senderId}/{uploadId}/{fileName} {
+      allow create: if request.auth != null && request.auth.uid == senderId
+        && firestore.exists(/databases/(default)/documents/chats/$(chatId))
+        && request.auth.uid in firestore.get(/databases/(default)/documents/chats/$(chatId)).data.members
+        && uploadId.matches('^[A-Za-z0-9_-]{1,100}$')
+        && fileName.matches('^clip[.](mp4|webm)$')
+        && request.resource.size <= 20 * 1024 * 1024
+        && request.resource.contentType.matches('video/(mp4|webm)');
+      allow read: if request.auth != null
+        && firestore.exists(/databases/(default)/documents/chats/$(chatId))
+        && request.auth.uid in firestore.get(/databases/(default)/documents/chats/$(chatId)).data.members;
+      allow update, delete: if false;
+    }
+    match /status-video/{userId}/{statusId}/{fileName} {
+      allow create: if request.auth != null && request.auth.uid == userId
+        && fileName.matches('^clip[.](mp4|webm)$')
+        && request.resource.size <= 20 * 1024 * 1024
+        && request.resource.contentType.matches('video/(mp4|webm)');
+      allow update, delete: if false;
+      allow read: if request.auth != null
+        && firestore.exists(/databases/(default)/documents/statuses/$(statusId))
+        && (firestore.get(/databases/(default)/documents/statuses/$(statusId)).data.ownerUid == request.auth.uid
+          || request.auth.uid in firestore.get(/databases/(default)/documents/statuses/$(statusId)).data.viewers);
+    }
     match /status-audio/{userId}/{statusId}/{fileName} {
       allow create: if request.auth != null && request.auth.uid == userId
         && fileName.matches('^track[.](mp3|m4a|aac|wav)$')
         && request.resource.size <= 8 * 1024 * 1024
-        && request.resource.contentType.matches('audio/(mpeg|mp4|x-m4a|wav|x-wav|aac)');
+        && request.resource.contentType.matches('audio/(mpeg|mp4|x-m4a|wav|x-wav|aac|vnd[.]wave)');
       allow update, delete: if false;
       allow read: if request.auth != null
         && firestore.exists(/databases/(default)/documents/statuses/$(statusId))
