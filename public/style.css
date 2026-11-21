@@ -1253,3 +1253,88 @@ html[data-wd-theme="light"] #tab-profile .wrow {background:#fff!important;border
 /* Wordii Story Studio v1.6 — dark editorial controls */
 #storyEdit{background:#090a0f;color:#fff}#storyEdit .story-edit-head{background:#0d0e15;border-bottom:1px solid #29242d}#storyEdit .story-edit-head b{letter-spacing:.08em}#storyEdit #seShare{background:linear-gradient(120deg,#fa3357,#d5123c);border:0;border-radius:24px;padding:9px 18px;color:white;font-weight:800}
 .wd-editor-actions{display:flex;gap:6px;overflow-x:auto;padding:10px 12px;background:#111118;scrollbar-width:none}.wd-editor-actions button,.wd-editor-options button{flex:none;background:#24242d;border:1px solid #45414d;color:#fff;border-radius:22px;padding:9px 12px;font-size:12px}.wd-editor-actions button.wd-selected{background:#c9234b;border-color:#ff5b78}.wd-editor-options{display:flex;gap:8px;overflow-x:auto;padding:10px;background:#17141e}.wd-editor-options.hidden{display:none}.wd-editor-options button:active{background:#ef345b}.story-edit-preview{position:relative;isolation:isolate;overflow:hidden}#wdDrawLayer,#wdStickerLayer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}#wdDrawLayer.wd-drawing{pointer-events:auto;touch-action:none}#wdStickerLayer{pointer-events:auto;touch-action:none;z-index:6}#seCaption{z-index:7}.wd-sticker{position:absolute;transform:translate(-50%,-50%);font-size:46px;filter:drop-shadow(0 3px 5px #0009);user-select:none}.story-edit-preview[data-text-style="2"] #seCaption{background:#16121bc9;padding:7px 12px;border-radius:8px}.story-edit-preview[data-text-style="1"] #seCaption{text-shadow:0 3px 12px #000,0 0 8px #000}.story-edit-preview[data-layout="gradient"]:after{content:"";position:absolute;inset:0;background:linear-gradient(130deg,#f33a6640,#18112240);pointer-events:none;z-index:2}.story-edit-preview[data-layout="polaroid"]:after{content:"";position:absolute;inset:12px 12px 24px;border:7px solid white;border-bottom-width:20px;pointer-events:none;z-index:2}.story-edit-preview[data-layout="minimal"]:after{content:"";position:absolute;inset:16px;border:2px solid #ffffffba;pointer-events:none;z-index:2}#stMusicPanel{background:#090a10!important}#stMusicPanel .wordii-trim{background:#171923;border-radius:16px;padding:12px;margin:12px 0}#stMusicPanel button.btn{background:#e62b50;color:white;border-radius:22px}
+
+/* WORDII STORY STUDIO - reference-inspired mobile layout, scoped to status screens */
+#wordiiStoryCamera,#storyEdit,#stMusicPanel,#statusView{color-scheme:dark;background:#050507!important;color:#fff!important}
+#wordiiStoryCamera .wsc-top{background:#08080b;padding:calc(env(safe-area-inset-top) + 15px) 18px 15px;font-size:18px;font-weight:800}
+#wordiiStoryCamera .wsc-top span{font-size:19px;letter-spacing:0;text-transform:none}
+#wordiiStoryCamera .wsc-top span:before{content:'Create Status';font-size:20px}
+#wordiiStoryCamera .wsc-top span{font-size:0}
+#wordiiStoryCamera .wsc-view{background:#101014;border-radius:20px;margin:12px;overflow:hidden;min-height:0}
+#wordiiStoryCamera .wsc-tools{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:10px 16px}
+#wordiiStoryCamera .wsc-tools button,#wordiiStoryCamera .wsc-bottom button:not(#wscShutter){border-radius:18px;background:#1b1b20;border:1px solid #303037;padding:15px 8px;color:#fff}
+#wordiiStoryCamera .wsc-bottom{padding:14px 22px calc(env(safe-area-inset-bottom) + 16px)}
+#storyEdit{height:100dvh;overflow-y:auto;overscroll-behavior:contain;padding-bottom:env(safe-area-inset-bottom);display:flex!important;flex-direction:column}
+#storyEdit.hidden{display:none!important}
+#storyEdit .story-edit-head{flex:0 0 auto;background:#09090b!important;border:0!important;padding:12px 16px;min-height:58px}
+#storyEdit .story-edit-head b{font-size:16px;letter-spacing:.02em}
+#storyEdit .story-edit-head #seClose{border-radius:50%;background:#242429;border:0;width:40px;height:40px;padding:0}
+#storyEdit .story-edit-head #seShare{background:#ec1744!important;border-radius:25px!important;padding:12px 19px!important}
+#storyEdit .wd-editor-actions{order:1;flex:0 0 auto;justify-content:space-evenly;gap:4px;padding:8px 8px 12px;background:#09090b!important;overflow-x:auto}
+#storyEdit .wd-editor-actions button{min-width:65px;border-radius:18px!important;padding:10px 8px!important;background:#202025!important;border:1px solid #303037!important;color:#fff;font-size:12px}
+#storyEdit .wd-editor-actions button.wd-selected{background:#d41a42!important}
+#storyEdit .story-edit-preview{order:2;flex:1 1 auto!important;align-self:center;width:min(calc(100vw - 22px),calc((100dvh - 285px)*.5625));max-width:100%;min-height:190px!important;max-height:calc(100dvh - 285px);aspect-ratio:9/16;margin:2px auto 0!important;border-radius:18px!important;background:#141419!important;overflow:hidden}
+#storyEdit .story-edit-preview #seImage{object-fit:contain!important;width:100%;height:100%}
+#storyEdit .wordii-layout-rail{order:3;display:flex;gap:9px;flex:0 0 auto;overflow-x:auto;padding:9px 12px 7px;background:#08080b;scrollbar-width:none}
+#storyEdit .wordii-layout-tile{flex:0 0 65px;display:flex;flex-direction:column;align-items:center;gap:5px;border:0;background:transparent;color:#fff;font-size:11px;padding:0}
+#storyEdit .wordii-layout-thumb{width:54px;height:69px;border:2px solid #44434b;border-radius:9px;background:linear-gradient(155deg,#29213d 10%,#a53d5e 58%,#ffb263 95%);position:relative;overflow:hidden}
+#storyEdit .wordii-layout-tile.active .wordii-layout-thumb{border-color:#f12651;box-shadow:0 0 0 2px #f1265155}
+#storyEdit .wordii-layout-tile[data-layout=polaroid] .wordii-layout-thumb{border:7px solid #f7f3ef;border-bottom-width:13px}
+#storyEdit .wordii-layout-tile[data-layout=film] .wordii-layout-thumb{border-top:8px dashed #f4f4f4;border-bottom:8px dashed #f4f4f4}
+#storyEdit .wordii-layout-tile[data-layout=torn] .wordii-layout-thumb{border:4px dashed #f8f8f8}
+#storyEdit .wordii-layout-tile[data-layout=heart] .wordii-layout-thumb:after{content:'♡';position:absolute;inset:0;text-align:center;line-height:55px;font-size:55px;color:#fff}
+#storyEdit .wordii-layout-tile[data-layout=circle] .wordii-layout-thumb:after{content:'';position:absolute;inset:9px 4px;border:3px solid white;border-radius:50%}
+#storyEdit .wd-editor-options{order:4;flex:0 0 auto;max-height:92px;overflow:auto}
+#storyEdit .story-edit-tools{order:5;flex:0 0 auto;background:#0c0c10!important;border-top:1px solid #24242b;padding:9px 12px!important;max-height:175px;overflow-y:auto}
+#storyEdit .story-edit-tools #seText{padding:10px 12px!important;margin:0!important}
+#storyEdit .story-edit-tools .wordii-size-control{margin:2px 0 8px}
+#storyEdit .story-edit-tools>div{margin:6px 0!important;gap:5px!important;overflow-x:auto}
+#storyEdit .story-edit-tools>div button{white-space:nowrap;padding:8px!important}
+#storyEdit #seNote{display:none!important}
+#stMusicPanel:not(.hidden){padding:calc(env(safe-area-inset-top) + 15px) 16px calc(env(safe-area-inset-bottom) + 20px)!important;background:#050507!important;overflow-y:auto!important}
+#stMusicPanel h2{font-size:22px!important;letter-spacing:-.02em}
+#stMusicPanel #stMusicSearch{background:#1d1d22!important;border:1px solid #34343b!important;border-radius:25px!important;padding:15px!important;color:#fff!important}
+#stMusicPanel .wordii-music-categories,#stMusicPanel .wordii-duration-chips{display:flex;gap:8px;overflow-x:auto;margin:12px 0 16px;scrollbar-width:none}
+#stMusicPanel .wordii-music-categories button,#stMusicPanel .wordii-duration-chips button{flex:0 0 auto;background:#1e1e23;color:#fff;border:0;border-radius:22px;padding:10px 16px;font-weight:700}
+#stMusicPanel .wordii-music-categories button.active,#stMusicPanel .wordii-duration-chips button.active{background:#e91e47}
+#stMusicPanel #stMusicResults{display:flex;flex-direction:column;gap:7px}
+#stMusicPanel #stMusicResults>*,#stMusicPanel #stMusicResults button{border-radius:14px!important}
+#stMusicPanel .wordii-waveform{height:60px;margin:22px 0 8px;border-radius:8px;background:repeating-linear-gradient(90deg,transparent 0 4px,#a6a6b4 4px 7px,transparent 7px 11px);mask-image:linear-gradient(0deg,transparent 0%,#000 28%,#000 72%,transparent 100%);position:relative;opacity:.65}
+#stMusicPanel .wordii-waveform:after{content:'';position:absolute;left:30%;right:30%;top:0;bottom:0;border:2px solid #f12651;border-radius:8px;background:#f1265133}
+#stMusicPanel .wordii-trim{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;background:#121216!important}
+#stMusicPanel .wordii-trim #wordiiMusicPreviewClip{grid-column:1/-1}
+#statusView{background:#050507!important}
+#wordiiStatusProgress{display:flex;gap:4px;padding:calc(env(safe-area-inset-top) + 8px) 10px 0;position:relative;z-index:5;background:#050507}
+#wordiiStatusProgress span{height:3px;flex:1;background:#65656c;border-radius:5px}
+#wordiiStatusProgress span.done,#wordiiStatusProgress span.current{background:#fff}
+#statusView #svBody{flex:1;min-height:0}
+#statusView #svBody .sv-img{width:100%;height:100%;object-fit:contain}
+#statusView #svBar{background:#050507!important;border-top:1px solid #232329;padding-bottom:calc(env(safe-area-inset-bottom) + 14px)}
+@media(max-height:670px){#storyEdit .story-edit-preview{max-height:calc(100dvh - 245px)}#storyEdit .story-edit-tools{max-height:115px}#storyEdit .wordii-layout-thumb{height:54px;width:44px}#storyEdit .wordii-layout-tile{flex-basis:52px}}
+
+/* Wordii Reference Story Studio — black/red, edge-to-edge 9:16 canvas */
+#storyEdit:not(.hidden){background:#050505!important;padding-top:env(safe-area-inset-top);overflow:hidden;display:flex;flex-direction:column}
+#storyEdit .story-edit-head{order:0;flex:0 0 auto;background:#050505;border:0;padding:9px 14px;min-height:54px}
+#storyEdit .story-edit-head b{font-size:15px;letter-spacing:.025em}
+#storyEdit #seShare{border-radius:22px;background:#e91c39;padding:9px 19px}
+#storyEdit .story-edit-preview{order:1;flex:1 1 auto;min-height:0;max-width:calc((100dvh - 190px)*.5625);width:100%;margin:0 auto;border-radius:15px;background:#111;position:relative;overflow:hidden;box-shadow:0 0 0 1px #28242a}
+#storyEdit .story-edit-preview img{object-fit:cover!important}
+#storyEdit .wd-reference-toolbar{order:2;display:flex;justify-content:center;gap:8px;padding:10px 8px 4px;background:#050505;overflow-x:auto;flex:0 0 auto}
+#storyEdit .wd-reference-toolbar button{width:40px;height:40px;flex:0 0 40px;border-radius:50%;border:1px solid #454047;background:#222126e8;color:white;font-size:18px;display:grid;place-items:center}
+#storyEdit .wd-reference-toolbar button:active{background:#e71b3c}
+#storyEdit .wd-editor-actions{order:4;flex:0 0 auto;justify-content:center;padding:4px 8px 6px;background:#050505}
+#storyEdit .wd-editor-actions button{border-radius:14px;background:#1b1b1d;padding:7px 9px;font-size:11px}
+#storyEdit .wordii-layout-rail{order:3;flex:0 0 auto;min-height:0;max-height:105px;overflow-x:auto;background:#050505;padding:5px 8px}
+#storyEdit .wd-editor-options{order:5;flex:0 0 auto;max-height:120px;overflow:auto;background:#101013}
+#storyEdit .story-edit-tools{order:6;flex:0 0 auto;max-height:128px;overflow:auto;padding:6px 12px 10px;background:#08080b}
+#storyEdit .story-edit-tools input#seText{background:#202023;color:#fff;border:1px solid #373039;border-radius:22px;padding:11px 16px}
+#storyEdit .story-edit-tools #seNote{display:none}
+#storyEdit .story-edit-tools .wordii-size-control{margin:0 auto 5px}
+#stMusicPanel:not(.hidden){background:#050507!important;color:#fff!important;padding:calc(env(safe-area-inset-top) + 14px) 17px 24px!important}
+#stMusicPanel h2{font-size:20px;letter-spacing:-.03em}
+#stMusicPanel input,#stMusicPanel select{border-radius:16px!important}
+#stMusicPanel button.btn{border-radius:24px!important}
+#statusView:not(.hidden){background:#000}
+#statusView #svBody{min-height:0}
+#statusView #svBody img.sv-img{object-fit:contain}
+@media(max-height:650px){#storyEdit .story-edit-tools{max-height:75px}#storyEdit .wordii-layout-rail{max-height:70px}#storyEdit .wd-editor-actions{display:none}}

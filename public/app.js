@@ -1099,6 +1099,8 @@ function drawSV() {
   clearTimeout(sv.t);
   document.getElementById("seenPanel")?.classList.add("hidden");
   const st = sv.list[sv.i]; if (!st) { closeSV(); return; }
+  const progress=document.getElementById('wordiiStatusProgress');
+  if(progress){progress.replaceChildren();sv.list.forEach((_,i)=>{const bar=document.createElement('span');bar.className=i<sv.i?'done':i===sv.i?'current':'';progress.append(bar);});}
   const owner = st.ownerUid === uid ? me : friends[st.ownerUid];
   $("#svTop").innerHTML = `${avatarHTML(owner)}<div><b>${esc(nameOf(owner))}${vb(owner)}</b><br><small>${esc(ago(stTime(st)))} · ${sv.i + 1}/${sv.list.length}</small></div>`;
   let options = document.getElementById("wordiiStatusMore");
@@ -2973,7 +2975,7 @@ const wdStickers=["❤️","✨","🔥","🌸","💫","⭐","🎮","🎉","😍"
 const wdStage=document.getElementById("wdEditorStage"),wdCanvas=document.getElementById("wdDrawLayer"),wdStickerLayer=document.getElementById("wdStickerLayer"),wdOptions=document.getElementById("wdEditorOptions");
 function wdResizeDrawing(){const r=wdStage.getBoundingClientRect();if(!r.width||!r.height)return;const old=document.createElement('canvas');old.width=wdCanvas.width;old.height=wdCanvas.height;if(old.width&&old.height)old.getContext('2d').drawImage(wdCanvas,0,0);wdCanvas.width=Math.round(r.width*devicePixelRatio);wdCanvas.height=Math.round(r.height*devicePixelRatio);if(old.width&&old.height)wdCanvas.getContext('2d').drawImage(old,0,0,wdCanvas.width,wdCanvas.height);}
 function wdResetEditor(){wdLayout="classic";wdSticker="";wdStickerX=50;wdStickerY=50;wdTextStyle=0;wdDrawing=false;wdHasDrawing=false;wdOptions?.classList.add('hidden');wdStickerLayer?.replaceChildren();if(wdCanvas){wdCanvas.getContext('2d').clearRect(0,0,wdCanvas.width,wdCanvas.height);wdCanvas.classList.remove('wd-drawing');}wdStage?.setAttribute('data-layout','classic');}
-function wdSetLayout(v){wdLayout=v;wdStage.dataset.layout=v;wdOptions.classList.add('hidden');}
+function wdSetLayout(v){wdLayout=v;wdStage.dataset.layout=v;wdOptions.classList.add('hidden');wordiiUpdateLayoutSelection();}
 function wdStickerRefresh(){wdStickerLayer.replaceChildren();if(!wdSticker)return;const e=document.createElement('span');e.textContent=wdSticker;e.className='wd-sticker';e.style.left=wdStickerX+'%';e.style.top=wdStickerY+'%';wdStickerLayer.append(e);}
 function wdOptionsShow(items){wdOptions.replaceChildren();items.forEach(([label,fn])=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=fn;wdOptions.append(b);});wdOptions.classList.remove('hidden');}
 document.getElementById('wdLayoutBtn').onclick=()=>wdOptionsShow(wdLayouts.map(v=>[v[0].toUpperCase()+v.slice(1),()=>wdSetLayout(v)]));
@@ -2991,6 +2993,36 @@ function wdPaintLayout(ctx,w,h){const lw=Math.max(7,w*.025);ctx.save();if(wdLayo
 function wdPaintDrawing(ctx,w,h){if(wdHasDrawing&&wdCanvas.width&&wdCanvas.height){const r=wdStage.getBoundingClientRect();const im=document.getElementById('seImage');const scale=Math.min(r.width/im.naturalWidth,r.height/im.naturalHeight);const dw=im.naturalWidth*scale,dh=im.naturalHeight*scale;ctx.drawImage(wdCanvas,-(r.width-dw)/2/dw*w,-(r.height-dh)/2/dh*h,r.width/dw*w,r.height/dh*h);}}
 function wdPaintSticker(ctx,w,h){if(!wdSticker)return;ctx.save();ctx.font=`${Math.round(w*.14)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(wdSticker,w*wdStickerX/100,h*wdStickerY/100);ctx.restore();}
 requestAnimationFrame(()=>{if(wdStage)wdResizeDrawing();});
+
+// Wordii reference-inspired controls: existing publishing logic remains unchanged.
+(function wordiiStudioEnhancements(){
+ const rail=document.getElementById('wordiiLayoutRail');
+ if(rail){
+   const names=['Classic','Polaroid','Film','Torn','Heart','Circle','Gradient','Minimal'];
+   rail.replaceChildren();
+   names.forEach((name,i)=>{
+     const b=document.createElement('button');b.type='button';b.className='wordii-layout-tile';
+     b.dataset.layout=wdLayouts[i];
+     const thumb=document.createElement('span');thumb.className='wordii-layout-thumb';
+     const label=document.createElement('small');label.textContent=name;
+     b.append(thumb,label);
+     b.onclick=()=>{wdSetLayout(wdLayouts[i]);wordiiUpdateLayoutSelection();};
+     rail.append(b);
+   });
+ }
+ const chips=document.querySelectorAll('#stMusicPanel [data-duration]');
+ const duration=document.getElementById('wordiiMusicDuration');
+ function updateDuration(){chips.forEach(b=>b.classList.toggle('active',b.dataset.duration===duration.value));}
+ chips.forEach(b=>b.addEventListener('click',()=>{duration.value=b.dataset.duration;duration.dispatchEvent(new Event('change',{bubbles:true}));updateDuration();}));
+ duration.addEventListener('change',updateDuration);updateDuration();
+ document.querySelectorAll('#stMusicPanel [data-music-filter]').forEach(b=>b.addEventListener('click',()=>{
+   document.querySelectorAll('#stMusicPanel [data-music-filter]').forEach(x=>x.classList.toggle('active',x===b));
+   const search=document.getElementById('stMusicSearch');search.value=b.dataset.musicFilter;
+   search.dispatchEvent(new Event('input',{bubbles:true}));
+ }));
+})();
+function wordiiUpdateLayoutSelection(){document.querySelectorAll('#wordiiLayoutRail [data-layout]').forEach(b=>b.classList.toggle('active',b.dataset.layout===wdLayout));}
+wordiiUpdateLayoutSelection();
 
 // Story editor: photo and text are one published status.
 let storyEditImage=null,storyEditColor=0;
@@ -3601,3 +3633,18 @@ document.getElementById('profile')?.addEventListener('click', e => {
  for(const [symbol,label,action] of tools){const b=document.createElement('button');b.type='button';b.innerHTML='<span></span><small></small>';b.querySelector('span').textContent=symbol;b.querySelector('small').textContent=label;b.setAttribute('aria-label',label);b.onclick=action;bar.append(b);}
  head.insertAdjacentElement('afterend',bar);
 })();
+
+
+// Wordii reference-style story toolbar: delegates to existing editor actions.
+for (const [quick, existing] of Object.entries({
+  wdQuickClose:'seClose', wdQuickMusic:'seMusic', wdQuickText:'seText',
+  wdQuickSticker:'wdStickerBtn', wdQuickDraw:'wdDrawBtn',
+  wdQuickEffects:'seEffect', wdQuickLayout:'wdLayoutBtn'
+})) {
+  document.getElementById(quick)?.addEventListener('click', () => {
+    const target = document.getElementById(existing);
+    if (!target) return;
+    if (existing === 'seText') target.focus();
+    else target.click();
+  });
+}
