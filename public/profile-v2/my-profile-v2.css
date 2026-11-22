@@ -294,3 +294,15 @@
 #statusView:not(.hidden){position:fixed!important;inset:0!important;z-index:2147483001!important}
 @media(max-width:360px){#profileView .wd-public-profile-v2{padding-left:13px!important;padding-right:13px!important}#profileView .wd-pv-name-row h2{font-size:22px!important}}
 @media(prefers-reduced-motion:reduce){#profileView .wd-admin-v2{animation:none!important}}
+
+/* WORDII UI FIX: native status-bar inset and image clipping */
+#wordiiMyProfileV2{box-sizing:border-box!important;padding-top:max(env(safe-area-inset-top,0px),28px)!important;}
+#wordiiMyProfileV2 .wmp-head{top:0!important;min-height:56px!important;height:56px!important;box-sizing:border-box!important;isolation:isolate!important;}
+#wordiiMyProfileV2 .wmp-head button{min-width:44px!important;min-height:44px!important;display:grid!important;place-items:center!important;touch-action:manipulation!important;}
+#wordiiMyProfileV2 .wmp-cover{background-size:cover!important;background-position:center!important;background-repeat:no-repeat!important;}
+#wordiiMyProfileV2 .wmp-avatar,#profileView .pv-ava{border-radius:50%!important;overflow:hidden!important;box-sizing:border-box!important;flex-shrink:0!important;}
+#wordiiMyProfileV2 .wmp-avatar img,#profileView .pv-ava img{width:100%!important;height:100%!important;object-fit:cover!important;border-radius:50%!important;display:block!important;}
+#profileView{box-sizing:border-box!important;padding-top:max(env(safe-area-inset-top,0px),28px)!important;}
+#profileView .chat-top{position:relative!important;z-index:8!important;min-height:58px!important;}
+#profileView #pvBack{min-width:48px!important;min-height:48px!important;touch-action:manipulation!important;}
+#wdBannerPreview[hidden]{display:none!important}

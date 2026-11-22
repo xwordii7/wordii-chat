@@ -1560,7 +1560,7 @@ function applyTheme() { const t = pref("theme", "auto"); if (t === "auto") delet
 function applyChatBg() { $("#chat").dataset.bg = pref("chatbg", "0"); }
 applyTheme(); applyChatBg();
 
-const hasBanner = (u) => !!(u?.banner && String(u.banner).startsWith("data:image/jpeg;base64,"));
+const hasBanner = (u) => !!(u?.banner && /^data:image\/(?:jpeg|png|webp);base64,/i.test(String(u.banner)));
 const bannerCss = (u) => (hasBanner(u) ? `linear-gradient(#0006,#000a),url('${esc(u.banner)}') center/cover` : "");
 
 // --- bio + banner ---
@@ -1578,7 +1578,11 @@ document.addEventListener("change", (e) => {
   const f = e.target.files[0]; e.target.value = "";
   if (f) act(async () => {
     const banner = await compress(f, { max: 720, quality: 0.6, limitLen: 90000 });
-    await updateDoc(doc(db, "users", uid), { banner }); toast("Banner updated");
+    await updateDoc(doc(db, "users", uid), { banner });
+    const preview = document.getElementById("wdBannerPreview");
+    if (preview) { preview.src = banner; preview.hidden = false; }
+    if (me) me.banner = banner;
+    toast("Banner updated"); renderProfile();
   });
 });
 
@@ -1694,7 +1698,7 @@ function renderPV() {
     : incoming.some((r) => r.id === id) ? `<button class="btn" data-pv="acc">Accept request</button>`
     : `<button class="btn" data-pv="req">✉️ Send request</button>`;
   const isAdminProfile = u.admin === true;
-  const coverStyle = isAdminProfile ? 'background-image:linear-gradient(0deg,#08050944,#08050900),url("/profile-v2/admin-banner.jpg")' : (hasBanner(u) ? `background:${bannerCss(u)}` : "");
+  const coverStyle = hasBanner(u) ? `background:${bannerCss(u)}` : (isAdminProfile ? "background-image:linear-gradient(0deg,#08050944,#08050900),url('/profile-v2/admin-banner.jpg')" : "");
 
   const profileAvatar = isAdminProfile ? '<img src="/profile-v2/admin-avatar.jpg" alt="Admin avatar">' : avatarHTML(u, true);
 
@@ -2124,7 +2128,7 @@ function renderSettings(force) {
       <div class="card"><b>Your name</b><p class="tiny">Friends see this name. Your @username stays the same.</p><input id="dnInput" maxlength="30" placeholder="Display name" value="${esc(me.displayName || "")}"><button id="saveName" class="btn">Save name</button></div>
       <div class="card"><b>About you</b><p class="tiny">Your bio and banner show when people open your profile.</p>
         <textarea id="bioInput" maxlength="150" placeholder="Write a short bio">${esc(me.bio || "")}</textarea><button id="saveBio" class="btn">Save bio</button>
-        <button id="bannerBtn" class="btn ghost">Change banner</button><input id="bannerInput" type="file" accept="image/*" hidden></div>`,
+        <img id="wdBannerPreview" alt="Banner preview" src="${hasBanner(me) ? esc(me.banner) : (me?.admin === true ? "/profile-v2/admin-banner.jpg" : "")}" style="display:block;width:100%;max-height:175px;object-fit:cover;border-radius:12px;margin:10px 0" ${hasBanner(me) || me?.admin === true ? "" : "hidden"}><button id="bannerBtn" class="btn ghost">Change banner</button><input id="bannerInput" type="file" accept="image/*" hidden></div>`,
     account: () => `<div class="card tiny"><b>${esc(me.username)}</b>${vb(me)}<br>${email ? `Gmail: ${esc(email)} ${u.emailVerified ? "✅ verified" : "⚠️ not verified"}` : "No Gmail added yet."}</div>
       ${u?.isAnonymous
         ? `<div class="card"><b>🔐 Protect your account</b><p class="tiny">Add your Gmail and a password. If you delete the app, change phone or forget your password, you can get this account back.</p>
@@ -3014,6 +3018,9 @@ document.addEventListener("click",e=>{
     for (const id of overlays) {
       if (visible(id)) { document.getElementById(id).classList.add("hidden"); return; }
     }
+    if (visible("storyEdit")) { document.getElementById("seClose")?.click(); return; }
+    if (visible("wdV2Picker")) { document.querySelector("#wdV2Picker .wdv2-head button")?.click(); return; }
+    if (visible("wordiiMyProfileV2")) { document.getElementById("wmpBack")?.click(); return; }
     if (visible("wdLevelScreen")) { document.getElementById("wdLevelBack")?.click(); return; }
     if (visible("callUI")) { document.getElementById("cEnd")?.click(); return; }
     if (visible("picker")) { document.getElementById("pkCancel")?.click(); return; }
