@@ -1631,3 +1631,14 @@ html[data-wd-theme="light"] #tab-profile .wrow {background:#fff!important;border
 .wd15-avatar{width:82px;height:82px;margin:0 auto 12px;display:grid;place-items:center;border-radius:50%;border:2px solid #ff4b80;overflow:hidden;box-shadow:0 0 20px #f45}.wd15-avatar img{width:100%;height:100%;object-fit:cover}
 .wd15-beat{font-size:36px;animation:wdHeartBeat 1.2s ease-in-out infinite}.wd15-code{display:inline-block;border:1px solid #f59;border-radius:30px;padding:10px 20px;overflow-wrap:anywhere;color:#ffd0e0}
 @media(prefers-reduced-motion:reduce){.wd15-hearts,.wd15-beat{animation:none}}
+
+/* Wordii Couple V16: phone-safe animation and readable public code */
+.wd15-overlay{box-sizing:border-box;overflow-y:auto;overflow-x:hidden;align-items:center;max-width:100vw}
+.wd15-stage{box-sizing:border-box;width:min(100%,440px);max-width:100%;min-width:0;padding:46px 14px 26px;overflow-wrap:anywhere}
+.wd15-pair{gap:5px;margin:26px 0;min-width:0}
+.wd15-pair>div{min-width:0;max-width:42%;font-size:clamp(11px,3vw,15px);overflow-wrap:anywhere}
+.wd15-pair .wd15-beat{flex:0 0 12%;font-size:clamp(18px,5vw,32px)}
+.wd15-avatar{width:clamp(55px,18vw,82px);height:clamp(55px,18vw,82px)}
+.wd15-code,.wd14-code,.wd-couple-code{box-sizing:border-box;max-width:100%;min-width:0;overflow-wrap:anywhere;word-break:break-word}
+.wd15-code{font-size:clamp(13px,4vw,18px);padding:10px 12px}
+@media(max-width:360px){.wd15-stage{padding-left:10px;padding-right:10px}.wd15-pair{gap:2px}}
