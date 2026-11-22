@@ -616,3 +616,69 @@
 @keyframes wdStorySpark{to{opacity:.45;transform:translateY(-3px)}}
 @media(prefers-reduced-motion:reduce){#profileView .pv-ava.wd-flame::before,#profileView .pv-ava.wd-flame::after{animation:none!important}}
 @media(max-width:390px){#profileView .wd-pv-level.wd-level-seat .wd-level-character{width:112px!important;height:132px!important;bottom:12px!important}}
+
+/* WORDII PROFILE MOBILE SAFETY FIX START */
+
+/* Keep the profile inside the phone viewport */
+#profileView {
+  width:100%!important;
+  max-width:100vw!important;
+  min-width:0!important;
+  overflow-x:clip!important;
+  box-sizing:border-box!important;
+}
+
+#profileView #pvBody {
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+  overflow-x:clip!important;
+}
+
+/* Prevent oversized banner and profile sections */
+#profileView .pv-banner {
+  width:100%!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+}
+
+#profileView .wd-public-profile-v2,
+#profileView .wd-pv-meta,
+#profileView .wmp-panel {
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+}
+
+/* Keep the level badge and character at intended size */
+#profileView .wd-pv-level.wd-level-seat {
+  flex-shrink:0!important;
+}
+
+#profileView .wd-pv-level.wd-level-seat
+.wd-level-character {
+  max-width:121px!important;
+  max-height:142px!important;
+  object-fit:contain!important;
+}
+
+/* Profile image sizing */
+#profileView .pv-ava img {
+  max-width:100%!important;
+  max-height:100%!important;
+}
+
+/* Prevent long names from widening the screen */
+#profileView .wd-pv-name-row {
+  max-width:100%!important;
+  min-width:0!important;
+}
+
+#profileView .wd-pv-name-row h2 {
+  min-width:0!important;
+  overflow-wrap:anywhere!important;
+}
+
+/* WORDII PROFILE MOBILE SAFETY FIX END */
