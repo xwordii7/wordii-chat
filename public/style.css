@@ -1666,3 +1666,7 @@ html[data-wd-theme="light"] #tab-profile .wrow {background:#fff!important;border
 @keyframes wd17Orbit{0%{transform:rotate(0deg) translateX(80px) rotate(0deg)}100%{transform:rotate(360deg) translateX(80px) rotate(-360deg)}}
 @keyframes wd17Pulse{50%{opacity:.4;transform:scale(1.05)}}
 @media(prefers-reduced-motion:reduce){.wd17-dragon-red,.wd17-dragon-violet,.wd17-spark{animation:none}}
+
+/* V18 profile loading and safe navigation */
+#profileView .wd18-loading{padding:28px 18px;text-align:center;color:#f5dce8;line-height:1.8}
+#profileView .wd18-loading button{margin:12px;padding:10px 18px;border:1px solid #ff416b;border-radius:12px;color:white;background:#401023}
