@@ -1,0 +1,30 @@
+import {getApp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {getAuth} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {getFirestore,collection,doc,getDoc,getDocs,query,where,orderBy,limit,addDoc,setDoc,deleteDoc,serverTimestamp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import {getStorage,ref,uploadBytes,getBlob} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
+const app=getApp(),auth=getAuth(app),db=getFirestore(app),storage=getStorage(app);
+const $=s=>document.querySelector(s);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const panel=()=>$('#wmpPanel');const uid=()=>auth.currentUser?.uid;let posts=[];
+const modal=document.createElement('section');modal.id='wpModal';modal.hidden=true;modal.innerHTML='<button class="wp-close" type="button">← Back</button><div id="wpDetail"></div>';document.body.appendChild(modal);modal.querySelector('.wp-close').onclick=()=>modal.hidden=true;
+async function loadImage(path){try{const blob=await getBlob(ref(storage,path));return URL.createObjectURL(blob)}catch{return ''}}
+async function render(){const el=panel();if(!el||!uid())return;el.textContent='Loading posts…';try{
+ const snap=await getDocs(query(collection(db,'wordiiPosts'),where('ownerUid','==',uid()),limit(40)));
+ posts=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+ const isAdmin=window.wordiiProfileV2Data?.()?.admin===true;
+ el.innerHTML=`<div>${isAdmin?'<button class="wp-seed" type="button">Add 3 reference posts</button>':''}<label class="wp-upload" style="display:inline-block">+ Upload post<input id="wpFile" type="file" accept="image/jpeg,image/png,image/webp" hidden></label></div><div class="wp-grid"></div><p class="wp-empty">${posts.length?'':'No posts yet. Upload your first photo.'}</p>`;
+ el.querySelector('#wpFile').onchange=async e=>{const f=e.target.files?.[0];if(f)await upload(f)};
+ if(isAdmin)el.querySelector('.wp-seed').onclick=seed;
+ const grid=el.querySelector('.wp-grid');for(const p of posts){const button=document.createElement('button');button.className='wp-tile';button.setAttribute('aria-label','Open post');const image=document.createElement('img');image.alt='Post photo';button.appendChild(image);grid.appendChild(button);button.onclick=()=>open(p);image.src=await loadImage(p.imagePath)}
+ }catch(e){el.textContent='Could not load posts: '+e.message}}
+async function upload(file){if(!uid())return alert('Log in first');if(!/^image\/(jpeg|png|webp)$/.test(file.type)||file.size>5*1024*1024)return alert('Use JPEG, PNG or WebP under 5 MB');
+ const el=panel();el.textContent='Uploading…';try{const id=crypto.randomUUID().replace(/-/g,'');const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';const path=`wordii-posts/${uid()}/${id}.${ext}`;await uploadBytes(ref(storage,path),file,{contentType:file.type});await setDoc(doc(db,'wordiiPosts',id),{ownerUid:uid(),imagePath:path,caption:'',createdAt:serverTimestamp()});await render()}catch(e){el.textContent='Upload failed: '+e.message}}
+async function seed(){if(!window.wordiiProfileV2Data?.()?.admin)return;const el=panel();el.textContent='Uploading reference images…';try{for(let i=1;i<=3;i++){const r=await fetch(`profile-v2/post-seeds/post${i}.jpg`);if(!r.ok)throw Error('Seed image missing');const b=await r.blob();await uploadSeed(b,i)}await render()}catch(e){el.textContent='Could not add reference posts: '+e.message}}
+async function uploadSeed(b,i){const id=crypto.randomUUID().replace(/-/g,'');const path=`wordii-posts/${uid()}/${id}.jpg`;await uploadBytes(ref(storage,path),b,{contentType:'image/jpeg'});await setDoc(doc(db,'wordiiPosts',id),{ownerUid:uid(),imagePath:path,caption:`Xwordii · ${i}`,createdAt:serverTimestamp()})}
+async function open(p){modal.hidden=false;const box=$('#wpDetail');box.innerHTML='<p>Loading post…</p>';const img=await loadImage(p.imagePath);box.innerHTML=`<img class="wp-photo" alt="Post" src="${img}"><p>${esc(p.caption)}</p><div><button id="wpLike">♡ Like</button><button id="wpShare">↗ Share</button></div><p id="wpLikes"></p><div class="wp-comments" id="wpComments"></div><form class="wp-comment" id="wpCommentForm"><input maxlength="300" placeholder="Write a comment" required><button type="submit">Send</button></form>`;
+ const likeDoc=doc(db,'wordiiPosts',p.id,'likes',uid());const likes=collection(db,'wordiiPosts',p.id,'likes');const comments=collection(db,'wordiiPosts',p.id,'comments');
+ async function refresh(){const [l,c]=await Promise.all([getDocs(query(likes,limit(100))),getDocs(query(comments,limit(100)))]);$('#wpLikes').textContent=`${l.size} likes`;$('#wpLike').textContent=l.docs.some(x=>x.id===uid())?'♥ Liked':'♡ Like';$('#wpComments').innerHTML=c.docs.sort((a,b)=>(a.data().createdAt?.seconds||0)-(b.data().createdAt?.seconds||0)).map(x=>`<p><b>${esc(x.data().authorName||'User')}:</b> ${esc(x.data().text)}</p>`).join('')||'<p>No comments yet</p>'}
+ $('#wpLike').onclick=async()=>{try{if((await getDoc(likeDoc)).exists())await deleteDoc(likeDoc);else await setDoc(likeDoc,{uid:uid(),createdAt:serverTimestamp()});await refresh()}catch(e){alert(e.message)}};
+ $('#wpShare').onclick=async()=>{const link=`${location.origin}${location.pathname}#post-${p.id}`;try{if(navigator.share)await navigator.share({title:'Wordii Chat post',url:link});else{await navigator.clipboard.writeText(link);alert('Link copied')}}catch(e){if(e.name!=='AbortError')alert('Share failed')}};
+ $('#wpCommentForm').onsubmit=async e=>{e.preventDefault();const input=e.currentTarget.querySelector('input');const t=input.value.trim();if(!t)return;try{await addDoc(comments,{uid:uid(),authorName:window.wordiiProfileV2Data?.()?.name||'User',text:t,createdAt:serverTimestamp()});input.value='';await refresh()}catch(e){alert(e.message)}};try{await refresh()}catch(e){$('#wpLikes').textContent=e.message}
+}
+window.WordiiPosts={render};

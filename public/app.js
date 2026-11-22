@@ -1770,7 +1770,7 @@ function renderPV() {
       <div class="wd-profile-eyebrow">✦ WORDII PROFILE</div>
       <div class="wd-pv-name-row"><h2>${esc(nameOf(u))}${vb(u)}</h2><span class="wd-pv-level wd-level-seat">${isAdminProfile ? '<img class="wd-level-character" src="/profile-v2/admin-level-character.png" alt="Xwordii sitting character">' : ''}<span>✦ Lv. ${Number(u.level) || 1}</span></span></div>
       <div class="wd-pv-badges">
-        ${isAdminProfile ? '<span class="wd-admin-v2"><span class="wd-admin-crest">♛<b>W</b></span><span>ADMIN</span></span>' : ''}
+        ${isAdminProfile ? '<span class="wd-admin-v2"><span class="wd-admin-crest"><img src="/profile-v2/admin-royal-crest.svg" alt="Royal W crest"></span><span>ADMIN</span></span>' : ''}
         ${u.preAdmin===true ? '<span class="wd-preadmin-v2">◆ PRE-ADMIN</span>' : ''}
         ${u.premium===true ? '<span class="wd-premium-v2">✦ PREMIUM</span>' : ''}
         ${u.verified===true ? '<span class="wd-verified-v2">✧ VERIFIED</span>' : ''}
