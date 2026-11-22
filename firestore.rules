@@ -338,12 +338,32 @@ service cloud.firestore {
         && request.resource.data.coupleCode == 'WC-' + (uid < request.resource.data.couplePartnerUid
             ? uid + '_' + request.resource.data.couplePartnerUid
             : request.resource.data.couplePartnerUid + '_' + uid)
+        && getAfter(/databases/$(database)/documents/coupleInvites/$(uid < request.resource.data.couplePartnerUid
+            ? uid + '_' + request.resource.data.couplePartnerUid
+            : request.resource.data.couplePartnerUid + '_' + uid)).data.status == 'accepted'
         && getAfter(/databases/$(database)/documents/coupleOrders/$(uid < request.resource.data.couplePartnerUid
             ? uid + '_' + request.resource.data.couplePartnerUid
             : request.resource.data.couplePartnerUid + '_' + uid)).data.status == 'approved'
         && getAfter(/databases/$(database)/documents/coupleOrders/$(uid < request.resource.data.couplePartnerUid
             ? uid + '_' + request.resource.data.couplePartnerUid
             : request.resource.data.couplePartnerUid + '_' + uid)).data.badgeCode == request.resource.data.coupleCode;
+      // V17: either partner may revoke both badges atomically when ending an accepted invitation.
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coupleCode','couplePartnerUid'])
+        && resource.data.coupleCode is string
+        && resource.data.couplePartnerUid is string
+        && (request.auth.uid == uid || request.auth.uid == resource.data.couplePartnerUid)
+        && request.resource.data.coupleCode == null
+        && request.resource.data.couplePartnerUid == null
+        && resource.data.coupleCode == 'WC-' + (uid < resource.data.couplePartnerUid
+          ? uid + '_' + resource.data.couplePartnerUid
+          : resource.data.couplePartnerUid + '_' + uid)
+        && get(/databases/$(database)/documents/coupleInvites/$(uid < resource.data.couplePartnerUid
+          ? uid + '_' + resource.data.couplePartnerUid
+          : resource.data.couplePartnerUid + '_' + uid)).data.status == 'accepted'
+        && getAfter(/databases/$(database)/documents/coupleInvites/$(uid < resource.data.couplePartnerUid
+          ? uid + '_' + resource.data.couplePartnerUid
+          : resource.data.couplePartnerUid + '_' + uid)).data.status == 'disconnected';
       // Admin can give or remove the blue verified badge of any user.
       allow update: if isAdmin() && request.auth.uid != uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified','premium','preAdmin'])

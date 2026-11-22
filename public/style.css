@@ -1642,3 +1642,27 @@ html[data-wd-theme="light"] #tab-profile .wrow {background:#fff!important;border
 .wd15-code,.wd14-code,.wd-couple-code{box-sizing:border-box;max-width:100%;min-width:0;overflow-wrap:anywhere;word-break:break-word}
 .wd15-code{font-size:clamp(13px,4vw,18px);padding:10px 12px}
 @media(max-width:360px){.wd15-stage{padding-left:10px;padding-right:10px}.wd15-pair{gap:2px}}
+
+/* WORDII V17 DRAGON COUPLE */
+#wdPVFeature>header{position:sticky!important;top:0!important;z-index:20!important;box-sizing:border-box!important;padding-top:calc(env(safe-area-inset-top, 24px) + 12px)!important;min-height:calc(env(safe-area-inset-top, 24px) + 62px)!important;background:#080609!important;display:flex;align-items:center;gap:12px}
+#wdPVFeature>header button{min-width:44px;min-height:44px;flex-shrink:0;border-radius:13px}
+#wdPVFeature main{padding-bottom:calc(env(safe-area-inset-bottom, 12px) + 30px)}
+.wd17-unverified{display:none!important}
+.wmp-couple{max-width:100%;overflow-wrap:anywhere;word-break:break-word}
+.wd17-scene{overflow:hidden;max-width:calc(100vw - 28px);box-sizing:border-box}
+.wd17-dragon{position:relative;height:100px;margin:0 auto -12px;max-width:280px;pointer-events:none;isolation:isolate}
+.wd17-dragon-red,.wd17-dragon-violet{position:absolute;top:8px;left:calc(50% - 22px);font-size:42px;filter:drop-shadow(0 0 12px #ff3158);transform-origin:22px 72px;animation:wd17Orbit 5s linear infinite}
+.wd17-dragon-violet{animation-delay:-2.5s;animation-direction:reverse;filter:drop-shadow(0 0 12px #ad48ff)}
+.wd17-spark{position:absolute;left:0;right:0;bottom:0;color:#ffd07c;letter-spacing:16px;animation:wd17Pulse 1.6s ease-in-out infinite}
+.wd17-shayari{margin:22px auto 8px;padding:18px 10px;border:1px solid #ff4b8a;border-radius:18px;background:linear-gradient(130deg,#310719,#1b092d,#340e17);box-shadow:0 0 20px #f35a5a30;max-width:100%;overflow-wrap:anywhere;text-align:center}
+.wd17-shayari b{color:#ffcf8c}.wd17-shayari p{color:#ffe4ee;line-height:1.7;font-size:clamp(12px,3.6vw,16px)}.wd17-shayari small{color:#d7b3ff}
+.wd17-scene .wd-couple-pair{margin:16px 0;gap:6px}.wd17-scene .wd-couple-avatar{width:clamp(62px,22vw,100px);height:clamp(62px,22vw,100px)}
+.wd17-scene .wd-couple-heart{font-size:clamp(24px,8vw,42px)}
+.wd17-scene .wd-couple-code{max-width:100%;padding:10px 12px;overflow-wrap:anywhere}
+.wd15-overlay{z-index:2147483003!important;box-sizing:border-box;padding-top:calc(env(safe-area-inset-top, 20px) + 14px)!important;padding-bottom:calc(env(safe-area-inset-bottom, 10px) + 14px)!important}
+.wd15-stage{max-height:calc(100dvh - 55px);overflow-y:auto!important}
+.wd15-stage .wd17-dragon{height:88px}.wd15-stage .wd17-shayari{margin-top:18px}
+.wd15-close{z-index:10;min-width:44px;min-height:44px}
+@keyframes wd17Orbit{0%{transform:rotate(0deg) translateX(80px) rotate(0deg)}100%{transform:rotate(360deg) translateX(80px) rotate(-360deg)}}
+@keyframes wd17Pulse{50%{opacity:.4;transform:scale(1.05)}}
+@media(prefers-reduced-motion:reduce){.wd17-dragon-red,.wd17-dragon-violet,.wd17-spark{animation:none}}
