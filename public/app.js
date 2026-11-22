@@ -1160,6 +1160,7 @@ function renderStatus() {
     : `<div class="card center muted">No friend updates right now.</div>`;
   loadStatCounts(mine);
   renderStoryRail();
+  if(pvId && !document.getElementById("profileView")?.classList.contains("hidden")) wdPVRefreshStoryRing();
 }
 $("#tab-status").addEventListener("click", (e) => {
   const del = e.target.closest("[data-del]");
@@ -1971,6 +1972,16 @@ function wdPVTab(tab){
       :'<p class="muted">No visible active statuses.</p>';
   }else panel.textContent="Posts publishing is not enabled yet.";
 }
+function wdPVRefreshStoryRing(){
+  const avatar=document.querySelector("#profileView #pvBody .pv-ava");
+  if(!avatar||!pvId)return;
+  const u=people[pvId]||{};
+  const active=wdPVVisibleStatus(pvId).length>0;
+  const eligible=u.admin===true||u.preAdmin===true||u.premium===true||u.verified===true||!!(u.coupleCode||u.coupleBadgeCode);
+  avatar.classList.toggle("wd-status-active",active);
+  avatar.classList.toggle("wd-flame",active&&eligible);
+  avatar.classList.toggle("wd-flame-admin",active&&u.admin===true);
+}
 function wdPVAvatarSetup(){
   const avatar=$("#pvBody").querySelector(".pv-ava");
   if(!avatar||!pvId)return;
@@ -1978,9 +1989,7 @@ function wdPVAvatarSetup(){
   const hasBadge=!!(u.admin===true||u.preAdmin===true||u.premium===true||
     u.verified===true||u.coupleCode||u.coupleBadgeCode);
   const active=wdPVVisibleStatus(target).length>0;
-  avatar.classList.toggle("wd-status-active",active);
-  avatar.classList.toggle("wd-flame",hasBadge&&active);
-  avatar.classList.toggle("wd-flame-admin",u.admin===true);
+  wdPVRefreshStoryRing();
   let timer,held=false;
   avatar.onpointerdown=e=>{
     if(e.button!==0)return;

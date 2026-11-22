@@ -601,3 +601,18 @@
 #profileView .pv-ava{border:0!important;outline:0!important;box-shadow:none!important;overflow:hidden!important;border-radius:50%!important;padding:0!important;box-sizing:border-box!important;background:transparent!important}
 #profileView .pv-ava img{display:block!important;position:static!important;width:100%!important;height:100%!important;border:0!important;outline:0!important;box-shadow:none!important;border-radius:50%!important;object-fit:cover!important;object-position:center!important;transform:none!important}
 @media(max-width:390px){#profileView .wd-pv-name-row:has(.wd-level-seat){min-height:54px!important;height:54px!important}#profileView .wd-pv-level.wd-level-seat{flex-basis:109px!important;min-width:109px!important;width:109px!important;font-size:14px!important;margin-right:7px!important}#profileView .wd-pv-level.wd-level-seat .wd-level-character{width:104px!important;height:123px!important}#profileView .wd-pv-level.wd-level-seat::before{width:132px!important}}
+
+/* WORDII V7: seated figure, crest alignment, story-only animated avatar ring */
+#profileView .wd-pv-level.wd-level-seat .wd-level-character{width:121px!important;height:142px!important;bottom:12px!important;right:-2px!important}
+#profileView .wd-pv-level.wd-level-seat>span{z-index:1!important}
+#profileView .wd-pv-badges .wd-admin-v2{margin-left:18px!important;padding-left:35px!important;min-width:129px!important;box-sizing:border-box!important}
+#profileView .wd-pv-badges .wd-admin-v2 .wd-admin-crest{left:-23px!important;width:57px!important;height:59px!important}
+#profileView .pv-ava{position:relative!important;isolation:isolate!important;overflow:visible!important;border:0!important;outline:0!important;box-shadow:none!important;filter:none!important;animation:none!important}
+#profileView .pv-ava img{width:100%!important;height:100%!important;clip-path:circle(50% at 50% 50%)!important;border-radius:50%!important;position:relative!important;z-index:1!important}
+#profileView .pv-ava.wd-flame::before{content:""!important;position:absolute!important;inset:-6px!important;border-radius:50%!important;background:conic-gradient(from 0deg,#ffca52,#e97020,#ffcf5c,#ad410f,#ffca52)!important;animation:wdStoryFlameSpin 2.5s linear infinite!important;z-index:0!important;pointer-events:none!important;box-shadow:none!important}
+#profileView .pv-ava.wd-flame::after{content:"✦"!important;position:absolute!important;top:-16px!important;right:0!important;color:#ffcf6d!important;font-size:18px!important;text-shadow:none!important;z-index:2!important;animation:wdStorySpark 1.3s ease-in-out infinite alternate!important;pointer-events:none!important}
+#profileView .pv-ava.wd-flame-admin::before{background:conic-gradient(#ffca52,#e97020,#fbdc83,#a85c1b,#ffca52)!important}
+@keyframes wdStoryFlameSpin{to{transform:rotate(360deg)}}
+@keyframes wdStorySpark{to{opacity:.45;transform:translateY(-3px)}}
+@media(prefers-reduced-motion:reduce){#profileView .pv-ava.wd-flame::before,#profileView .pv-ava.wd-flame::after{animation:none!important}}
+@media(max-width:390px){#profileView .wd-pv-level.wd-level-seat .wd-level-character{width:112px!important;height:132px!important;bottom:12px!important}}
