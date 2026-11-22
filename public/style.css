@@ -1391,3 +1391,218 @@ html[data-wd-theme="light"] #tab-profile .wrow {background:#fff!important;border
 .wd-edit-panel textarea:focus{border-color:#ff4772;box-shadow:0 0 0 3px #ff47721c}
 .wd-edit-count{text-align:right;font-size:12px;color:#b6a9af;margin:7px 1px 16px}
 .wd-edit-actions{display:flex;gap:10px}.wd-edit-actions button{flex:1;border:0;border-radius:13px;padding:13px 9px;font:inherit;font-weight:700;cursor:pointer}.wd-edit-cancel{background:#383039;color:white}.wd-edit-save{background:linear-gradient(110deg,#ff345e,#c91845);color:white}.wd-edit-save:disabled{opacity:.45;cursor:not-allowed}
+
+/* Wordii Profile V2 overlay stacking fix */
+#wdPVAbout,
+#wdPVFeature,
+#wdPVSheet {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+#wdPVAbout,
+#wdPVFeature {
+  background: #080609 !important;
+  overflow-y: auto !important;
+}
+
+/* WORDII COUPLE PROFILE */
+#wdPVFeature .wd-couple-scene {
+  margin: 22px 14px;
+  padding: 35px 14px;
+  text-align: center;
+  border: 1px solid #8c2447;
+  border-radius: 22px;
+  background: radial-gradient(ellipse at top,#401126,#080609 75%);
+  box-shadow: 0 0 28px #ff28532a;
+  color: white;
+}
+.wd-couple-stars {
+  color: #ff759d;
+  letter-spacing: 18px;
+  animation: wdFloat 3s ease-in-out infinite;
+}
+.wd-couple-pair {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin: 30px 0;
+}
+.wd-couple-person {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.wd-couple-person strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+.wd-couple-avatar {
+  width: 100px;
+  height: 100px;
+  border: 2px solid #ff365e;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  box-shadow: 0 0 16px #ff365e;
+  animation: wdCoupleGlow 2s ease-in-out infinite alternate;
+}
+.wd-couple-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.wd-couple-heart {
+  font-size: 42px;
+  color: #ff3972;
+  text-shadow: 0 0 18px #ff3972;
+  animation: wdHeartBeat 1.5s ease-in-out infinite;
+}
+.wd-couple-code {
+  display: inline-block;
+  padding: 12px 24px;
+  border: 1px solid #ff426b;
+  border-radius: 24px;
+  color: #ffb6ca;
+  box-shadow: 0 0 16px #ff365e70;
+  font-weight: bold;
+}
+@keyframes wdHeartBeat {
+  0%,100% {transform:scale(1)}
+  45% {transform:scale(1.2)}
+}
+@keyframes wdCoupleGlow {
+  from {box-shadow:0 0 9px #ff365e}
+  to {box-shadow:0 0 25px #ff365e,0 0 40px #ff365e55}
+}
+@keyframes wdFloat {
+  0%,100% {transform:translateY(0)}
+  50% {transform:translateY(-7px)}
+}
+@media(prefers-reduced-motion:reduce) {
+  .wd-couple-stars,.wd-couple-heart,.wd-couple-avatar {
+    animation:none;
+  }
+}
+
+/* WORDII PROFILE V2 — REFERENCE ALIGNMENT */
+#profileView .wd-public-profile-v2 {
+  text-align: left !important;
+}
+
+#profileView .wd-profile-eyebrow {
+  text-align: left !important;
+  margin-bottom: 8px !important;
+}
+
+#profileView .wd-public-profile-v2 > h2,
+#profileView .wd-public-profile-v2 > .muted,
+#profileView .wd-public-profile-v2 > .presence,
+#profileView .wd-public-profile-v2 > .bio {
+  text-align: left !important;
+}
+
+#profileView .wd-pv-badges {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+}
+
+#profileView .wd-public-profile-v2 > h2 {
+  font-size: 25px !important;
+  margin: 5px 0 8px !important;
+}
+
+#profileView .wd-public-profile-v2 > .muted {
+  margin: 6px 0 !important;
+}
+
+#profileView .wd-public-profile-v2 > .presence {
+  margin: 6px 0 14px !important;
+}
+
+#profileView .wd-public-profile-v2 > .bio {
+  margin: 18px 0 12px !important;
+}
+
+#profileView .wmp-stats,
+#profileView .wd-pv-actions,
+#profileView .wmp-quick,
+#profileView .wmp-tabs {
+  text-align: center !important;
+}
+
+#profileView .pv-ava {
+  margin-left: 20px !important;
+  margin-right: auto !important;
+}
+
+
+/* WORDII PROFILE V2 — DP & STATUS OVERLAY FIX */
+#statusView:not(.hidden) {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483001 !important;
+}
+
+#wdPhotoViewer:not(.hidden) {
+  z-index: 2147483002 !important;
+}
+
+.wd-dp-preview {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483002 !important;
+  background: #000 !important;
+}
+
+#wdPVAbout,
+#wdPVFeature {
+  z-index: 2147483000 !important;
+}
+
+
+/* WORDII ADMIN BADGE V2 */
+.wd-admin-v2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border: 1px solid #ffb348;
+  border-radius: 24px;
+  background: linear-gradient(135deg,#250608,#5c1016,#190609);
+  color: #fff1c9;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 0 10px #ff302d88,
+              inset 0 0 8px #ffb34744;
+  animation: wdAdminPulse 2.4s ease-in-out infinite alternate;
+}
+.wd-admin-v2::before {
+  content: "♛";
+  color: #ffd36b;
+  font-size: 17px;
+  text-shadow: 0 0 8px #ffb22a;
+}
+.wd-admin-v2::after {
+  content: "✦";
+  color: #ffab55;
+  font-size: 12px;
+}
+@keyframes wdAdminPulse {
+  from {box-shadow:0 0 6px #ff302d66}
+  to {box-shadow:0 0 18px #ff302dcc,0 0 8px #ffb34788}
+}
+@media(prefers-reduced-motion:reduce){
+  .wd-admin-v2{animation:none}
+}

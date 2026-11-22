@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged, linkWithCredential, EmailAuthProvider, signInWithEmailAndPassword, signOut, sendEmailVerification, sendPasswordResetEmail, verifyBeforeUpdateEmail, PhoneAuthProvider, RecaptchaVerifier } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, getDocs, runTransaction, getCountFromServer, setDoc, updateDoc, deleteDoc, writeBatch, increment, collection, query, where, orderBy, limit, onSnapshot, addDoc, serverTimestamp, Timestamp, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, getDoc, getDocs, runTransaction, getCountFromServer, setDoc, updateDoc, deleteDoc, writeBatch, increment, collection, query, where, orderBy, limit, startAfter, onSnapshot, addDoc, serverTimestamp, Timestamp, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { getStorage, ref as storageRef, uploadBytes, getBlob } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { encodeMessage, decodeMessage, isSymbolMessage } from "./codec.js";
@@ -610,6 +610,14 @@ function renderProfile() {
   $("#topStats").textContent = `Lv ${me.level || 1} · ${me.points || 0} pts`;
   if (!$("#settings").classList.contains("hidden")) renderSettings();
   const row = (go, icon, title, sub) => `<div class="wrow" data-go="${go}"><div class="wi">${icon}</div><div><b>${title}</b><span>${sub}</span></div></div>`;
+  window.wordiiProfileV2Data = () => ({
+    name:nameOf(me), username:me.username||"", bio:me.bio||"",
+    avatar:me.avatar||"", banner:hasBanner(me)?bannerCss(me):"",
+    admin:me.admin===true, level:me.level||1, points:me.points||0,
+    followers:me.followersCount||0, following:following.size,
+    coupleCode:me.coupleCode||me.coupleBadgeCode||"",
+    online:isOnline(me)
+  });
   $("#profile").innerHTML = `
     <div class="you-top ${hasBanner(me) ? "has-banner" : ""}" ${hasBanner(me) ? `style="background:${bannerCss(me)}"` : ""}>
       <div class="you-icons"><button class="icon" data-go="invite" aria-label="Share">🔗</button><button class="icon" data-go="edit" aria-label="Edit">✏️</button></div>
@@ -620,6 +628,7 @@ function renderProfile() {
       <button type="button" class="btn ghost" data-go="followers">👥 ${me.followersCount || 0} followers · View list</button><p class="tiny">${following.size} following</p>
     </div>
     <div class="wlist">
+      <div class="wrow" id="wordiiMyProfileOpen" role="button" tabindex="0"><div class="wi">👤</div><div><b>My Profile</b><span>View your profile, posts and badges</span></div></div>
       ${row("points", "🏆", "Points & level", `Level ${me.level || 1} · ${me.points || 0} points · 🔥 ${me.streak || 0}`)}
       ${row("edit", "👤", "Edit profile", "Name, bio, logo, banner")}
       ${row("account", "🔑", "Account", auth.currentUser?.isAnonymous ? "Add your Gmail to protect this account" : "Gmail, password, log out")}
@@ -695,6 +704,47 @@ $("#connectBtn").onclick = (e) => act(async () => {
 
 // ---------- chat ----------
 let activeChat = null, unsubMsgs = null, msgs = [], msgMap = {}, reveal = {}, decoded = {};
+let wdHistoryDocs = [], wdHistoryBusy = false, wdHistoryEnd = false;
+let wdHistoryInitial = true;
+function wdMergeHistory(liveDocs) {
+  const all = new Map();
+  for (const d of wdHistoryDocs) all.set(d.id, d);
+  for (const d of liveDocs) all.set(d.id, d);
+  msgs = [...all.values()].map(d => ({id:d.id,...d.data()}))
+    .sort((a,b) => {
+      const at=a.createdAt?.toMillis?.() || 0;
+      const bt=b.createdAt?.toMillis?.() || 0;
+      return at-bt || a.id.localeCompare(b.id);
+    });
+  msgMap = Object.fromEntries(msgs.map(m=>[m.id,m]));
+}
+async function wdLoadOlderMessages() {
+  if (!activeChat || wdHistoryBusy || wdHistoryEnd || !wdHistoryDocs.length) return;
+  wdHistoryBusy = true;
+  const chatId = activeChat.id, generation = wordiiChatGeneration;
+  const box = document.getElementById("msgs");
+  const height = box.scrollHeight, top = box.scrollTop;
+  try {
+    const oldest = wdHistoryDocs[wdHistoryDocs.length-1];
+    const snap = await getDocs(query(
+      collection(db,"chats",chatId,"messages"),
+      orderBy("createdAt","desc"),startAfter(oldest),limit(40)
+    ));
+    if (!activeChat || activeChat.id !== chatId ||
+        generation !== wordiiChatGeneration) return;
+    if (snap.empty || snap.size < 40) wdHistoryEnd = true;
+    wdHistoryDocs.push(...snap.docs);
+    wdMergeHistory([]);
+    processReveals(new Set());
+    renderMessages();
+    box.scrollTop = top + box.scrollHeight-height;
+  } catch(e) { toast(friendly(e)); }
+  finally { wdHistoryBusy = false; }
+}
+document.getElementById("msgs").addEventListener("scroll",function(){
+  if (this.scrollTop < 100) wdLoadOlderMessages();
+});
+
 let wordiiChatGeneration = 0, wordiiReply = null;
 const wordiiDrafts = new Map();
 function wordiiReplyClear(){wordiiReply=null;const p=document.getElementById("wordiiReplyPreview");if(p){p.textContent="";p.classList.add("hidden");}}
@@ -703,6 +753,7 @@ document.getElementById("wordiiReplyPreview")?.addEventListener("click",wordiiRe
 function openChat(c) {
   if (!c) return;
   closeChat(); activeChat = c; reveal = {}; decoded = {}; msgs = []; msgMap = {};
+  wdHistoryDocs=[];wdHistoryBusy=false;wdHistoryEnd=false;wdHistoryInitial=true;
   const generation=++wordiiChatGeneration;
   $("#msgs").replaceChildren();
   $("#msgInput").value=wordiiDrafts.get(c.id)||"";
@@ -711,10 +762,20 @@ function openChat(c) {
   $("#chat").classList.remove("hidden"); renderChatTitle(); updateHideBtn(); startTyping(c);
   unsubMsgs = onSnapshot(query(collection(db, "chats", c.id, "messages"), orderBy("createdAt", "desc"), limit(40)), (s) => {
     if(!activeChat||activeChat.id!==c.id||generation!==wordiiChatGeneration)return;
-    msgs = s.docs.map((d) => ({ id: d.id, ...d.data() })).reverse();
-    msgMap = Object.fromEntries(msgs.map((m) => [m.id, m]));
-    processReveals(new Set(s.docs.filter((d) => d.metadata.hasPendingWrites).map((d) => d.id)));
+    const box=document.getElementById("msgs");
+    const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<100;
+    if(wdHistoryInitial){
+      wdHistoryDocs=s.docs.slice();
+      wdHistoryEnd=s.size<40;
+    }else{
+      const older=wdHistoryDocs.filter(d=>!s.docs.some(x=>x.id===d.id));
+      wdHistoryDocs=[...s.docs,...older];
+    }
+    wdMergeHistory([]);
+    processReveals(new Set(s.docs.filter(d=>d.metadata.hasPendingWrites).map(d=>d.id)));
     renderMessages();
+    if(wdHistoryInitial||nearBottom)box.scrollTop=box.scrollHeight;
+    wdHistoryInitial=false;
   }, (e) => toast(friendly(e)));
 }
 function closeChat() { if(activeChat){wordiiDrafts.set(activeChat.id,$("#msgInput").value);wordiiChatGeneration++;} wordiiReplyClear(); $("#msgs").replaceChildren(); $("#msgInput").value=""; msgs=[];msgMap={}; if(typeof wdSelectionStop === "function")wdSelectionStop(); if (rec) { recCancelled = true; rec.stop(); } if (unsubTyping) unsubTyping(); unsubTyping = null; typingAt = {}; if (unsubMsgs) unsubMsgs(); unsubMsgs = null; activeChat = null; $("#chat").classList.add("hidden"); }
@@ -762,7 +823,7 @@ function renderMessages() {
   }).join("");
   tickMessages();
   wdSelectionSync();
-  box.scrollTop = box.scrollHeight;
+  if (wdHistoryInitial) box.scrollTop = box.scrollHeight;
 }
 const plain = (m) => (decoded[m.id] ??= decodeMessage(m.text) ?? "⚠ unreadable message");
 function tickMessages() {
@@ -1632,13 +1693,261 @@ function renderPV() {
     : outgoing.some((r) => r.id === id) ? `<button class="btn ghost" disabled>Request sent</button>`
     : incoming.some((r) => r.id === id) ? `<button class="btn" data-pv="acc">Accept request</button>`
     : `<button class="btn" data-pv="req">✉️ Send request</button>`;
-  body.innerHTML = `<div class="pv-banner" ${hasBanner(u) ? `style="background:${bannerCss(u)}"` : ""}></div><div class="pv-ava">${avatarHTML(u, true)}</div>
-    <div class="pv-info"><div class="wd-profile-eyebrow">WORDII PROFILE</div><h2>${esc(nameOf(u))}${vb(u)}</h2><p class="muted">${esc(u.username)}</p><p class="presence ${isOnline(u) ? "on" : ""}">${esc(presenceText(u))}</p>
-    ${u.bio ? `<p class="bio">${esc(u.bio)}</p>` : `<p class="tiny">No bio yet.</p>`}
-    <button type="button" class="btn ghost" data-pv="followers">👥 ${u.followersCount || 0} followers · View list</button>
-    <p class="tiny">${u.isPublic ? "🌍 Public account" : "🔒 Private account"}</p>
-    <button class="btn ${isF ? "ghost" : ""}" data-pv="follow">${isF ? "Following ✓" : "Follow"}</button>${msg}</div>`;
+  const isAdminProfile = u.admin === true;
+  const coverStyle = isAdminProfile ? 'background-image:linear-gradient(0deg,#08050944,#08050900),url("/profile-v2/admin-banner.jpg")' : (hasBanner(u) ? `background:${bannerCss(u)}` : "");
+
+  const profileAvatar = isAdminProfile ? '<img src="/profile-v2/admin-avatar.jpg" alt="Admin avatar">' : avatarHTML(u, true);
+
+  const coupleCode = u.coupleCode || u.coupleBadgeCode || "";
+
+  body.innerHTML = `
+    <div class="pv-banner" style="${coverStyle}"></div>
+    <div class="pv-ava">${profileAvatar}</div>
+    <div class="pv-info wd-public-profile-v2">
+      <div class="wd-profile-eyebrow">✦ WORDII PROFILE</div>
+      <div class="wd-pv-name-row"><h2>${esc(nameOf(u))}${vb(u)}</h2><span class="wd-pv-level">✦ Lv. ${Number(u.level) || 1}</span></div>
+      <div class="wd-pv-badges">
+        ${isAdminProfile ? '<span class="wd-admin-v2"><span class="wd-admin-crest">♛<b>W</b></span><span>ADMIN</span></span>' : ''}
+        ${u.preAdmin===true ? '<span class="wd-preadmin-v2">◆ PRE-ADMIN</span>' : ''}
+        ${u.premium===true ? '<span class="wd-premium-v2">✦ PREMIUM</span>' : ''}
+        ${u.verified===true ? '<span class="wd-verified-v2">✧ VERIFIED</span>' : ''}
+      </div>
+      <p class="muted wd-pv-username">${esc(u.username || "")}</p>
+      <p class="presence ${isOnline(u) ? "on" : ""}">${esc(presenceText(u))}</p>
+      ${coupleCode ? `<div class="wmp-couple"><span class="wmp-heart">♡</span> Couple · ${esc(coupleCode)}</div>` : ""}
+      <div class="wmp-stats">
+        <div><b>—</b><small>Posts</small></div>
+        <div><b>${Number(u.followersCount) || 0}</b><small>Followers</small></div>
+        <button type="button" class="wd-pv-stat" data-pv="following"><b id="wdPvFollowingCount">${Number.isFinite(Number(u.followingCount)) ? Number(u.followingCount) : "—"}</b><small>Following</small></button>
+      </div>
+      <div class="wd-pv-actions">
+        <button class="btn ${isF ? "ghost" : ""}" data-pv="follow">${isF ? "Following ✓" : "Follow"}</button>
+        ${msg}
+      </div>
+      <p class="bio">${esc(u.bio || "No bio yet.")}</p>
+      <button type="button" class="btn ghost" data-pv="followers">👥 ${Number(u.followersCount) || 0} followers · View list</button>
+      <p class="tiny wd-pv-privacy">${u.isPublic ? "🌍 Public account" : "🔒 Private account"}</p>
+      <div class="wmp-quick">
+        <button type="button" data-wd-pv-shortcut="badges"><i>♛</i>Badges</button>
+        <button type="button" data-wd-pv-shortcut="level"><i>▥</i>Level</button>
+        <button type="button" data-wd-pv-shortcut="points"><i>◉</i>Points</button>
+        <button type="button" data-wd-pv-shortcut="collection"><i>✦</i>Collection</button>
+        <button type="button" data-wd-pv-shortcut="couple"><i>♡</i>Couple</button>
+      </div>
+      <div class="wmp-tabs">
+        <button class="active" type="button" data-pv-tab="posts">▦ Posts</button>
+        <button type="button" data-pv-tab="status">▷ Status</button>
+        <button type="button" data-pv-tab="about">ⓘ About</button>
+      </div>
+      <div class="wmp-panel">Posts publishing is not enabled yet.</div>
+    </div>`;
+  wdPVFollowingCount(pvId);
+  wdPVAvatarSetup();
 }
+
+async function wdPVFollowingCount(target) {
+  const el=document.getElementById("wdPvFollowingCount");
+  if(!el)return;
+  try {
+    const snap=await getDocs(query(collection(db,"follows"),where("follower","==",target),limit(100)));
+    if(pvId===target && el.isConnected)el.textContent=snap.size===100?"100+":String(snap.size);
+  }catch(err){
+    console.warn("Following count not readable:",err.code||err.message);
+    if(pvId===target && el.isConnected){
+      const saved=people[target]?.followingCount;
+      el.textContent=Number.isFinite(Number(saved)) && saved!=null ? String(saved) : "—";
+      el.title="Following count not available";
+    }
+  }
+}
+async function wdPVFollowingList(target) {
+  const snap=await getDoc(doc(db,"users",target));
+  if(!snap.exists())throw Error("User not found");
+  if(target!==uid && snap.data().isPublic!==true){toast("Following list is private");return;}
+  document.getElementById("wdPVSheet")?.remove();
+  const sheet=document.createElement("div");
+  sheet.id="wdPVSheet";sheet.className="wd-followers-overlay";
+  sheet.innerHTML=`<section class="wd-followers-sheet"><header class="wd-followers-header">
+  <button data-wd-close>←</button><strong>Following</strong></header>
+  <div class="wd-followers-list">Loading…</div></section>`;
+  document.body.appendChild(sheet);
+  sheet.onclick=e=>{
+    if(e.target===sheet||e.target.closest("[data-wd-close]")){sheet.remove();return;}
+    const row=e.target.closest("[data-wd-user]");
+    if(row){const id=row.dataset.wdUser;sheet.remove();if(id!==uid)openProfileView(id);}
+  };
+  const list=sheet.querySelector(".wd-followers-list");
+  try{
+    const q=await getDocs(query(collection(db,"follows"),where("follower","==",target),limit(100)));
+    const users=await Promise.all(q.docs.map(async d=>{
+      const id=d.data().target;
+      if(!id)return null;
+      try{const r=await getDoc(doc(db,"users",id));return r.exists()?{id,u:r.data()}:null;}
+      catch{return null;}
+    }));
+    if(!sheet.isConnected)return;
+    list.innerHTML=users.filter(Boolean).map(({id,u})=>`
+      <button class="wd-follower-row" data-wd-user="${esc(id)}">
+      <span class="wd-follower-avatar">${avatarHTML(u)}</span>
+      <span class="wd-follower-details"><strong>${esc(nameOf(u))}${vb(u)}</strong>
+      <small>${esc(u.username||"")}</small></span></button>`).join("")
+      ||'<p class="wd-followers-empty">Not following anyone yet.</p>';
+  }catch{if(sheet.isConnected)list.textContent="Could not load following.";}
+}
+function wdPVVisibleStatus(target){
+  return feedStatuses.filter(st=>st.ownerUid===target&&stAlive(st));
+}
+
+function wdPVFeaturePage(feature,target) {
+  const u=people[target];
+  if(!u)return;
+  const names={
+    badges:"Badges",level:"Level",
+    points:"Points",collection:"Collection",
+    couple:"Couple Badge"
+  };
+  if(!names[feature])return;
+
+  document.getElementById("wdPVFeature")?.remove();
+  const sheet=document.createElement("section");
+  sheet.id="wdPVFeature";
+  sheet.className="wd-about-full";
+
+  let content="";
+  if(feature==="level"){
+    content=`<div class="wd-about-line"><span>⭐ Current level</span>
+      <b>Level ${Number(u.level)||1}</b></div>`;
+  }else if(feature==="points"){
+    content=`<div class="wd-about-line"><span>◉ Total points</span>
+      <b>${Number(u.points)||0}</b></div>`;
+  }else if(feature==="couple"){
+    const code=u.coupleCode||u.coupleBadgeCode;
+    const partnerId=u.couplePartnerUid||u.couplePartnerId||u.partnerUid;
+    const partner=partnerId ? people[partnerId] : null;
+    const avatar1=avatarHTML(u,true);
+    const avatar2=partner ? avatarHTML(partner,true) : '<span>?</span>';
+    content=code ? `
+      <div class="wd-couple-scene">
+        <div class="wd-couple-stars">✦ · ✧ · ✦</div>
+        <div class="wd-couple-pair">
+          <div class="wd-couple-person">
+            <div class="wd-couple-avatar">${avatar1}</div>
+            <strong>${esc(nameOf(u))}</strong>
+          </div>
+          <div class="wd-couple-heart">♡</div>
+          <div class="wd-couple-person">
+            <div class="wd-couple-avatar">${avatar2}</div>
+            <strong>${partner?esc(nameOf(partner)):"Partner"}</strong>
+          </div>
+        </div>
+        <div class="wd-couple-code">Couple ♡ ${esc(String(code))}</div>
+        <p>Two Accounts · One Connection</p>
+      </div>` :
+      '<div class="wd-about-line">No Couple Badge assigned.</div>';
+  }else if(feature==="badges"){
+    const badges=[];
+    if(u.admin===true)badges.push("👑 Admin");
+    if(u.preAdmin===true)badges.push("🛡️ Pre-Admin");
+    if(u.premium===true)badges.push("💎 Premium");
+    if(u.verified===true)badges.push("☑️ Verified");
+    if(u.coupleCode||u.coupleBadgeCode)badges.push("💞 Couple");
+    content=badges.length
+      ?badges.map(b=>`<div class="wd-about-line">${b}</div>`).join("")
+      :'<div class="wd-about-line">No badges found in profile data.</div>';
+  }else{
+    content='<div class="wd-about-line">No public collection data available.</div>';
+  }
+
+  sheet.innerHTML=`<header>
+    <button type="button" id="wdPVFeatureBack">←</button>
+    <strong>${names[feature]}</strong></header>
+    <main>${content}</main>`;
+  document.body.appendChild(sheet);
+  sheet.querySelector("#wdPVFeatureBack").onclick=()=>sheet.remove();
+}
+
+function wdPVAbout(target){
+  const u=people[target];if(!u)return;
+  document.getElementById("wdPVAbout")?.remove();
+  const sheet=document.createElement("section");
+  sheet.id="wdPVAbout";sheet.className="wd-about-full";
+  const joined=u.createdAt?.toDate?.();
+  const date=joined&&!isNaN(joined.getTime())?
+    joined.toLocaleDateString(undefined,{day:"numeric",month:"long",year:"numeric"}):"Unavailable";
+  const count=Number.isInteger(u.usernameChangeCount)?
+    String(u.usernameChangeCount)+" recorded changes":"History unavailable";
+  sheet.innerHTML=`<header><button id="wdPVAboutBack">←</button><strong>About this account</strong></header>
+  <main>
+  <div class="wd-about-line"><span>📅 Joined</span><b>${esc(date)}</b></div>
+  <div class="wd-about-line"><span>👤 Username</span><b>${esc(u.username||"")}</b></div>
+  <div class="wd-about-line"><span>🔄 Username changes</span><b>${esc(count)}</b></div>
+  <div class="wd-about-line"><span>📝 Bio</span><p>${esc(u.bio||"No bio yet")}</p></div>
+  <div class="wd-about-line"><span>⭐ Level</span><b>${Number(u.level)||1}</b></div>
+  <div class="wd-about-line"><span>🔒 Account</span><b>${u.isPublic?"Public":"Private"}</b></div>
+  </main>`;
+  document.body.appendChild(sheet);
+  sheet.querySelector("#wdPVAboutBack").onclick=()=>sheet.remove();
+}
+function wdPVTab(tab){
+  const body=$("#pvBody"),panel=body.querySelector(".wmp-panel");
+  if(!panel)return;
+  body.querySelectorAll("[data-pv-tab]").forEach(b=>b.classList.toggle("active",b.dataset.pvTab===tab));
+  if(tab==="status"){
+    const list=wdPVVisibleStatus(pvId);
+    panel.innerHTML=list.length?list.map((st,i)=>`
+      <button class="wd-pv-status-item" data-wd-status="${i}">
+      ${thumb(st)}<span>${esc(ago(stTime(st)))}</span></button>`).join("")
+      :'<p class="muted">No visible active statuses.</p>';
+  }else panel.textContent="Posts publishing is not enabled yet.";
+}
+function wdPVAvatarSetup(){
+  const avatar=$("#pvBody").querySelector(".pv-ava");
+  if(!avatar||!pvId)return;
+  const target=pvId,u=people[target];
+  const hasBadge=!!(u.admin===true||u.preAdmin===true||u.premium===true||
+    u.verified===true||u.coupleCode||u.coupleBadgeCode);
+  const active=wdPVVisibleStatus(target).length>0;
+  avatar.classList.toggle("wd-status-active",active);
+  avatar.classList.toggle("wd-flame",hasBadge&&active);
+  avatar.classList.toggle("wd-flame-admin",u.admin===true);
+  let timer,held=false;
+  avatar.onpointerdown=e=>{
+    if(e.button!==0)return;
+    held=false;
+    timer=setTimeout(()=>{
+      held=true;
+      const img=avatar.querySelector("img");
+      if(!img){toast("Profile photo unavailable");return;}
+      const overlay=document.createElement("div");
+      overlay.className="wd-dp-preview";overlay.id="wdDPZoom";
+      overlay.innerHTML='<button aria-label="Close">✕</button><img alt="Profile photo">';
+      overlay.querySelector("img").src=img.src;
+      document.body.appendChild(overlay);
+      overlay.querySelector("button").onclick=()=>overlay.remove();
+      let dist=0,scale=1;
+      const photo=overlay.querySelector("img");
+      photo.addEventListener("touchmove",ev=>{
+        if(ev.touches.length!==2)return;
+        ev.preventDefault();
+        const a=ev.touches[0],b=ev.touches[1];
+        const d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+        if(dist)scale=Math.max(1,Math.min(4,scale*d/dist));
+        dist=d;photo.style.transform=`scale(${scale})`;
+      },{passive:false});
+      photo.addEventListener("touchend",()=>dist=0);
+    },550);
+  };
+  avatar.onpointerup=()=>clearTimeout(timer);
+  avatar.onpointercancel=()=>clearTimeout(timer);
+  avatar.onpointerleave=()=>clearTimeout(timer);
+  avatar.oncontextmenu=e=>e.preventDefault();
+  avatar.onclick=()=>{
+    if(held){held=false;return;}
+    const list=wdPVVisibleStatus(target);
+    if(list.length)openSV(list);else toast("No visible active status");
+  };
+}
+
 $("#pvBack").onclick = closePV;
 $("#chatTitle").addEventListener("click", () => {
   if (!activeChat) return;
@@ -1646,10 +1955,21 @@ $("#chatTitle").addEventListener("click", () => {
   else openProfileView(activeChat.members.find((m) => m !== uid));
 });
 $("#pvBody").addEventListener("click", (e) => {
+  const tab=e.target.closest("[data-pv-tab]");
+  if(tab){if(tab.dataset.pvTab==="about")wdPVAbout(pvId);else wdPVTab(tab.dataset.pvTab);return;}
+  const st=e.target.closest("[data-wd-status]");
+  if(st){openSV(wdPVVisibleStatus(pvId),Number(st.dataset.wdStatus)||0);return;}
+  const shortcut=e.target.closest("[data-wd-pv-shortcut]");
+  if(shortcut){
+    const feature=shortcut.dataset.wdPvShortcut;
+    wdPVFeaturePage(feature,pvId);
+    return;
+  }
   const b = e.target.closest("[data-pv]"); if (!b) return;
   const id = pvId, a = b.dataset.pv;
   act(async () => {
     if (a === "followers") { await wordiiShowFollowers(id); return; }
+    if (a === "following") { await wdPVFollowingList(id); return; }
     if (a === "follow") await toggleFollow(id, following.has(id));
     else if (a === "open") { closePV(); openChat(chats.find((c) => c.id === pairId(id))); }
     else if (a === "msg") { const c = await startPublicChat(id); closePV(); openChat(c); }
@@ -1782,7 +2102,7 @@ function renderSettings(force) {
       <p class="tiny">Real AdMob IDs configured. Earnings begin only if AdMob approves ad serving; no XP rewards yet.</p></div>`,
 
     overview: () => `<div class="wd-settings-overview"><div class="wd-settings-person"><div class="wd-settings-avatar">${avatarHTML(me)}</div><div><strong>${esc(me.displayName || me.username)}</strong><p class="tiny">${esc(me.username)} · Level ${me.level || 1}</p></div></div>
-      ${[['👤','edit','Edit profile','Name, bio, profile photo and banner'],['🏆','points','Points & level','XP, progress and streak'],['🔑','account','Account','Login, email and account security'],['🔒','privacy','Privacy','Online status, public account'],['💬','chats','Chats','Chat wallpaper and theme'],['🎨','appearance','Appearance','Light and dark app theme'],['🔔','notif','Notifications','Message and push alerts'],['🌐','lang','App language','Current language options'],['💎','subs','Subscriptions','Available plans'],['📢','ads','Ad Preferences','Manage ad visibility and frequency'],['🚀','updates','App Updates','Check the app version'],['🤖','assistant','Wordii Assistant','Help, rules and account commands'],...(me?.admin===true ? [['🎨','brand','App Branding','Upload or reset the Wordii logo']] : [])].map(([ico,k,label,desc])=>`<button type="button" class="wd-settings-link" data-wd-settings="${k}"><span class="wd-settings-ico">${ico}</span><span><b>${label}</b><small>${desc}</small></span><span class="wd-settings-arrow">›</span></button>`).join('')}</div>`,
+      ${[['✨','myprofile','My Profile','View your full profile, posts and badges'],['👤','edit','Edit profile','Name, bio, profile photo and banner'],['🏆','points','Points & level','XP, progress and streak'],['🔑','account','Account','Login, email and account security'],['🔒','privacy','Privacy','Online status, public account'],['💬','chats','Chats','Chat wallpaper and theme'],['🎨','appearance','Appearance','Light and dark app theme'],['🔔','notif','Notifications','Message and push alerts'],['🌐','lang','App language','Current language options'],['💎','subs','Subscriptions','Available plans'],['📢','ads','Ad Preferences','Manage ad visibility and frequency'],['🚀','updates','App Updates','Check the app version'],['🤖','assistant','Wordii Assistant','Help, rules and account commands'],...(me?.admin===true ? [['🎨','brand','App Branding','Upload or reset the Wordii logo']] : [])].map(([ico,k,label,desc])=>`<button type="button" class="wd-settings-link" data-wd-settings="${k}"><span class="wd-settings-ico">${ico}</span><span><b>${label}</b><small>${desc}</small></span><span class="wd-settings-arrow">›</span></button>`).join('')}</div>`,
     appearance: () => `<div class="card"><b>App theme</b><p class="tiny">Choose a theme for all screens.</p><select id="setTheme"><option value="dark" ${t==='dark'?'selected':''}>Dark</option><option value="light" ${t==='light'?'selected':''}>Light</option>${canGreenTheme(me) ? `<option value="green" ${t==='green'?'selected':''}>White + Green</option>` : ""}<option value="auto" ${t==='auto'?'selected':''}>System default</option></select></div>`,
     points: () => {
       const points = Math.max(0, Number(me.points) || 0);
@@ -1965,7 +2285,12 @@ $("#settingsBody").addEventListener("click", async (e) => {
         if(newSnap.exists())throw Error("Username is already taken.");
         if(!oldSnap.exists()||oldSnap.data().uid!==uid)throw Error("Old username record missing. Contact support.");
         tx.set(newRef,{uid,createdAt:serverTimestamp()});
-        tx.update(userRef,{username:"@"+key,usernameKey:key});
+        tx.update(userRef,{
+          username:"@"+key,
+          usernameKey:key,
+          usernameChangeCount:increment(1),
+          usernameHistoryTrackingSince:serverTimestamp()
+        });
         tx.delete(oldRef);
       });
       me.username="@"+key;me.usernameKey=key;
@@ -2783,7 +3108,11 @@ async function wordiiBindAdminMusic(){
   await refresh();
 }
 const wordiiEffects = [
-  {name:'Normal',css:'none'}, {name:'Black & White',css:'grayscale(1)'},
+  /* WORDII REFERENCE FILTERS V1 — visual approximations, not Instagram AR imports */
+  {name:'Normal',css:'none'},
+  {name:'Gotham',css:'brightness(.87) contrast(1.28) saturate(.70) sepia(.12)'},
+  {name:'Aesthetic Blur',css:'blur(3px) brightness(.95) saturate(.75) contrast(.96)'},
+  {name:'Black & White',css:'grayscale(1)'},
   {name:'Vintage',css:'sepia(.75) contrast(.92)'}, {name:'Cinematic',css:'contrast(1.22) saturate(.75) brightness(.9)'},
   {name:'Glow',css:'brightness(1.16) saturate(1.35)'}, {name:'Dream Blur',css:'blur(2px) saturate(1.2)'},
   {name:'Warm Sunset',css:'sepia(.25) saturate(1.3) brightness(1.05)'}, {name:'Cool Blue',css:'hue-rotate(15deg) saturate(.85) contrast(1.1)'},
@@ -3144,7 +3473,7 @@ const wdLayouts=["classic","polaroid","film","torn","heart","circle","gradient",
 const wdStickers=["❤️","✨","🔥","🌸","💫","⭐","🎮","🎉","😍","💖","🌙","☁️"];
 const wdStage=document.getElementById("wdEditorStage"),wdCanvas=document.getElementById("wdDrawLayer"),wdStickerLayer=document.getElementById("wdStickerLayer"),wdOptions=document.getElementById("wdEditorOptions");
 function wdResizeDrawing(){const r=wdStage.getBoundingClientRect();if(!r.width||!r.height)return;const old=document.createElement('canvas');old.width=wdCanvas.width;old.height=wdCanvas.height;if(old.width&&old.height)old.getContext('2d').drawImage(wdCanvas,0,0);wdCanvas.width=Math.round(r.width*devicePixelRatio);wdCanvas.height=Math.round(r.height*devicePixelRatio);if(old.width&&old.height)wdCanvas.getContext('2d').drawImage(old,0,0,wdCanvas.width,wdCanvas.height);}
-function wdResetEditor(){wdLayout="classic";wdSticker="";wdStickerX=50;wdStickerY=50;wdStickerScale=1;wdTextStyle=0;wdDrawing=false;wdHasDrawing=false;wdOptions?.classList.add('hidden');wdStickerLayer?.replaceChildren();if(wdCanvas){wdCanvas.getContext('2d').clearRect(0,0,wdCanvas.width,wdCanvas.height);wdCanvas.classList.remove('wd-drawing');}wdStage?.setAttribute('data-layout','classic');}
+function wdResetEditor(){wdPhotoResetLayers();wdLayout="classic";wdSticker="";wdStickerX=50;wdStickerY=50;wdStickerScale=1;wdTextStyle=0;wdDrawing=false;wdHasDrawing=false;wdOptions?.classList.add('hidden');wdStickerLayer?.replaceChildren();if(wdCanvas){wdCanvas.getContext('2d').clearRect(0,0,wdCanvas.width,wdCanvas.height);wdCanvas.classList.remove('wd-drawing');}wdStage?.setAttribute('data-layout','classic');}
 function wdSetLayout(v){wdLayout=v;wdStage.dataset.layout=v;wdOptions.classList.add('hidden');wordiiUpdateLayoutSelection();}
 function wdStickerRefresh(){wdStickerLayer.replaceChildren();if(!wdSticker)return;const e=document.createElement('span');e.textContent=wdSticker;e.className='wd-sticker';e.style.left=wdStickerX+'%';e.style.top=wdStickerY+'%';e.style.fontSize=(Math.round(48*wdStickerScale))+'px';wdStickerLayer.append(e);}
 function wdOptionsShow(items){wdOptions.replaceChildren();items.forEach(([label,fn])=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=fn;wdOptions.append(b);});wdOptions.classList.remove('hidden');}
@@ -3161,6 +3490,69 @@ wdStickerLayer.addEventListener('pointerdown',e=>{if(!wdSticker)return;e.prevent
 wdStickerLayer.addEventListener('pointermove',e=>{if(!wdSticker||!wdStickerLayer.hasPointerCapture(e.pointerId))return;const r=wdStickerLayer.getBoundingClientRect();wdStickerX=Math.max(5,Math.min(95,100*(e.clientX-r.left)/r.width));wdStickerY=Math.max(5,Math.min(95,100*(e.clientY-r.top)/r.height));wdStickerRefresh();});
 function wdPaintLayout(ctx,w,h){const lw=Math.max(7,w*.025);ctx.save();if(wdLayout==='gradient'){const g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,'rgba(235,30,75,.25)');g.addColorStop(1,'rgba(20,10,35,.35)');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);}else if(wdLayout==='polaroid'){ctx.strokeStyle='#fff';ctx.lineWidth=lw;ctx.strokeRect(lw,lw,w-2*lw,h-3*lw);ctx.fillStyle='white';ctx.fillRect(0,h-lw*2,w,lw*2);}else if(wdLayout==='film'){ctx.fillStyle='#121018';ctx.fillRect(0,0,w,lw*2);ctx.fillRect(0,h-lw*2,w,lw*2);ctx.fillStyle='white';for(let x=lw;x<w;x+=lw*2){ctx.fillRect(x,lw*.4,lw, lw*.75);ctx.fillRect(x,h-lw*1.2,lw,lw*.75);}}else if(wdLayout==='torn'){ctx.strokeStyle='#fff';ctx.lineWidth=lw*.65;ctx.setLineDash([lw*1.4,lw*.45,lw*.8,lw*.5]);ctx.strokeRect(lw,lw,w-2*lw,h-2*lw);}else if(wdLayout==='circle'||wdLayout==='heart'){ctx.strokeStyle='#fff';ctx.lineWidth=lw;ctx.beginPath();if(wdLayout==='circle')ctx.ellipse(w/2,h/2,w*.43,Math.min(w*.43,h*.42),0,0,Math.PI*2);else{ctx.moveTo(w*.5,h*.75);ctx.bezierCurveTo(-w*.1,h*.35,w*.2,h*.05,w*.5,h*.3);ctx.bezierCurveTo(w*.8,h*.05,w*1.1,h*.35,w*.5,h*.75);}ctx.stroke();}else if(wdLayout==='minimal'){ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=lw*.3;ctx.strokeRect(lw*1.3,lw*1.3,w-2.6*lw,h-2.6*lw);}ctx.restore();}
 function wdPaintDrawing(ctx,w,h){if(wdHasDrawing&&wdCanvas.width&&wdCanvas.height){const r=wdStage.getBoundingClientRect();const im=document.getElementById('seImage');const scale=Math.min(r.width/im.naturalWidth,r.height/im.naturalHeight);const dw=im.naturalWidth*scale,dh=im.naturalHeight*scale;ctx.drawImage(wdCanvas,-(r.width-dw)/2/dw*w,-(r.height-dh)/2/dh*h,r.width/dw*w,r.height/dh*h);}}
+// WORDII V2 MULTI PHOTO STICKERS - local image layers flattened into published JPEG.
+const wdPhotoLayers=[];
+let wdSelectedPhotoLayer=null;
+const wdPhotoLayerUI=document.createElement('div');
+wdPhotoLayerUI.id='wdPhotoLayerUI';
+wdStage.append(wdPhotoLayerUI);
+const wdPhotoControls=document.createElement('div');
+wdPhotoControls.id='wdPhotoControls';
+wdPhotoControls.innerHTML='<button type="button" data-wd-photo="add">＋ Photo</button><button type="button" data-wd-photo="smaller">−</button><button type="button" data-wd-photo="larger">＋</button><button type="button" data-wd-photo="rotate">↻</button><button type="button" data-wd-photo="front">↑</button><button type="button" data-wd-photo="delete">Delete</button>';
+const wdPhotoInput=document.createElement('input');
+wdPhotoInput.type='file';wdPhotoInput.accept='image/*';wdPhotoInput.multiple=true;wdPhotoInput.hidden=true;
+document.getElementById('storyEdit').append(wdPhotoInput,wdPhotoControls);
+function wdPhotoResetLayers(){wdPhotoLayers.length=0;wdSelectedPhotoLayer=null;wdPhotoLayerUI.replaceChildren();wdPhotoControls.classList.remove('wd-has-selection');}
+function wdPhotoSelectLayer(id){wdSelectedPhotoLayer=id;wdPhotoRenderLayers();}
+function wdPhotoRenderLayers(){
+ wdPhotoLayerUI.replaceChildren();
+ wdPhotoControls.classList.toggle('wd-has-selection',wdSelectedPhotoLayer!==null);
+ for(const layer of wdPhotoLayers){
+  const el=document.createElement('div');el.className='wd-photo-sticker'+(layer.id===wdSelectedPhotoLayer?' wd-active':'');
+  el.style.left=layer.x+'%';el.style.top=layer.y+'%';
+  el.style.width=layer.size+'%';el.style.transform=`translate(-50%,-50%) rotate(${layer.rotation}deg)`;
+  const img=document.createElement('img');img.src=layer.src;img.alt='Photo sticker';img.draggable=false;el.append(img);
+  el.addEventListener('pointerdown',e=>{
+   e.preventDefault();e.stopPropagation();wdSelectedPhotoLayer=layer.id;
+   el.setPointerCapture(e.pointerId);
+   const r=wdStage.getBoundingClientRect();const sx=e.clientX,sy=e.clientY,ox=layer.x,oy=layer.y;
+   const move=ev=>{if(ev.pointerId!==e.pointerId)return;layer.x=Math.max(0,Math.min(100,ox+(ev.clientX-sx)/r.width*100));layer.y=Math.max(0,Math.min(100,oy+(ev.clientY-sy)/r.height*100));el.style.left=layer.x+'%';el.style.top=layer.y+'%';};
+   const end=ev=>{if(ev.pointerId!==e.pointerId)return;el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',end);el.removeEventListener('pointercancel',end);if(el.hasPointerCapture(ev.pointerId))el.releasePointerCapture(ev.pointerId);wdPhotoRenderLayers();};
+   el.addEventListener('pointermove',move);el.addEventListener('pointerup',end);el.addEventListener('pointercancel',end);
+   for(const sibling of wdPhotoLayerUI.children)sibling.classList.remove('wd-active');el.classList.add('wd-active');wdPhotoControls.classList.add('wd-has-selection');
+  });
+  wdPhotoLayerUI.append(el);
+ }
+}
+wdPhotoInput.addEventListener('change',async()=>{
+ for(const file of [...wdPhotoInput.files].slice(0,10)){
+  if(!file.type.startsWith('image/')||file.size>12*1024*1024){alert('Choose an image under 12 MB');continue;}
+  const src=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file);});
+  const layer={id:Date.now()+Math.random(),src,x:50,y:50,size:42,rotation:0};wdPhotoLayers.push(layer);wdSelectedPhotoLayer=layer.id;
+ }
+ wdPhotoInput.value='';wdPhotoRenderLayers();
+});
+wdPhotoControls.addEventListener('click',e=>{
+ const action=e.target.closest('[data-wd-photo]')?.dataset.wdPhoto;if(!action)return;
+ if(action==='add'){wdPhotoInput.click();return;}
+ const i=wdPhotoLayers.findIndex(l=>l.id===wdSelectedPhotoLayer);if(i<0)return;
+ const l=wdPhotoLayers[i];
+ if(action==='smaller')l.size=Math.max(12,l.size-8);
+ if(action==='larger')l.size=Math.min(95,l.size+8);
+ if(action==='rotate')l.rotation=(l.rotation+15)%360;
+ if(action==='front'){wdPhotoLayers.splice(i,1);wdPhotoLayers.push(l);}
+ if(action==='delete'){wdPhotoLayers.splice(i,1);wdSelectedPhotoLayer=null;}
+ wdPhotoRenderLayers();
+});
+async function wdPaintPhotoLayers(ctx,w,h){
+ for(const l of wdPhotoLayers){
+  const img=new Image();img.src=l.src;
+  await img.decode();
+  const targetW=w*l.size/100,targetH=targetW*img.naturalHeight/img.naturalWidth;
+  ctx.save();ctx.translate(w*l.x/100,h*l.y/100);ctx.rotate(l.rotation*Math.PI/180);
+  ctx.drawImage(img,-targetW/2,-targetH/2,targetW,targetH);ctx.restore();
+ }
+}
 function wdPaintSticker(ctx,w,h){if(!wdSticker)return;ctx.save();ctx.font=`${Math.round(w*.14*wdStickerScale)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(wdSticker,w*wdStickerX/100,h*wdStickerY/100);ctx.restore();}
 requestAnimationFrame(()=>{if(wdStage)wdResizeDrawing();});
 
@@ -3196,6 +3588,15 @@ wordiiUpdateLayoutSelection();
 
 // Story editor: photo and text are one published status.
 let storyEditImage=null,storyEditColor=0;
+
+let wdPhotoZoom=1,wdPhotoX=0,wdPhotoY=0;
+function wdPhotoPreview(){
+ const img=document.getElementById("seImage");
+ if(!img)return;
+ img.style.transform=`translate(${wdPhotoX}%,${wdPhotoY}%) scale(${wdPhotoZoom})`;
+ img.style.transformOrigin="center center";
+}
+
 const storyColors=["#ffffff","#ff4864","#ffe36c","#72eaff","#20d6a3","#ffd700","#c4a7ff","#ff9f43","#111111","#f3a6ff","#00ff7f","#ff595e"];
 let wordiiStoryCustomColor=null;
 function wordiiStoryTextColor(){return wordiiStoryCustomColor||storyColors[storyEditColor];}
@@ -3228,7 +3629,7 @@ caption.style.top="50%";
 caption.style.transform="translate(-50%,-50%)";
 caption.style.fontFamily="Arial";
 document.getElementById("seFont").value="Arial";
-storyEditImage=img;storyEditColor=0;wordiiStoryCustomColor=null;wordiiCloseColorPanel();wordiiEffect=0;document.getElementById("seImage").style.filter="none";document.getElementById("seImage").src=img;document.getElementById("seText").value="";document.getElementById("storyEdit").classList.remove("hidden");
+wdPhotoZoom=1;wdPhotoX=0;wdPhotoY=0;wdPhotoPreview();storyEditImage=img;storyEditColor=0;wordiiStoryCustomColor=null;wordiiCloseColorPanel();wordiiEffect=0;document.getElementById("seImage").style.filter="none";document.getElementById("seImage").src=img;document.getElementById("seText").value="";document.getElementById("storyEdit").classList.remove("hidden");
 storyEditRefresh();
 requestAnimationFrame(() => {
   const preview = document.querySelector(".story-edit-preview");
@@ -3259,49 +3660,6 @@ document.getElementById("seColor").onclick=wordiiOpenColorPanel;
 /* WORDII STORY TEXT ZOOM V1 */
 let wordiiTextSize = 32;
 
-/* WORDII PINCH TEXT ZOOM V1 */
-{
-  const caption = document.getElementById("seCaption");
-  const slider = document.getElementById("seTextSize");
-  const touches = new Map();
-  let initialDistance = 0;
-  let initialSize = 32;
-
-  caption.addEventListener("pointerdown", e => {
-    if (e.pointerType !== "touch" || !caption.textContent.trim()) return;
-    touches.set(e.pointerId, {x:e.clientX, y:e.clientY});
-    if (touches.size === 2) {
-      const [a,b] = [...touches.values()];
-      initialDistance = Math.hypot(a.x-b.x, a.y-b.y);
-      initialSize = wordiiTextSize;
-    }
-  });
-
-  caption.addEventListener("pointermove", e => {
-    if (!touches.has(e.pointerId)) return;
-    touches.set(e.pointerId, {x:e.clientX, y:e.clientY});
-    if (touches.size !== 2 || initialDistance <= 0) return;
-
-    const [a,b] = [...touches.values()];
-    const distance = Math.hypot(a.x-b.x, a.y-b.y);
-    wordiiTextSize = Math.max(16, Math.min(64,
-      Math.round(initialSize * distance / initialDistance)
-    ));
-
-    caption.style.fontSize = wordiiTextSize + "px";
-    if (slider) slider.value = wordiiTextSize;
-  });
-
-  const end = e => {
-    touches.delete(e.pointerId);
-    if (touches.size < 2) initialDistance = 0;
-  };
-
-  caption.addEventListener("pointerup", end);
-  caption.addEventListener("pointercancel", end);
-}
-
-
 const wordiiSizeSlider = document.getElementById("seTextSize");
 
 if (wordiiSizeSlider) {
@@ -3329,49 +3687,125 @@ wordiiFontSelect.addEventListener("change", () => {
 wordiiCaption.style.pointerEvents = "auto";
 wordiiCaption.style.touchAction = "none";
 
-wordiiCaption.addEventListener("pointerdown", e => {
-  if (!wordiiCaption.textContent.trim()) return;
+
+const wdTextPointers=new Map();
+let wdTextStartDistance=0;
+let wdTextStartSize=32;
+
+wordiiCaption.addEventListener("pointerdown",e=>{
+ if(!wordiiCaption.textContent.trim())return;
+ e.preventDefault();
+ wordiiCaption.setPointerCapture(e.pointerId);
+ wdTextPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ if(wdTextPointers.size===2){
+  const [a,b]=[...wdTextPointers.values()];
+  wdTextStartDistance=Math.hypot(a.x-b.x,a.y-b.y);
+  wdTextStartSize=wordiiTextSize;
+ }
+});
+
+wordiiCaption.addEventListener("pointermove",e=>{
+ if(!wdTextPointers.has(e.pointerId))return;
+ e.preventDefault();
+ wdTextPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ const r=wordiiPreview.getBoundingClientRect();
+
+ if(wdTextPointers.size===2 && wdTextStartDistance>0){
+  const [a,b]=[...wdTextPointers.values()];
+  const distance=Math.hypot(a.x-b.x,a.y-b.y);
+  wordiiTextSize=Math.max(16,Math.min(120,
+   Math.round(wdTextStartSize*distance/wdTextStartDistance)));
+  wordiiCaption.style.fontSize=wordiiTextSize+"px";
+  const slider=document.getElementById("seTextSize");
+  if(slider)slider.value=wordiiTextSize;
+ }else if(wdTextPointers.size===1){
+  wordiiTextX=Math.max(5,Math.min(95,
+   (e.clientX-r.left)/r.width*100));
+  wordiiTextY=Math.max(5,Math.min(95,
+   (e.clientY-r.top)/r.height*100));
+  wordiiCaption.style.left=wordiiTextX+"%";
+  wordiiCaption.style.top=wordiiTextY+"%";
+  wordiiCaption.style.transform="translate(-50%,-50%)";
+ }
+});
+
+function wdEndTextPointer(e){
+ wdTextPointers.delete(e.pointerId);
+ if(wordiiCaption.hasPointerCapture(e.pointerId))
+  wordiiCaption.releasePointerCapture(e.pointerId);
+ if(wdTextPointers.size<2)wdTextStartDistance=0;
+}
+wordiiCaption.addEventListener("pointerup",wdEndTextPointer);
+wordiiCaption.addEventListener("pointercancel",wdEndTextPointer);
+
+
+(function wdPhotoGestures(){
+ const img=document.getElementById("seImage");
+ const pointers=new Map();
+ let startDistance=0,startZoom=1;
+ let lastX=0,lastY=0;
+
+ img.style.touchAction="none";
+ img.addEventListener("pointerdown",e=>{
   e.preventDefault();
-  wordiiCaption.setPointerCapture(e.pointerId);
-});
-
-wordiiCaption.addEventListener("pointermove", e => {
-  if (!wordiiCaption.hasPointerCapture(e.pointerId)) return;
-  const r = wordiiPreview.getBoundingClientRect();
-  const im = document.getElementById("seImage");
-  const scale = Math.min(r.width / im.naturalWidth, r.height / im.naturalHeight);
-  const w = im.naturalWidth * scale;
-  const h = im.naturalHeight * scale;
-  const left = r.left + (r.width - w) / 2;
-  const top = r.top + (r.height - h) / 2;
-  wordiiTextX = Math.max(10, Math.min(90, (e.clientX-left)/w*100));
-  wordiiTextY = Math.max(10, Math.min(90, (e.clientY-top)/h*100));
-  const previewX = (left - r.left + w * wordiiTextX / 100) / r.width * 100;
-  const previewY = (top - r.top + h * wordiiTextY / 100) / r.height * 100;
-  wordiiCaption.style.left = (previewX * r.width / 100) + "px";
-  wordiiCaption.style.top = (previewY * r.height / 100) + "px";
-  wordiiCaption.style.transform = "translate(-50%, -50%)";
-});
-
-wordiiCaption.addEventListener("pointerup", e => {
-  if (wordiiCaption.hasPointerCapture(e.pointerId))
-    wordiiCaption.releasePointerCapture(e.pointerId);
-});
+  img.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  lastX=e.clientX;lastY=e.clientY;
+  if(pointers.size===2){
+   const [a,b]=[...pointers.values()];
+   startDistance=Math.hypot(a.x-b.x,a.y-b.y);
+   startZoom=wdPhotoZoom;
+  }
+ });
+ img.addEventListener("pointermove",e=>{
+  if(!pointers.has(e.pointerId))return;
+  e.preventDefault();
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===2 && startDistance>0){
+   const [a,b]=[...pointers.values()];
+   wdPhotoZoom=Math.max(1,Math.min(4,
+    startZoom*Math.hypot(a.x-b.x,a.y-b.y)/startDistance));
+  }else if(pointers.size===1){
+   const r=img.getBoundingClientRect();
+   wdPhotoX+=(e.clientX-lastX)/Math.max(1,r.width)*100;
+   wdPhotoY+=(e.clientY-lastY)/Math.max(1,r.height)*100;
+   wdPhotoX=Math.max(-100,Math.min(100,wdPhotoX));
+   wdPhotoY=Math.max(-100,Math.min(100,wdPhotoY));
+   lastX=e.clientX;lastY=e.clientY;
+  }
+  wdPhotoPreview();
+ });
+ const end=e=>{
+  pointers.delete(e.pointerId);
+  if(img.hasPointerCapture(e.pointerId))
+   img.releasePointerCapture(e.pointerId);
+  if(pointers.size<2)startDistance=0;
+ };
+ img.addEventListener("pointerup",end);
+ img.addEventListener("pointercancel",end);
+})();
 
 document.getElementById("seMusic").onclick=wordiiOpenMusic;
 document.getElementById("seEffect").onclick=wordiiOpenEffects;
 // Render the caption into the JPEG itself: existing Firestore rules only allow
 // ownerUid, viewers, img, close, mentions, via, createdAt for photo stories.
 async function storyPhotoWithCaption(src, caption, color, effectCss="none") {
-  if (!caption && effectCss === "none" && !wordiiSelectedMusic && wdLayout === "classic" && !wdSticker && !wdHasDrawing) return src;
+  if (!caption && effectCss === "none" && !wordiiSelectedMusic && wdLayout === "classic" && !wdSticker && !wdHasDrawing && !wdPhotoLayers.length && wdPhotoZoom===1 && wdPhotoX===0 && wdPhotoY===0) return src;
   const im = new Image();
   await new Promise((resolve, reject) => { im.onload = resolve; im.onerror = reject; im.src = src; });
   const canvas = document.createElement('canvas');
   canvas.width = im.naturalWidth; canvas.height = im.naturalHeight;
-  const ctx = canvas.getContext('2d'); ctx.filter=effectCss;ctx.drawImage(im, 0, 0);ctx.filter="none";
+  const ctx = canvas.getContext('2d'); ctx.filter=effectCss;ctx.save();
+  ctx.translate(canvas.width/2+wdPhotoX/100*canvas.width,
+                canvas.height/2+wdPhotoY/100*canvas.height);
+  ctx.scale(wdPhotoZoom,wdPhotoZoom);
+  ctx.drawImage(im,-canvas.width/2,-canvas.height/2);
+  ctx.restore();
+  ctx.filter="none";
   wdPaintLayout(ctx,canvas.width,canvas.height);
   wdPaintDrawing(ctx,canvas.width,canvas.height);
   wdPaintSticker(ctx,canvas.width,canvas.height);
+  await wdPaintPhotoLayers(ctx,canvas.width,canvas.height);
   if (caption) {
     const preview = document.querySelector('.story-edit-preview');
     const pw = Math.max(1,preview.clientWidth), ph=Math.max(1,preview.clientHeight);
@@ -3824,11 +4258,11 @@ for (const [quick, existing] of Object.entries({
 function wordiiCouplePair(a,b){return [a,b].sort().join('_');}
 function wordiiCouplePage(){
   return `<div class="card wd-couple-card"><h3>💞 Couple Connection</h3><p class="tiny">Invite someone only if they want to connect. Either person can disconnect at any time. No paid badge is active yet.</p>
-  <label>Partner's exact username</label><input id="wdCoupleUsername" maxlength="40" placeholder="@username">
+  <label>Partner's exact username</label><input type="text" id="wdCoupleUsername" maxlength="40" placeholder="Enter partner username" autocomplete="off" autocapitalize="none" spellcheck="false">
   <button type="button" class="btn" id="wdCoupleInvite">Send invitation</button>
   <button type="button" class="btn ghost" id="wdCoupleRefresh">Refresh requests</button>
   <div id="wdCoupleRequests" aria-live="polite"><p class="tiny">Tap Refresh to view invitations.</p></div>
-  <div class="card wd-couple-payment"><h4>💞 Couple Badge · ₹40 per person</h4><p class="tiny">Both partners must accept and each submit their own payment proof after payment verification is enabled.</p><img class="wordii-pay-qr" src="couple-payment-qr.jpg" alt="Wordii Couple Badge QR preview" loading="lazy"><p class="tiny"><b>QR preview only — do not pay yet.</b> Admin verification is not active.</p><label>UTR / Transaction ID</label><input maxlength="45" placeholder="Available after payment activation" disabled><label>Payment screenshot</label><input type="file" accept="image/*" disabled><button type="button" class="btn" disabled>Payment submission coming soon</button><p class="tiny">Badge is granted only after both partners consent and both payments are verified. Disconnecting will remove both badges when the secure badge system is implemented.</p></div></div>`;
+  <div class="card wd-couple-payment"><h4>💞 Couple Badge · ₹40 per person</h4><p class="tiny">Both partners must accept and each submit their own payment proof after payment verification is enabled.</p><img class="wordii-pay-qr" src="couple-payment-qr.jpg" alt="Wordii Couple Badge QR preview" loading="lazy"><p class="tiny"><b>Manual review only.</b> Submit only a genuine transaction proof. Do not pay until the recipient and refund process are confirmed.</p><label>UTR / Transaction ID</label><input id="wdCoupleUtr" maxlength="45" placeholder="Enter transaction ID" autocomplete="off"><label>Payment screenshot</label><input id="wdCoupleProof" type="file" accept="image/*"><button type="button" class="btn" id="wdCoupleSubmit">Send for Verification</button><div id="wdCoupleMyPayments" class="tiny"></div><p class="tiny">Badge is granted only after both partners consent and both payments are verified. Disconnecting will remove both badges when the secure badge system is implemented.</p></div>${me?.admin===true?`<div class="card"><h4>🛡️ Couple Payment Admin</h4><button type="button" class="btn ghost" id="wdCoupleAdminRefresh">Refresh payment requests</button><div id="wdCoupleAdminPayments"></div></div>`:""}</div>`;
 }
 async function wordiiCoupleRefresh(){
   const box=document.getElementById('wdCoupleRequests');if(!box||!uid)return;
@@ -3845,8 +4279,38 @@ async function wordiiCoupleRefresh(){
     }).join('');
   }catch(e){box.textContent=friendly(e);}
 }
+async function wordiiCouplePayments(){
+  const mine=document.getElementById('wdCoupleMyPayments');
+  if(mine){try{const snap=await getDocs(query(collection(db,'couplePaymentRequests'),where('uid','==',uid),limit(20)));mine.innerHTML=snap.empty?'No payment requests yet.':snap.docs.map(d=>`<div class="card">₹40 · ${esc(d.data().partnerUsername)} · <b>${esc(d.data().status)}</b></div>`).join('');}catch(e){mine.textContent=friendly(e);}}
+  const admin=document.getElementById('wdCoupleAdminPayments');
+  if(admin&&me?.admin===true){try{const snap=await getDocs(query(collection(db,'couplePaymentRequests'),limit(100)));const pending=snap.docs.filter(d=>d.data().status==='pending');admin.innerHTML=pending.length?pending.map(d=>{const v=d.data();return `<div class="card"><b>${esc(v.username)}</b> → ${esc(v.partnerUsername)} · ₹40<p class="tiny">UTR: ${esc(v.utr)}</p><img class="wordii-proof-preview" src="${esc(v.proof)}" alt="Payment proof"><div class="row-btns"><button type="button" class="btn sm" data-wd-couple-payment="approved" data-id="${esc(d.id)}">Approve</button><button type="button" class="btn sm ghost" data-wd-couple-payment="rejected" data-id="${esc(d.id)}">Reject</button></div></div>`}).join(''):'No pending Couple payments.';}catch(e){admin.textContent=friendly(e);}}
+}
+async function wordiiCoupleSubmitPayment(){
+  let partnerUsername=String(document.getElementById('wdCoupleUsername')?.value||'').trim().toLowerCase();if(partnerUsername&&!partnerUsername.startsWith('@'))partnerUsername='@'+partnerUsername;
+  if(!/^@[a-z0-9_]{3,15}(?:#[0-9]{3})?$/.test(partnerUsername))throw Error('Enter exact partner @username first.');
+  if(partnerUsername===String(me.username).toLowerCase())throw Error('You cannot be your own partner.');
+  const utr=String(document.getElementById('wdCoupleUtr')?.value||'').trim();
+  if(!/^[A-Za-z0-9-]{8,45}$/.test(utr))throw Error('Enter a valid UTR (8–45 characters).');
+  const target=await getDocs(query(collection(db,'users'),where('username','==',partnerUsername),limit(2)));
+  if(target.empty)throw Error('Partner username not found.');
+  const partnerUid=target.docs[0].id;
+  const pairId=wordiiCouplePair(uid,partnerUid);
+  const invite=await getDoc(doc(db,'coupleInvites',pairId));
+  if(!invite.exists()||invite.data().status!=='accepted')throw Error('Both partners must accept Couple Connection before submitting payment proof.');
+  const proof=await wordiiImageData(document.getElementById('wdCoupleProof')?.files?.[0]);
+  await addDoc(collection(db,'couplePaymentRequests'),{uid,username:me.username,partnerUid,partnerUsername,pairId,utr,proof,price:40,status:'pending',createdAt:serverTimestamp()});
+  toast('Payment proof sent for admin review');await wordiiCouplePayments();
+}
+async function wordiiCoupleReviewPayment(id,status){
+  if(me?.admin!==true)throw Error('Admin only');
+  if(!confirm(status==='approved'?'Have you independently verified the actual ₹40 transaction?':'Reject request? If money was received, process refund separately.'))return;
+  const ref=doc(db,'couplePaymentRequests',id);const snap=await getDoc(ref);
+  if(!snap.exists()||snap.data().status!=='pending')throw Error('Request already reviewed');
+  await updateDoc(ref,{status,reviewedBy:uid,reviewedAt:serverTimestamp()});
+  toast('Payment '+status+'. Badge activation is separate.');await wordiiCouplePayments();
+}
 async function wordiiCoupleInvite(){
-  const input=document.getElementById('wdCoupleUsername');let name=(input?.value||'').trim().toLowerCase();
+  const input=document.getElementById('wdCoupleUsername');let name=(input?.value||'').trim().toLowerCase();if(name&&!name.startsWith('@'))name='@'+name;
   if(!/^@[a-z0-9_]{3,15}(?:#[0-9]{3})?$/.test(name))throw Error('Enter an exact username, e.g. @example');
   const found=await getDocs(query(collection(db,'users'),where('username','==',name),limit(2)));
   if(found.empty)throw Error('Username not found');
@@ -3887,8 +4351,8 @@ async function wordiiCoupleAction(pair,status){
 }
 document.getElementById('settingsBody')?.addEventListener('click',e=>{
   if(subKey!=='couple')return;
-  const btn=e.target.closest('#wdCoupleInvite,#wdCoupleRefresh,[data-wd-couple-act]');if(!btn)return;
+  const btn=e.target.closest('#wdCoupleInvite,#wdCoupleRefresh,#wdCoupleSubmit,#wdCoupleAdminRefresh,[data-wd-couple-payment],[data-wd-couple-act]');if(!btn)return;
   btn.disabled=true;
-  const job=btn.id==='wdCoupleInvite'?wordiiCoupleInvite():btn.id==='wdCoupleRefresh'?wordiiCoupleRefresh():wordiiCoupleAction(btn.dataset.pair,btn.dataset.wdCoupleAct);
+  const job=btn.id==='wdCoupleInvite'?wordiiCoupleInvite():btn.id==='wdCoupleRefresh'?Promise.all([wordiiCoupleRefresh(),wordiiCouplePayments()]):btn.id==='wdCoupleSubmit'?wordiiCoupleSubmitPayment():btn.id==='wdCoupleAdminRefresh'?wordiiCouplePayments():btn.dataset.wdCouplePayment?wordiiCoupleReviewPayment(btn.dataset.id,btn.dataset.wdCouplePayment):wordiiCoupleAction(btn.dataset.pair,btn.dataset.wdCoupleAct);
   Promise.resolve(job).catch(e=>toast(String(e.message||e).slice(0,120))).finally(()=>{if(btn.isConnected)btn.disabled=false;});
 });

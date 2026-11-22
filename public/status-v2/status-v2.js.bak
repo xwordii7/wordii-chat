@@ -1,0 +1,141 @@
+(()=>{
+const root=document.createElement('section');
+root.id='wdV2Picker';
+root.hidden=true;
+root.innerHTML=`
+<div class="wdv2-head">
+<button id="wdv2Back" type="button">‹</button>
+<div class="wdv2-brand"><span>W</span>ordii</div>
+<span>♛</span>
+</div>
+<div class="wdv2-title">← New Status</div>
+<div class="wdv2-tiles">
+<button class="wdv2-tile" data-mode="photo"><b>▧</b>Photo</button>
+<button class="wdv2-tile" data-mode="video"><b>▣</b>Video</button>
+<button class="wdv2-tile" data-mode="text"><b>Aa</b>Text</button>
+<button class="wdv2-tile" data-mode="layout"><b>⊞</b>Layout</button>
+<button class="wdv2-tile" data-mode="music"><b>♫</b>Music</button>
+<button class="wdv2-tile" data-mode="collage"><b>▦</b>Collage</button>
+</div>
+<div class="wdv2-recent">Recent ▾</div>
+<button id="wdv2Choose" class="wdv2-next" type="button">＋ Choose from Gallery</button>
+<div id="wdv2Gallery" class="wdv2-gallery" style="margin-top:16px"></div>
+<div class="wdv2-bottom"><span id="wdv2Count">Selected: 0</span><button id="wdv2Next" class="wdv2-next" type="button">Next →</button></div>
+<input id="wdv2Files" type="file" accept="image/*" multiple hidden>
+`;
+document.body.append(root);
+const $=id=>document.getElementById(id);
+let urls=[],selected=new Set();
+function close(){root.hidden=true}
+function open(){root.hidden=false}
+window.wordiiStatusV2Open=open;
+$('wdv2Back').onclick=close;
+$('wdv2Choose').onclick=()=>$('wdv2Files').click();
+root.querySelectorAll('[data-mode]').forEach(btn=>{
+ btn.onclick=()=>{
+  const mode=btn.dataset.mode;
+  if(mode==='photo'||mode==='layout'||mode==='collage')$('wdv2Files').click();
+  else if(mode==='video'){close();$('stVideoBtn')?.click()}
+  else if(mode==='text'){close();$('stTextBtn')?.click()}
+  else if(mode==='music'){close();$('stMusicBtn')?.click()}
+ };
+});
+$('wdv2Files').onchange=e=>{
+ urls.forEach(URL.revokeObjectURL);urls=[];selected.clear();
+ const files=[...e.target.files];
+ const gallery=$('wdv2Gallery');gallery.replaceChildren();
+ files.forEach((file,i)=>{
+  const url=URL.createObjectURL(file);urls.push(url);
+  const tile=document.createElement('button');tile.type='button';
+  tile.className='wdv2-photo';
+  const img=document.createElement('img');img.src=url;
+  const marker=document.createElement('i');marker.textContent='';
+  tile.append(img,marker);
+  tile.onclick=()=>{
+   selected.has(i)?selected.delete(i):selected.add(i);
+   tile.classList.toggle('selected',selected.has(i));
+   marker.textContent=selected.has(i)?'✓':'';
+   $('wdv2Count').textContent='Selected: '+selected.size;
+  };
+  gallery.append(tile);
+ });
+ if(files.length)gallery.firstElementChild?.click();
+};
+$('wdv2Next').onclick=()=>{
+ if(!selected.size){alert('Select a photo first');return}
+ const file=$('wdv2Files').files[[...selected][0]];
+ if(!file)return;
+ const input=$('stFile');
+ if(!input)return;
+ const dt=new DataTransfer();dt.items.add(file);
+ input.files=dt.files;
+ close();
+ input.dispatchEvent(new Event('change',{bubbles:true}));
+};
+
+const statusTab=document.getElementById('tab-status');
+if(statusTab && !document.getElementById('wdv2CreateBtn')){
+ const btn=document.createElement('button');
+ btn.id='wdv2CreateBtn';
+ btn.type='button';
+ btn.textContent='＋ New Status';
+ btn.style.cssText='width:100%;padding:15px;margin:12px 0;border:0;border-radius:16px;background:linear-gradient(135deg,#ff365b,#e60039);color:white;font-weight:800;font-size:17px';
+ btn.onclick=open;
+ statusTab.insertBefore(btn,statusTab.children[1]||null);
+}
+
+document.addEventListener('click',e=>{
+ if(e.target.closest('[data-add-story]')){
+  e.stopImmediatePropagation();
+  e.preventDefault();
+  open();
+ }
+},true);
+})();
+
+/* STATUS V2 — RIGHT SIDE EDITOR TOOLBAR */
+(()=>{
+ const editor=document.getElementById('storyEdit');
+ if(!editor || document.getElementById('wdv2Toolbar'))return;
+
+ const bar=document.createElement('div');
+ bar.id='wdv2Toolbar';
+ bar.className='wd-reference-toolbar';
+
+ const tools=[
+  ['Aa','Text','wdQuickText'],
+  ['♧','Stickers','wdQuickSticker'],
+  ['▧','Add Photo','wdPhotoAdd'],
+  ['♫','Music','wdQuickMusic'],
+  ['@','Mention','stMention'],
+  ['✨','Effects','wdQuickEffects'],
+  ['✎','Draw','wdQuickDraw'],
+  ['⊞','Layout','wdQuickLayout']
+ ];
+
+ for(const [symbol,label,target] of tools){
+  const btn=document.createElement('button');
+  btn.type='button';
+  btn.textContent=symbol;
+  btn.title=label;
+  btn.setAttribute('aria-label',label);
+  btn.onclick=()=>{
+   const original=document.getElementById(target);
+   if(label==='Add Photo'){document.querySelector('#wdPhotoControls [data-wd-photo=add]')?.click();return;}
+   if(label==='Music'){
+    const panel=document.getElementById('stMusicPanel');
+    if(panel){
+     panel.classList.remove('hidden');
+     panel.style.display='block';
+     return;
+    }
+   }
+   if(original)original.click();
+   else alert(label+' tool is unavailable');
+  };
+  bar.append(btn);
+ }
+
+ editor.append(bar);
+ console.log('Wordii Status V2 toolbar ready');
+})();
