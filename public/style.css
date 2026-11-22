@@ -1606,3 +1606,14 @@ html[data-wd-theme="light"] #tab-profile .wrow {background:#fff!important;border
 @media(prefers-reduced-motion:reduce){
   .wd-admin-v2{animation:none}
 }
+
+/* WORDII COUPLE BADGE V13 */
+.wd-couple-v13 .wd-couple-payment{border:1px solid rgba(255,64,100,.24);border-radius:22px;padding:18px;background:linear-gradient(155deg,rgba(90,15,35,.12),transparent)}
+.wd-couple-v13 .wordii-pay-qr{display:block;max-width:330px;width:100%;margin:18px auto;border-radius:17px}
+.wd-couple-modal{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(9px)}
+.wd-couple-modal.hidden{display:none!important}
+.wd-couple-dialog{width:min(100%,420px);padding:26px 22px;border-radius:26px;background:linear-gradient(150deg,#271019,#101014 65%);border:1px solid rgba(255,60,95,.4);box-shadow:0 24px 90px #000b;color:#fff}
+.wd-couple-heart{font-size:40px;text-align:center}.wd-couple-dialog h3{text-align:center;margin:10px 0}.wd-couple-dialog input{width:100%;margin:10px 0 12px;padding:15px;border-radius:14px;border:1px solid #57323d;background:#18171c;color:#fff}
+.wd-couple-dialog-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.wd-couple-dialog-actions .btn{min-width:0}
+#wdCoupleModalError{color:#ff8598}
+.wd-couple-v13 [data-wd-couple-timer]{font-weight:800;color:#ff5577;font-variant-numeric:tabular-nums}

@@ -2272,6 +2272,7 @@ function renderSettings(force) {
   if (subKey === "admin") { renderAdm(); if (me?.admin) loadSuspensionAppeals(); }
   if (subKey === "musicAdmin" && me?.admin === true) wordiiBindAdminMusic();
   if (subKey === "subs") loadWordiiSubscription();
+  if (subKey === "couple") { void wordiiCouplePayments(); void wordiiCoupleRefresh(); }
   if (subKey === "assistant") wordiiBindAssistant();
   if (subKey === "dash") loadDash();
   if (subKey === "gifts" && canBTP()) loadLevelGifts();
@@ -4361,12 +4362,11 @@ for (const [quick, existing] of Object.entries({
 // Couple invitations only. Paid badge activation is intentionally NOT implemented.
 function wordiiCouplePair(a,b){return [a,b].sort().join('_');}
 function wordiiCouplePage(){
-  return `<div class="card wd-couple-card"><h3>💞 Couple Connection</h3><p class="tiny">Invite someone only if they want to connect. Either person can disconnect at any time. No paid badge is active yet.</p>
-  <label>Partner's exact username</label><input type="text" id="wdCoupleUsername" maxlength="40" placeholder="Enter partner username" autocomplete="off" autocapitalize="none" spellcheck="false">
-  <button type="button" class="btn" id="wdCoupleInvite">Send invitation</button>
-  <button type="button" class="btn ghost" id="wdCoupleRefresh">Refresh requests</button>
-  <div id="wdCoupleRequests" aria-live="polite"><p class="tiny">Tap Refresh to view invitations.</p></div>
-  <div class="card wd-couple-payment"><h4>💞 Couple Badge · ₹40 per person</h4><p class="tiny">Both partners must accept and each submit their own payment proof after payment verification is enabled.</p><img class="wordii-pay-qr" src="couple-payment-qr.jpg" alt="Wordii Couple Badge QR preview" loading="lazy"><p class="tiny"><b>Manual review only.</b> Submit only a genuine transaction proof. Do not pay until the recipient and refund process are confirmed.</p><label>UTR / Transaction ID</label><input id="wdCoupleUtr" maxlength="45" placeholder="Enter transaction ID" autocomplete="off"><label>Payment screenshot</label><input id="wdCoupleProof" type="file" accept="image/*"><button type="button" class="btn" id="wdCoupleSubmit">Send for Verification</button><div id="wdCoupleMyPayments" class="tiny"></div><p class="tiny">Badge is granted only after both partners consent and both payments are verified. Disconnecting will remove both badges when the secure badge system is implemented.</p></div>${me?.admin===true?`<div class="card"><h4>🛡️ Couple Payment Admin</h4><button type="button" class="btn ghost" id="wdCoupleAdminRefresh">Refresh payment requests</button><div id="wdCoupleAdminPayments"></div></div>`:""}</div>`;
+  return `<div class="card wd-couple-card wd-couple-v13"><h3>💞 Couple Badge</h3><p class="tiny">₹40 per person · Manual verification · Both partners must consent</p>
+  <div class="card wd-couple-payment"><img class="wordii-pay-qr" src="couple-payment-qr.jpg" alt="Wordii Couple Badge payment QR" loading="lazy"><p class="tiny">Check the recipient and refund policy before paying. Do not share OTPs.</p><label>UTR / Transaction ID</label><input id="wdCoupleUtr" maxlength="45" placeholder="Enter genuine transaction ID" autocomplete="off"><label>Payment screenshot</label><input id="wdCoupleProof" type="file" accept="image/*"><button type="button" class="btn" id="wdCoupleSubmit">Save Payment Details</button><div id="wdCoupleMyPayments" class="tiny"></div></div>
+  <div class="card"><h4>💌 Partner invitations</h4><p class="tiny">Both people must accept before verification can start.</p><input type="hidden" id="wdCoupleUsername"><button type="button" class="btn ghost" id="wdCoupleRefresh">Refresh invitations</button><div id="wdCoupleRequests" aria-live="polite"></div></div>
+  <div class="wd-couple-modal hidden" id="wdCoupleModal" role="dialog" aria-modal="true" aria-labelledby="wdCoupleModalTitle"><div class="wd-couple-dialog"><div class="wd-couple-heart">💕</div><h3 id="wdCoupleModalTitle">Choose your partner</h3><p class="tiny">Enter their exact Wordii username. You can finish later.</p><label for="wdCoupleModalName">Partner username</label><input id="wdCoupleModalName" maxlength="40" placeholder="@username" autocomplete="off" autocapitalize="none" spellcheck="false"><p id="wdCoupleModalError" class="tiny" aria-live="polite"></p><div class="wd-couple-dialog-actions"><button type="button" class="btn ghost" id="wdCoupleLater">Later</button><button type="button" class="btn" id="wdCoupleConfirm">Confirm</button></div></div></div>
+  ${me?.admin===true?`<div class="card"><h4>🛡️ Couple Payment Admin</h4><button type="button" class="btn ghost" id="wdCoupleAdminRefresh">Refresh payment requests</button><div id="wdCoupleAdminPayments"></div></div>`:""}</div>`;
 }
 async function wordiiCoupleRefresh(){
   const box=document.getElementById('wdCoupleRequests');if(!box||!uid)return;
@@ -4454,55 +4454,50 @@ async function wordiiCouplePayments(){
   }
 }
 
+function wordiiCoupleModal(open=true){
+  const modal=document.getElementById('wdCoupleModal');if(!modal)return;
+  modal.classList.toggle('hidden',!open);
+  if(open){document.getElementById('wdCoupleModalError').textContent='';document.getElementById('wdCoupleModalName')?.focus();}
+}
 async function wordiiCoupleCompletePartner(){
-  const ref=doc(db,'couplePaymentDrafts',uid);
-  const draft=await getDoc(ref);
+  const draft=await getDoc(doc(db,'couplePaymentDrafts',uid));
   if(!draft.exists())throw Error('No saved payment details.');
-
-  let name=prompt(
-    'Enter partner exact @username.\nCancel = Fill Later',
-    document.getElementById('wdCoupleUsername')?.value||''
-  );
-  if(name===null){
-    toast('Saved. You can enter username later.');
+  wordiiCoupleModal(true);
+}
+async function wordiiCoupleConfirmPartner(){
+  const field=document.getElementById('wdCoupleModalName');
+  let name=String(field?.value||'').trim().toLowerCase();
+  if(name&&!name.startsWith('@'))name='@'+name;
+  if(!/^@[a-z0-9_]{3,15}(?:#[0-9]{3})?$/.test(name))throw Error('Enter a valid exact @username.');
+  if(name===String(me.username).toLowerCase())throw Error('You cannot select yourself.');
+  const found=await getDocs(query(collection(db,'users'),where('username','==',name),limit(2)));
+  if(found.empty)throw Error('Partner username not found.');
+  const partnerUid=found.docs[0].id,pairId=wordiiCouplePair(uid,partnerUid);
+  const inviteList=await getDocs(query(collection(db,'coupleInvites'),where('members','array-contains',uid),limit(100)));
+  const invite=inviteList.docs.find(d=>d.id===pairId);
+  if(!invite){
+    document.getElementById('wdCoupleUsername').value=name;
+    await wordiiCoupleInvite();
+    wordiiCoupleModal(false);
+    toast('Invitation sent. Partner must accept before verification starts.');
+    await wordiiCouplePayments();return;
+  }
+  if(invite.data().status==='pending'){
+    wordiiCoupleModal(false);
+    toast('Invitation pending. Ask your partner to accept.');
     return;
   }
-
-  name=name.trim().toLowerCase();
-  if(name&&!name.startsWith('@'))name='@'+name;
-
-  if(!/^@[a-z0-9_]{3,15}(?:#[0-9]{3})?$/.test(name))
-    throw Error('Enter a valid partner @username.');
-
-  if(name===String(me.username).toLowerCase())
-    throw Error('You cannot select yourself.');
-
-  const found=await getDocs(query(
-    collection(db,'users'),where('username','==',name),limit(2)
-  ));
-  if(found.empty)throw Error('Partner username not found.');
-
-  const partnerUid=found.docs[0].id;
-  const pairId=wordiiCouplePair(uid,partnerUid);
-  const invite=await getDoc(doc(db,'coupleInvites',pairId));
-
-  if(!invite.exists()||invite.data().status!=='accepted')
-    throw Error('Partner must accept Couple Connection first.');
-
+  if(invite.data().status!=='accepted')throw Error('Connection ended. Contact support to start a new invitation.');
+  const ref=doc(db,'couplePaymentDrafts',uid),draft=await getDoc(ref);
+  if(!draft.exists())throw Error('No saved payment details.');
   const v=draft.data();
   await addDoc(collection(db,'couplePaymentRequests'),{
-    uid,username:me.username,partnerUid,
-    partnerUsername:name,pairId,
-    utr:v.utr,proof:v.proof,
-    price:40,status:'pending',
-    createdAt:serverTimestamp()
+    uid,username:me.username,partnerUid,partnerUsername:name,pairId,
+    utr:v.utr,proof:v.proof,price:40,status:'pending',createdAt:serverTimestamp()
   });
-
-  try{await deleteDoc(ref);}catch(e){
-    console.warn('Draft cleanup pending',e);
-  }
-
-  toast('Submitted! 24-hour verification window started.');
+  try{await deleteDoc(ref);}catch(e){console.warn('Draft cleanup pending',e);}
+  wordiiCoupleModal(false);
+  toast('Verification request submitted. 24-hour review window started.');
   await wordiiCouplePayments();
 }
 
@@ -4519,19 +4514,21 @@ async function wordiiCoupleSubmitPayment(){
   );
 
   const ref=doc(db,'couplePaymentDrafts',uid);
-  const existing=await getDoc(ref);
+  let existing;
+  try{existing=await getDoc(ref);}catch(e){throw Error('Cannot read payment draft: '+(e.code||e.message));}
 
   if(existing.exists())
     throw Error('Complete your existing payment details first.');
 
-  await setDoc(ref,{
+  try{await setDoc(ref,{
     uid,username:me.username,utr,proof,
     price:40,status:'awaiting_partner',
     createdAt:serverTimestamp()
-  });
+  });}catch(e){throw Error('Payment draft save denied: '+(e.code||e.message));}
 
   toast('Payment details saved. Enter partner username.');
-  await wordiiCoupleCompletePartner();
+  await wordiiCouplePayments();
+  wordiiCoupleModal(true);
 }
 
 if(!window.wordiiCoupleV12Timer){
@@ -4596,8 +4593,9 @@ async function wordiiCoupleAction(pair,status){
 }
 document.getElementById('settingsBody')?.addEventListener('click',e=>{
   if(subKey!=='couple')return;
-  const btn=e.target.closest('#wdCoupleInvite,#wdCoupleRefresh,#wdCoupleSubmit,#wdCoupleComplete,#wdCoupleAdminRefresh,[data-wd-couple-payment],[data-wd-couple-act]');if(!btn)return;
+  const btn=e.target.closest('#wdCoupleInvite,#wdCoupleRefresh,#wdCoupleSubmit,#wdCoupleComplete,#wdCoupleConfirm,#wdCoupleLater,#wdCoupleAdminRefresh,[data-wd-couple-payment],[data-wd-couple-act]');if(!btn)return;
+  if(btn.id==='wdCoupleLater'){wordiiCoupleModal(false);toast('Saved. Complete partner details later.');return;}
   btn.disabled=true;
-  const job=btn.id==='wdCoupleInvite'?wordiiCoupleInvite():btn.id==='wdCoupleRefresh'?Promise.all([wordiiCoupleRefresh(),wordiiCouplePayments()]):btn.id==='wdCoupleSubmit'?wordiiCoupleSubmitPayment():btn.id==='wdCoupleComplete'?wordiiCoupleCompletePartner():btn.id==='wdCoupleAdminRefresh'?wordiiCouplePayments():btn.dataset.wdCouplePayment?wordiiCoupleReviewPayment(btn.dataset.id,btn.dataset.wdCouplePayment):wordiiCoupleAction(btn.dataset.pair,btn.dataset.wdCoupleAct);
-  Promise.resolve(job).catch(e=>toast(String(e.message||e).slice(0,120))).finally(()=>{if(btn.isConnected)btn.disabled=false;});
+  const job=btn.id==='wdCoupleInvite'?wordiiCoupleInvite():btn.id==='wdCoupleRefresh'?Promise.all([wordiiCoupleRefresh(),wordiiCouplePayments()]):btn.id==='wdCoupleSubmit'?wordiiCoupleSubmitPayment():btn.id==='wdCoupleComplete'?wordiiCoupleCompletePartner():btn.id==='wdCoupleConfirm'?wordiiCoupleConfirmPartner():btn.id==='wdCoupleAdminRefresh'?wordiiCouplePayments():btn.dataset.wdCouplePayment?wordiiCoupleReviewPayment(btn.dataset.id,btn.dataset.wdCouplePayment):wordiiCoupleAction(btn.dataset.pair,btn.dataset.wdCoupleAct);
+  Promise.resolve(job).catch(e=>{const msg=String(e.message||e).slice(0,160);const err=document.getElementById('wdCoupleModalError');if(err&&!document.getElementById('wdCoupleModal')?.classList.contains('hidden'))err.textContent=msg;toast(msg);}).finally(()=>{if(btn.isConnected)btn.disabled=false;});
 });

@@ -93,8 +93,8 @@ service cloud.firestore {
           'uid','username','utr','proof','price','status','createdAt'
         ])
         && request.resource.data.uid == ownerUid
-        && request.resource.data.username ==
-          get(/databases/$(database)/documents/users/$(ownerUid)).data.username
+        && request.resource.data.username is string
+        && request.resource.data.username.size() <= 120
         && request.resource.data.price == 40
         && request.resource.data.status == 'awaiting_partner'
         && request.resource.data.createdAt == request.time
@@ -394,7 +394,11 @@ service cloud.firestore {
 
     // Couple invitations: consent only; no client can grant a paid badge.
     match /coupleInvites/{pairId} {
-      allow get, list: if signedIn() && request.auth.uid in resource.data.members;
+      allow get: if signedIn() && (
+        (resource != null && request.auth.uid in resource.data.members)
+        || (resource == null && pairId.matches('^' + request.auth.uid + '_.*$|^.*_' + request.auth.uid + '$'))
+      );
+      allow list: if signedIn() && request.auth.uid in resource.data.members;
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['members','from','to','fromName','toName','status','createdAt'])
         && request.resource.data.from == request.auth.uid
