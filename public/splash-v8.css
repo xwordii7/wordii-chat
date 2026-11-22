@@ -1,0 +1,84 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&display=swap');
+
+/* Wordii Chat cinematic animated title */
+#splash .splash-name {
+  display:flex!important;
+  justify-content:center!important;
+  align-items:center!important;
+  gap:10px!important;
+  white-space:nowrap!important;
+  overflow:visible!important;
+  font-family:'Orbitron','Arial Black',sans-serif!important;
+  font-size:clamp(23px,6.3vw,34px)!important;
+  font-weight:900!important;
+  letter-spacing:-1px!important;
+  line-height:1.5!important;
+}
+
+#splash .wd-title-left,
+#splash .wd-title-right {
+  display:inline-block!important;
+  font-family:inherit!important;
+  font-weight:900!important;
+  text-transform:uppercase!important;
+  text-shadow:none!important;
+  will-change:transform,opacity;
+}
+
+#splash .wd-title-left {
+  color:#f8f5f6!important;
+  animation:wdTitleLeftV8 1.15s .4s
+    cubic-bezier(.18,.85,.2,1) both!important;
+}
+
+#splash .wd-title-right {
+  color:#ff365d!important;
+  animation:wdTitleRightV8 1.15s .4s
+    cubic-bezier(.18,.85,.2,1) both!important;
+}
+
+@keyframes wdTitleLeftV8 {
+  0% {
+    opacity:0;
+    transform:translateX(-85vw) skewX(-8deg);
+  }
+  75% {
+    opacity:1;
+    transform:translateX(5px) skewX(0);
+  }
+  100% {
+    opacity:1;
+    transform:translateX(0);
+  }
+}
+
+@keyframes wdTitleRightV8 {
+  0% {
+    opacity:0;
+    transform:translateX(85vw) skewX(8deg);
+  }
+  75% {
+    opacity:1;
+    transform:translateX(-5px) skewX(0);
+  }
+  100% {
+    opacity:1;
+    transform:translateX(0);
+  }
+}
+
+@media(max-width:360px){
+  #splash .splash-name {
+    font-size:21px!important;
+    gap:7px!important;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  #splash .wd-title-left,
+  #splash .wd-title-right {
+    animation:none!important;
+    opacity:1!important;
+    transform:none!important;
+  }
+}
