@@ -1617,3 +1617,6 @@ html[data-wd-theme="light"] #tab-profile .wrow {background:#fff!important;border
 .wd-couple-dialog-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.wd-couple-dialog-actions .btn{min-width:0}
 #wdCoupleModalError{color:#ff8598}
 .wd-couple-v13 [data-wd-couple-timer]{font-weight:800;color:#ff5577;font-variant-numeric:tabular-nums}
+
+/* V14 Couple */
+.wd14-method{display:grid;gap:12px;margin:12px 0}.wd14-method label{padding:12px;border:1px solid #a33a54;border-radius:14px;display:flex;gap:10px;align-items:center}.wd14-method input{width:auto}.wd14-code{font-weight:800;overflow-wrap:anywhere;color:#ff5b85;padding:12px;border:1px solid #a33a54;border-radius:12px}.wd14-invite-photo{width:72px;height:72px;object-fit:cover;border-radius:50%}.wd14-partner-pay{border-top:1px solid #9e4157;padding-top:12px}.wd14-partner-pay input{width:100%;margin:8px 0}

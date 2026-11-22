@@ -90,12 +90,13 @@ service cloud.firestore {
       allow create: if request.auth != null
         && request.auth.uid == ownerUid
         && request.resource.data.keys().hasOnly([
-          'uid','username','utr','proof','price','status','createdAt'
+          'uid','username','utr','proof','price','mode','status','createdAt'
         ])
         && request.resource.data.uid == ownerUid
         && request.resource.data.username is string
         && request.resource.data.username.size() <= 120
-        && request.resource.data.price == 40
+        && request.resource.data.mode in ['split','both']
+        && request.resource.data.price == (request.resource.data.mode == 'both' ? 80 : 40)
         && request.resource.data.status == 'awaiting_partner'
         && request.resource.data.createdAt == request.time
         && request.resource.data.utr is string
@@ -108,6 +109,51 @@ service cloud.firestore {
         && (request.auth.uid == ownerUid || isAdmin());
     }
 
+    // V14: each order is tied to an accepted/rejected invitation. Admin-only activation.
+    match /coupleOrders/{pairId} {
+      allow get: if signedIn() && (resource == null || isAdmin() || request.auth.uid in resource.data.members);
+      allow list: if signedIn() && (isAdmin() || request.auth.uid in resource.data.members);
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['members','from','to','fromName','toName','mode','fromUtr','fromProof','status','consent','createdAt'])
+        && request.resource.data.from == request.auth.uid
+        && request.resource.data.to is string && request.resource.data.to != request.auth.uid
+        && request.resource.data.members is list && request.resource.data.members.size() == 2 && request.resource.data.members[0] == (request.resource.data.from < request.resource.data.to ? request.resource.data.from : request.resource.data.to) && request.resource.data.members[1] == (request.resource.data.from < request.resource.data.to ? request.resource.data.to : request.resource.data.from)
+        && pairId == (request.resource.data.from < request.resource.data.to ? request.resource.data.from + '_' + request.resource.data.to : request.resource.data.to + '_' + request.resource.data.from)
+        && get(/databases/$(database)/documents/coupleInvites/$(pairId)).data.from == request.auth.uid
+        && get(/databases/$(database)/documents/coupleInvites/$(pairId)).data.to == request.resource.data.to
+        && request.resource.data.fromName is string && request.resource.data.toName is string
+        && request.resource.data.mode in ['split','both']
+        && request.resource.data.fromUtr is string && request.resource.data.fromUtr.matches('^[A-Za-z0-9-]{8,45}$')
+        && request.resource.data.fromProof is string && request.resource.data.fromProof.matches('^data:image/jpeg;base64,.*')
+        && request.resource.data.fromProof.size() <= 180000
+        && request.resource.data.status == 'pending' && request.resource.data.consent == 'pending'
+        && request.resource.data.createdAt == request.time;
+      allow update: if signedIn() && (
+        (request.auth.uid == resource.data.to
+          && resource.data.status == 'pending'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['consent'])
+          && request.resource.data.consent in ['accepted','rejected']
+          && get(/databases/$(database)/documents/coupleInvites/$(pairId)).data.status == request.resource.data.consent)
+        || (request.auth.uid == resource.data.to
+          && resource.data.mode == 'split' && resource.data.consent == 'accepted'
+          && resource.data.status == 'pending' && !('toProof' in resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['toUtr','toProof'])
+          && request.resource.data.toUtr is string && request.resource.data.toUtr.matches('^[A-Za-z0-9-]{8,45}$')
+          && request.resource.data.toProof is string && request.resource.data.toProof.matches('^data:image/jpeg;base64,.*')
+          && request.resource.data.toProof.size() <= 180000)
+        || (isAdmin() && resource.data.status == 'pending'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','badgeCode','reviewedBy','reviewedAt'])
+          && request.resource.data.status in ['approved','rejected']
+          && request.resource.data.reviewedBy == request.auth.uid
+          && request.resource.data.reviewedAt == request.time
+          && (request.resource.data.status == 'rejected' || (
+            resource.data.consent == 'accepted'
+            && get(/databases/$(database)/documents/coupleInvites/$(pairId)).data.status == 'accepted'
+            && (resource.data.mode == 'both' || ('toProof' in resource.data && 'toUtr' in resource.data))
+            && request.resource.data.badgeCode == 'WC-' + pairId)))
+      );
+      allow delete: if false;
+    }
     match /couplePaymentRequests/{requestId} {
       allow get, list: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
       allow create: if signedIn()
@@ -374,7 +420,7 @@ service cloud.firestore {
 
     // One active partner per account. Lock writes must be atomic with the invite status.
     match /couplePartnerLocks/{personId} {
-      allow get: if signedIn() && (request.auth.uid == personId || request.auth.uid == resource.data.partnerUid);
+      allow get: if signedIn() && (resource == null || request.auth.uid == personId || request.auth.uid == resource.data.partnerUid);
       allow list: if false;
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['pairId','partnerUid'])
