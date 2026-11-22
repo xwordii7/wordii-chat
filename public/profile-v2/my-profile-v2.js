@@ -7,17 +7,21 @@ document.body.appendChild(page);
 const adminAsset='profile-v2/admin-avatar.jpg';
 function show(){
  const d=window.wordiiProfileV2Data?.();if(!d){alert('Open You / Settings first');return;}
- const banner=d.admin
-  ? "background-image:url('profile-v2/admin-banner.jpg')"
-  : (d.banner ? "background:"+d.banner : "");
- const avatar=d.admin?`<img src="${adminAsset}" alt="Admin profile picture">`:d.avatar&&/^(data:image\/|https:\/\/)/.test(d.avatar)?`<img src="${escapeHTML(d.avatar)}" alt="Profile picture">`:`<span>${escapeHTML((d.name||'?').slice(0,1).toUpperCase())}</span>`;
+ const banner=d.banner
+  ? "background:"+d.banner
+  : (d.admin ? "background-image:url('profile-v2/admin-banner.jpg')" : "");
+ const avatar=d.avatar&&/^(data:image\/|https:\/\/)/.test(d.avatar)
+  ? `<img src="${escapeHTML(d.avatar)}" alt="Profile picture">`
+  : d.admin
+  ? `<img src="${adminAsset}" alt="Admin profile picture">`
+  : `<span>${escapeHTML((d.name||'?').slice(0,1).toUpperCase())}</span>`;
  $('#wmpContent').innerHTML=`
  <div class="wmp-cover" style="${banner}"></div>
  <div class="wmp-avatar">${avatar}</div>
  <div class="wmp-inner wmp-premium-v10">
   <div class="wmp-identity">
    <div class="wmp-name-area"><h1>${escapeHTML(d.name)}${d.admin?' <span class="wmp-name-crown">♛</span>':''}</h1>
-    <div class="wmp-badges">${d.admin?'<span class="wmp-royal">♛ ADMIN</span>':''}${d.verified?'<span class="wmp-verified">✧ VERIFIED</span>':''}</div>
+    <div class="wmp-badges">${d.admin?'<span class="wmp-royal">♛ ADMIN</span>':''}${d.preAdmin?'<span class="wmp-royal">◆ PRE-ADMIN</span>':''}${d.premium?'<span class="wmp-royal">✦ PREMIUM</span>':''}${d.verified?'<span class="wmp-verified">✧ VERIFIED</span>':''}</div>
    </div>
    <span class="wmp-level-seat">${d.admin?'<img class="wmp-level-character" src="profile-v2/admin-level-character.png" alt="Xwordii character">':''}<span>✦ Lv. ${Number(d.level)||1}</span></span>
   </div>

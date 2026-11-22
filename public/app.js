@@ -613,7 +613,7 @@ function renderProfile() {
   window.wordiiProfileV2Data = () => ({
     name:nameOf(me), username:me.username||"", bio:me.bio||"",
     avatar:me.avatar||"", banner:hasBanner(me)?bannerCss(me):"",
-    admin:me.admin===true, level:me.level||1, points:me.points||0,
+    admin:me.admin===true, preAdmin:me.preAdmin===true, premium:me.premium===true, verified:me.verified===true, isPublic:me.isPublic===true, location:me.location||"", level:me.level||1, points:me.points||0,
     followers:me.followersCount||0, following:following.size,
     coupleCode:me.coupleCode||me.coupleBadgeCode||"",
     online:isOnline(me)
@@ -1760,7 +1760,9 @@ function renderPV() {
   const isAdminProfile = u.admin === true;
   const coverStyle = hasBanner(u) ? `background:${bannerCss(u)}` : (isAdminProfile ? "background-image:linear-gradient(0deg,#08050944,#08050900),url('/profile-v2/admin-banner.jpg')" : "");
 
-  const profileAvatar = isAdminProfile ? '<img src="/profile-v2/admin-avatar.jpg" alt="Admin avatar">' : avatarHTML(u, true);
+  const profileAvatar = u.avatar && /^data:image\/(?:jpeg|png|webp);base64,/i.test(String(u.avatar))
+    ? `<img src="${esc(u.avatar)}" alt="Profile avatar">`
+    : (isAdminProfile ? '<img src="/profile-v2/admin-avatar.jpg" alt="Admin avatar">' : avatarHTML(u, true));
 
   const coupleCode = u.coupleCode || u.coupleBadgeCode || "";
 
