@@ -630,3 +630,84 @@
 #profileView .pv-ava{border:2px solid #ce4253!important;box-shadow:none!important;outline:0!important;overflow:hidden!important;border-radius:50%!important}
 #profileView .pv-ava img{width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important;border-radius:50%!important;box-shadow:none!important}
 @media(max-width:390px){#profileView .wd-pv-name-row:has(.wd-level-seat){min-height:157px!important}#profileView .wd-pv-level.wd-level-seat{width:117px!important;min-width:117px!important;font-size:15px!important}#profileView .wd-pv-level.wd-level-seat .wd-level-character{width:128px!important;height:150px!important;right:-5px!important;bottom:26px!important}#profileView .wd-pv-level.wd-level-seat::before{width:149px!important}}
+
+/* WORDII COMPACT PROFILE FIX V5 */
+#profileView .wd-pv-name-row:has(.wd-level-seat){
+  min-height:105px!important;
+  height:auto!important;
+  margin-top:0!important;
+  margin-bottom:5px!important;
+  align-items:flex-end!important;
+  overflow:visible!important;
+}
+
+#profileView .wd-pv-level.wd-level-seat{
+  width:115px!important;
+  min-width:115px!important;
+  height:38px!important;
+  margin-right:12px!important;
+  margin-bottom:3px!important;
+  padding:0 5px!important;
+  border:1.5px solid #c99b55!important;
+  border-radius:22px!important;
+  background:linear-gradient(135deg,#321215,#10090b)!important;
+  box-shadow:none!important;
+  font-size:16px!important;
+  color:#ffe0a2!important;
+  overflow:visible!important;
+  position:relative!important;
+  isolation:isolate!important;
+}
+
+#profileView .wd-pv-level.wd-level-seat::before{
+  width:142px!important;
+  height:43px!important;
+  bottom:-5px!important;
+  opacity:.9!important;
+  filter:none!important;
+}
+
+#profileView .wd-pv-level.wd-level-seat .wd-level-character{
+  width:119px!important;
+  height:139px!important;
+  right:-3px!important;
+  bottom:19px!important;
+  object-fit:contain!important;
+  object-position:center bottom!important;
+  filter:none!important;
+  max-width:none!important;
+  pointer-events:none!important;
+}
+
+#profileView .pv-ava{
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+  border-radius:50%!important;
+  overflow:hidden!important;
+  padding:0!important;
+  background:transparent!important;
+}
+
+#profileView .pv-ava img{
+  width:100%!important;
+  height:100%!important;
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+  border-radius:50%!important;
+  object-fit:cover!important;
+  object-position:center!important;
+}
+
+@media(max-width:390px){
+  #profileView .wd-pv-name-row:has(.wd-level-seat){
+    min-height:100px!important;
+  }
+  #profileView .wd-pv-level.wd-level-seat .wd-level-character{
+    width:112px!important;
+    height:132px!important;
+    right:-2px!important;
+    bottom:19px!important;
+  }
+}
