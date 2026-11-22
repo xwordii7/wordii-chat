@@ -80,6 +80,35 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
       allow delete: if false;
     }
+    // Couple payment proofs: only owner and admin can read; only admin reviews.
+    match /couplePaymentRequests/{requestId} {
+      allow get, list: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid','username','partnerUid','partnerUsername','pairId','utr','proof','price','status','createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.username == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username
+        && request.resource.data.partnerUid is string
+        && request.resource.data.partnerUid != request.auth.uid
+        && request.resource.data.partnerUsername == get(/databases/$(database)/documents/users/$(request.resource.data.partnerUid)).data.username
+        && request.resource.data.pairId == (request.auth.uid < request.resource.data.partnerUid
+          ? request.auth.uid + '_' + request.resource.data.partnerUid
+          : request.resource.data.partnerUid + '_' + request.auth.uid)
+        && get(/databases/$(database)/documents/coupleInvites/$(request.resource.data.pairId)).data.status == 'accepted'
+        && request.resource.data.price == 40
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.utr is string
+        && request.resource.data.utr.matches('^[A-Za-z0-9-]{8,45}$')
+        && request.resource.data.proof is string
+        && request.resource.data.proof.matches('^data:image/jpeg;base64,.*')
+        && request.resource.data.proof.size() <= 180000;
+      allow update: if isAdmin() && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','reviewedBy','reviewedAt'])
+        && request.resource.data.status in ['approved','rejected']
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewedAt == request.time;
+      allow delete: if false;
+    }
     match /verifiedRequests/{requestId} {
       allow get, list: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
       allow create: if signedIn()
@@ -145,6 +174,21 @@ service cloud.firestore {
         && request.resource.data.requestedAt == request.time
         && request.resource.data.status == 'pending';
       allow update, delete: if false;
+    }
+
+    // Compact transparent character overlays; only the authenticated full Admin can modify.
+    match /levelCharacters/{targetUid} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create, update: if isAdmin()
+        && exists(/databases/$(database)/documents/users/$(targetUid))
+        && request.resource.data.keys().hasOnly(['png','updatedBy','updatedAt'])
+        && request.resource.data.png is string
+        && request.resource.data.png.size() <= 160000
+        && request.resource.data.png.matches('^data:image/png;base64,[A-Za-z0-9+/=]+$')
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isAdmin();
     }
 
     // One profile per account, created once, never edited.
@@ -627,5 +671,35 @@ service cloud.firestore {
           && resource.data.senderId == request.auth.uid;
       }
     }
+    // Wordii posts: authenticated reading; owners create; admins can publish starter images only through their own account.
+    match /wordiiPosts/{postId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['ownerUid','imagePath','caption','createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.imagePath is string
+        && request.resource.data.imagePath.matches('^wordii-posts/' + request.auth.uid + '/[A-Za-z0-9]{32}[.](jpg|png|webp)$')
+        && request.resource.data.caption is string && request.resource.data.caption.size() <= 300
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+      match /likes/{userId} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.auth.uid == userId
+          && request.resource.data.keys().hasOnly(['uid','createdAt'])
+          && request.resource.data.uid == userId && request.resource.data.createdAt == request.time;
+        allow delete: if signedIn() && request.auth.uid == userId;
+        allow update: if false;
+      }
+      match /comments/{commentId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['uid','authorName','text','createdAt'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.authorName is string && request.resource.data.authorName.size() <= 80
+          && request.resource.data.text is string && request.resource.data.text.size() >= 1 && request.resource.data.text.size() <= 300
+          && request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+    }
+
   }
 }

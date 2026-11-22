@@ -54,5 +54,14 @@ service firebase.storage {
         && (firestore.get(/databases/(default)/documents/statuses/$(statusId)).data.ownerUid == request.auth.uid
           || request.auth.uid in firestore.get(/databases/(default)/documents/statuses/$(statusId)).data.viewers);
     }
+    match /wordii-posts/{ownerId}/{fileName} {
+      allow create: if request.auth != null && request.auth.uid == ownerId
+        && fileName.matches('^[A-Za-z0-9]{32}[.](jpg|png|webp)$')
+        && request.resource.size > 0 && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow read: if request.auth != null;
+      allow update, delete: if false;
+    }
+
   }
 }

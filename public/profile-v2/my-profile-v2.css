@@ -306,3 +306,293 @@
 #profileView .chat-top{position:relative!important;z-index:8!important;min-height:58px!important;}
 #profileView #pvBack{min-width:48px!important;min-height:48px!important;touch-action:manipulation!important;}
 #wdBannerPreview[hidden]{display:none!important}
+
+/* WORDII BANNER REFERENCE FIX */
+#wordiiMyProfileV2 .wmp-cover{
+  height:230px!important;
+  min-height:230px!important;
+  background-repeat:no-repeat!important;
+  background-size:cover!important;
+  background-position:center 35%!important;
+  border-radius:0 0 18px 18px!important;
+  box-shadow:inset 0 -45px 35px -20px #050407!important;
+}
+#wordiiMyProfileV2 .wmp-avatar{
+  margin-top:-68px!important;
+  width:136px!important;
+  height:136px!important;
+  border-radius:50%!important;
+  overflow:hidden!important;
+  border:4px solid #ff315a!important;
+  box-shadow:0 0 20px #ed174d!important;
+}
+#wordiiMyProfileV2 .wmp-avatar img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  border-radius:50%!important;
+}
+#wordiiMyProfileV2 .wmp-inner{
+  padding-top:12px!important;
+}
+
+
+/* WORDII PROFESSIONAL QUICK BADGES V2 */
+#wordiiMyProfileV2 .wmp-quick{
+  display:grid!important;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  gap:5px!important;
+  margin:25px 0!important;
+}
+#wordiiMyProfileV2 .wmp-quick button{
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  gap:6px!important;
+  color:#e8e5ec!important;
+  font-size:11px!important;
+  font-weight:650!important;
+  background:transparent!important;
+  border:0!important;
+  cursor:pointer;
+  transition:transform .2s ease!important;
+}
+#wordiiMyProfileV2 .wmp-quick button:active{
+  transform:scale(.93)!important;
+}
+#wordiiMyProfileV2 .wmp-quick i{
+  width:clamp(43px,12vw,58px)!important;
+  height:clamp(43px,12vw,58px)!important;
+  display:grid!important;
+  place-items:center!important;
+  border-radius:19px!important;
+  font-style:normal!important;
+  font-size:27px!important;
+  font-weight:800!important;
+  margin:0!important;
+  border:1px solid currentColor!important;
+  background:linear-gradient(145deg,#211a24,#08080d)!important;
+  box-shadow:inset 0 1px 2px #ffffff20,
+             0 6px 14px #0009!important;
+  transition:transform .2s,box-shadow .2s!important;
+}
+#wordiiMyProfileV2 .wmp-quick button:active i{
+  transform:scale(.9)!important;
+}
+#wordiiMyProfileV2 .wmp-quick button:nth-child(1) i{
+  color:#ffd777!important;
+  box-shadow:0 0 13px #e6a83245,
+             inset 0 0 13px #e6a83218!important;
+}
+#wordiiMyProfileV2 .wmp-quick button:nth-child(2) i{
+  color:#70bdff!important;
+  box-shadow:0 0 13px #248dff40,
+             inset 0 0 13px #248dff18!important;
+}
+#wordiiMyProfileV2 .wmp-quick button:nth-child(3) i{
+  color:#ffcc57!important;
+  box-shadow:0 0 13px #ffad2740,
+             inset 0 0 13px #ffad2718!important;
+}
+#wordiiMyProfileV2 .wmp-quick button:nth-child(4) i{
+  color:#c68aff!important;
+  box-shadow:0 0 13px #a04bff45,
+             inset 0 0 13px #a04bff18!important;
+}
+#wordiiMyProfileV2 .wmp-quick button:nth-child(5) i{
+  color:#ff6c9b!important;
+  font-size:20px!important;
+  letter-spacing:-8px!important;
+  padding-right:8px!important;
+  box-shadow:0 0 13px #ff2b7045,
+             inset 0 0 13px #ff2b7018!important;
+}
+@media(prefers-reduced-motion:reduce){
+ #wordiiMyProfileV2 .wmp-quick button,
+ #wordiiMyProfileV2 .wmp-quick i{
+  transition:none!important;
+ }
+}
+
+/* WORDII PROFILE VISUAL CORRECTION */
+#wordiiMyProfileV2 .wmp-cover,
+#profileView .pv-banner{
+  background-size:contain!important;
+  background-position:center!important;
+  background-repeat:no-repeat!important;
+  background-color:#050407!important;
+}
+
+#wordiiMyProfileV2 .wmp-quick i{
+  border-radius:16px!important;
+  width:clamp(44px,12vw,58px)!important;
+  height:clamp(44px,12vw,58px)!important;
+  font-size:26px!important;
+  background:linear-gradient(145deg,#28202d,#09070d)!important;
+  border:1px solid currentColor!important;
+}
+
+#wordiiMyProfileV2 .wmp-quick button:nth-child(1) i{
+  color:#ffd577!important;
+  box-shadow:0 0 15px #e6a83255!important;
+}
+#wordiiMyProfileV2 .wmp-quick button:nth-child(2) i{
+  color:#6bbcff!important;
+  box-shadow:0 0 15px #248dff55!important;
+}
+#wordiiMyProfileV2 .wmp-quick button:nth-child(3) i{
+  color:#ffcc57!important;
+  box-shadow:0 0 15px #ffad2755!important;
+}
+#wordiiMyProfileV2 .wmp-quick button:nth-child(4) i{
+  color:#c68aff!important;
+  box-shadow:0 0 15px #a04bff55!important;
+}
+#wordiiMyProfileV2 .wmp-quick button:nth-child(5) i{
+  color:#ff6c9b!important;
+  box-shadow:0 0 15px #ff2b7055!important;
+}
+
+#wordiiMyProfileV2 .wmp-handle,
+#wordiiMyProfileV2 .wmp-presence,
+#wordiiMyProfileV2 .wmp-stats small{
+  color:#c6bdc5!important;
+}
+
+
+/* WORDII PROFILE V2 REFERENCE FINAL */
+#profileView .pv-banner{
+  height:auto!important;
+  min-height:0!important;
+  aspect-ratio:16/7!important;
+  background-size:contain!important;
+  background-position:center!important;
+  background-repeat:no-repeat!important;
+  background-color:#030304!important;
+}
+#profileView .wd-pv-meta{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  align-items:center!important;
+  gap:9px 15px!important;
+  margin:12px 0 19px!important;
+  color:#e6e2e7!important;
+  font-size:12px!important;
+}
+#profileView .wd-pv-meta a{
+  color:#9fd4ff!important;
+  text-decoration:none!important;
+}
+#profileView .wmp-quick i{
+  width:49px!important;
+  height:49px!important;
+  border-radius:50%!important;
+  display:grid!important;
+  place-items:center!important;
+  font-size:25px!important;
+  box-shadow:0 0 13px currentColor!important;
+}
+#profileView .wmp-quick button:nth-child(2) i{
+  font-size:16px!important;
+  letter-spacing:-2px!important;
+}
+#profileView .wd-pv-username,
+#profileView .presence:not(.on),
+#profileView .wmp-stats small,
+#profileView .wd-pv-privacy{
+  color:#d5cbd5!important;
+}
+#profileView .wd-pv-actions{
+  display:flex!important;
+  flex-wrap:wrap!important;
+}
+#profileView .wd-pv-actions .wd-pv-share,
+#profileView .wd-pv-actions .wd-pv-qr{
+  flex:0 0 44px!important;
+  min-width:44px!important;
+  padding:0!important;
+  color:#fff!important;
+}
+#profileView [data-pv="follow"],
+#profileView [data-pv="followers"]{
+  color:#fff!important;
+}
+
+/* WORDII BANNER + UNIVERSAL AVATAR FIX V3 */
+
+/* Compact, proportional banner */
+#profileView .pv-banner,
+#wordiiMyProfileV2 .wmp-cover{
+  width:100%!important;
+  height:auto!important;
+  min-height:0!important;
+  aspect-ratio:16 / 6.5!important;
+  background-size:contain!important;
+  background-position:center!important;
+  background-repeat:no-repeat!important;
+  background-color:#030304!important;
+}
+
+/* Remove overlays that darken the banner */
+#wordiiMyProfileV2 .wmp-cover::after{
+  background:none!important;
+}
+
+/* Universal circular profile photos */
+#profileView .pv-ava,
+#wordiiMyProfileV2 .wmp-avatar{
+  width:112px!important;
+  height:112px!important;
+  min-width:112px!important;
+  min-height:112px!important;
+  aspect-ratio:1 / 1!important;
+  border-radius:50%!important;
+  overflow:hidden!important;
+  padding:0!important;
+  box-sizing:border-box!important;
+  display:grid!important;
+  place-items:center!important;
+  background-color:#140d14!important;
+  border:3px solid #ff355b!important;
+  box-shadow:0 0 13px #ff174b,
+             0 0 24px #ff174b77!important;
+}
+
+/* Make every uploaded avatar fit the circle */
+#profileView .pv-ava img,
+#wordiiMyProfileV2 .wmp-avatar img{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  object-fit:cover!important;
+  object-position:center!important;
+  border-radius:50%!important;
+  margin:0!important;
+  padding:0!important;
+}
+
+/* Keep the circular avatar overlapping the banner */
+#profileView .pv-ava{
+  margin:-55px 0 0 22px!important;
+  position:relative!important;
+  z-index:4!important;
+}
+#wordiiMyProfileV2 .wmp-avatar{
+  margin:-55px 0 0 22px!important;
+  position:relative!important;
+  z-index:4!important;
+}
+
+
+/* WORDII ADMIN ROYAL LEVEL CHARACTER */
+#profileView .wd-pv-name-row{overflow:visible!important;min-height:65px!important}
+#profileView .wd-level-seat{position:relative!important;overflow:visible!important;margin-top:32px!important}
+#profileView .wd-level-seat .wd-level-character{position:absolute!important;width:108px!important;height:105px!important;max-width:none!important;object-fit:contain!important;bottom:80%!important;right:-5px!important;pointer-events:none!important;filter:drop-shadow(0 0 7px #ff3159)!important;z-index:3!important}
+#profileView .wd-admin-v2{border:1px solid #ffc85a!important;background:linear-gradient(115deg,#150707,#5a1b0a,#1b080b)!important;box-shadow:0 0 12px #fa3b35a0,inset 0 0 9px #f0b14a44!important;color:#ffdf9b!important}
+#profileView .wd-admin-crest{width:30px!important;height:30px!important;border:1px solid #ffd279!important;background:linear-gradient(145deg,#dba443,#5d180b,#1d090b)!important;box-shadow:0 0 10px #e9a54b99!important;clip-path:polygon(50% 0,90% 15%,100% 65%,50% 100%,0 65%,10% 15%)!important}
+
+#wordiiMyProfileV2 .wmp-level-seat{position:relative!important;display:inline-flex!important;margin-top:35px!important;overflow:visible!important}
+#wordiiMyProfileV2 .wmp-level-character{position:absolute!important;width:92px!important;height:90px!important;object-fit:contain!important;bottom:85%!important;right:-6px!important;max-width:none!important;filter:drop-shadow(0 0 7px #ff3159)!important;pointer-events:none!important}

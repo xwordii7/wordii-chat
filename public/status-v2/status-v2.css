@@ -158,3 +158,47 @@ body > #picker:not(.hidden){inset:0!important;display:flex!important;}
 #storyEdit .wd-editor-actions,#storyEdit .wordii-layout-rail{flex-shrink:0!important;overflow-x:auto!important;}
 #storyEdit .story-edit-tools{flex-shrink:0!important;max-height:none!important;overflow:visible!important;padding-bottom:max(env(safe-area-inset-bottom,0px),16px)!important;}
 @media(max-height:650px){#storyEdit .story-edit-preview{max-height:43dvh!important;width:min(calc(100vw - 24px),calc(43dvh * 9 / 16))!important;}}
+
+/* WORDII STATUS MOBILE FIX */
+#storyEdit:not(.hidden){
+  padding-top:max(env(safe-area-inset-top,0px),28px)!important;
+  padding-bottom:max(env(safe-area-inset-bottom,0px),12px)!important;
+  box-sizing:border-box!important;
+}
+#storyEdit .story-edit-head{
+  min-height:56px!important;
+  flex-shrink:0!important;
+  z-index:20!important;
+}
+#storyEdit #seClose,
+#storyEdit #seShare{
+  min-width:44px!important;
+  min-height:44px!important;
+  touch-action:manipulation!important;
+}
+#storyEdit .story-edit-preview{
+  margin:8px auto!important;
+  max-height:55dvh!important;
+  overflow:hidden!important;
+}
+#storyEdit #seImage{
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+}
+
+/* WORDII STATUS EDITOR CLEANUP */
+#storyEdit .wordii-layout-rail{
+  display:none!important;
+}
+
+#storyEdit .story-edit-tools{
+  display:none!important;
+}
+
+/* Keep primary editor controls available */
+#storyEdit .story-edit-head,
+#storyEdit .wd-reference-toolbar,
+#storyEdit .wd-editor-actions{
+  visibility:visible!important;
+}

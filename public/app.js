@@ -1687,6 +1687,65 @@ function openProfileView(id) {
   pvUnsub = onSnapshot(doc(db, "users", id), (s) => { people[id] = s.data(); renderPV(); }, () => {});
 }
 function closePV() { if (pvUnsub) pvUnsub(); pvUnsub = null; pvId = null; $("#profileView").classList.add("hidden"); }
+// Wordii Character on Level — admin-controlled, Firestore-backed compact PNG.
+async function wdLevelCharacterRender(target){
+  try{
+    const snap=await getDoc(doc(db,'levelCharacters',target));
+    if(pvId!==target||!snap.exists())return;
+    const png=snap.data().png;
+    if(typeof png!=='string'||!png.startsWith('data:image/png;base64,'))return;
+    const badge=document.querySelector('#profileView .wd-pv-level');
+    if(!badge)return;
+    badge.querySelector('.wd-level-character')?.remove();
+    const image=document.createElement('img');
+    image.className='wd-level-character';image.alt='Level character';image.src=png;
+    badge.prepend(image);badge.classList.add('wd-level-seat');
+  }catch(err){console.warn('Level character unavailable:',err.code||err.message);}
+}
+window.wordiiLevelCharacterForCurrent = async function(){
+  if(!uid)return '';
+  try{const snap=await getDoc(doc(db,'levelCharacters',uid));return snap.data()?.png||'';}
+  catch{return '';}
+};
+function wdBindLevelCharacterSettings(){
+  const input=document.getElementById('wdLevelFile'),preview=document.getElementById('wdLevelPreview');
+  input?.addEventListener('change',()=>{
+    const f=input.files?.[0];if(!f)return;
+    if(f.type!=='image/png'){toast('Choose a transparent PNG');input.value='';return;}
+    preview.src=URL.createObjectURL(f);preview.style.display='block';
+  });
+  async function targetUid(){
+    const username=document.getElementById('wdLevelUser')?.value.trim();
+    if(!username||username.length>80)throw Error('Enter an exact username');
+    const found=await getDocs(query(collection(db,'users'),where('username','==',username),limit(2)));
+    if(found.size!==1)throw Error('Username not found or ambiguous');
+    return found.docs[0].id;
+  }
+  async function compactPNG(file){
+    if(!file||file.type!=='image/png'||file.size>3*1024*1024)throw Error('Choose a PNG under 3 MB');
+    const url=URL.createObjectURL(file);
+    try{
+      const img=new Image();img.src=url;await img.decode();
+      const canvas=document.createElement('canvas');const ratio=Math.min(1,256/Math.max(img.width,img.height));
+      canvas.width=Math.max(1,Math.round(img.width*ratio));canvas.height=Math.max(1,Math.round(img.height*ratio));
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      const data=canvas.toDataURL('image/png');
+      if(data.length>160000)throw Error('PNG too detailed. Use a simpler transparent image under 120 KB after compression');
+      return data;
+    }finally{URL.revokeObjectURL(url);}
+  }
+  document.getElementById('wdLevelAssign')?.addEventListener('click',e=>act(async()=>{
+    if(me?.admin!==true)throw Error('Admin only');
+    const target=await targetUid();const png=await compactPNG(input.files?.[0]);
+    await setDoc(doc(db,'levelCharacters',target),{png,updatedBy:uid,updatedAt:serverTimestamp()});
+    toast('Level character assigned');
+  },e.currentTarget));
+  document.getElementById('wdLevelRemove')?.addEventListener('click',e=>act(async()=>{
+    if(me?.admin!==true)throw Error('Admin only');
+    const target=await targetUid();await deleteDoc(doc(db,'levelCharacters',target));
+    toast('Level character removed');
+  },e.currentTarget));
+}
 function renderPV() {
   if (!pvId) return;
   const u = people[pvId], body = $("#pvBody");
@@ -1709,7 +1768,7 @@ function renderPV() {
     <div class="pv-ava">${profileAvatar}</div>
     <div class="pv-info wd-public-profile-v2">
       <div class="wd-profile-eyebrow">✦ WORDII PROFILE</div>
-      <div class="wd-pv-name-row"><h2>${esc(nameOf(u))}${vb(u)}</h2><span class="wd-pv-level">✦ Lv. ${Number(u.level) || 1}</span></div>
+      <div class="wd-pv-name-row"><h2>${esc(nameOf(u))}${vb(u)}</h2><span class="wd-pv-level wd-level-seat">${isAdminProfile ? '<img class="wd-level-character" src="/profile-v2/admin-level-character.png" alt="Xwordii sitting character">' : ''}<span>✦ Lv. ${Number(u.level) || 1}</span></span></div>
       <div class="wd-pv-badges">
         ${isAdminProfile ? '<span class="wd-admin-v2"><span class="wd-admin-crest">♛<b>W</b></span><span>ADMIN</span></span>' : ''}
         ${u.preAdmin===true ? '<span class="wd-preadmin-v2">◆ PRE-ADMIN</span>' : ''}
@@ -1727,13 +1786,20 @@ function renderPV() {
       <div class="wd-pv-actions">
         <button class="btn ${isF ? "ghost" : ""}" data-pv="follow">${isF ? "Following ✓" : "Follow"}</button>
         ${msg}
+        <button class="btn ghost wd-pv-share" type="button" data-pv="share" aria-label="Share profile">↗</button>
+        <button class="btn ghost wd-pv-qr" type="button" data-pv="qr" aria-label="Profile QR code">▦</button>
       </div>
       <p class="bio">${esc(u.bio || "No bio yet.")}</p>
       <button type="button" class="btn ghost" data-pv="followers">👥 ${Number(u.followersCount) || 0} followers · View list</button>
       <p class="tiny wd-pv-privacy">${u.isPublic ? "🌍 Public account" : "🔒 Private account"}</p>
+      <div class="wd-pv-meta">
+        <span>📍 ${esc(u.location || (isAdminProfile ? "India" : "Location not set"))}</span>
+        ${isAdminProfile ? '<a href="https://wordii-hub.web.app" target="_blank" rel="noopener noreferrer">🔗 wordii-hub.web.app</a>' : ''}
+        <span>▦ Joined ${u.createdAt?.toDate?.()?.toLocaleDateString(undefined,{month:"short",year:"numeric"}) || "Unavailable"}</span>
+      </div>
       <div class="wmp-quick">
         <button type="button" data-wd-pv-shortcut="badges"><i>♛</i>Badges</button>
-        <button type="button" data-wd-pv-shortcut="level"><i>▥</i>Level</button>
+        <button type="button" data-wd-pv-shortcut="level"><i>▂▅▇</i>Level</button>
         <button type="button" data-wd-pv-shortcut="points"><i>◉</i>Points</button>
         <button type="button" data-wd-pv-shortcut="collection"><i>✦</i>Collection</button>
         <button type="button" data-wd-pv-shortcut="couple"><i>♡</i>Couple</button>
@@ -1745,6 +1811,7 @@ function renderPV() {
       </div>
       <div class="wmp-panel">Posts publishing is not enabled yet.</div>
     </div>`;
+  wdLevelCharacterRender(pvId);
   wdPVFollowingCount(pvId);
   wdPVAvatarSetup();
 }
@@ -1972,6 +2039,23 @@ $("#pvBody").addEventListener("click", (e) => {
   const b = e.target.closest("[data-pv]"); if (!b) return;
   const id = pvId, a = b.dataset.pv;
   act(async () => {
+    if (a === "share" || a === "qr") {
+      const user=people[id];
+      const link="https://wordii-hub.web.app/?profile="+encodeURIComponent(user?.username||id);
+      if(a==="share"){
+        if(navigator.share){
+          try { await navigator.share({title:"Wordii Chat Profile",url:link}); }
+          catch(e){if(e.name!=="AbortError")throw e;}
+        }else{
+          await navigator.clipboard.writeText(link);
+          toast("Profile link copied");
+        }
+      }else{
+        const win=window.open("https://api.qrserver.com/v1/create-qr-code/?size=300x300&data="+encodeURIComponent(link),"_blank","noopener");
+        if(!win)toast("Allow popups to view QR code");
+      }
+      return;
+    }
     if (a === "followers") { await wordiiShowFollowers(id); return; }
     if (a === "following") { await wdPVFollowingList(id); return; }
     if (a === "follow") await toggleFollow(id, following.has(id));
@@ -2106,7 +2190,7 @@ function renderSettings(force) {
       <p class="tiny">Real AdMob IDs configured. Earnings begin only if AdMob approves ad serving; no XP rewards yet.</p></div>`,
 
     overview: () => `<div class="wd-settings-overview"><div class="wd-settings-person"><div class="wd-settings-avatar">${avatarHTML(me)}</div><div><strong>${esc(me.displayName || me.username)}</strong><p class="tiny">${esc(me.username)} · Level ${me.level || 1}</p></div></div>
-      ${[['✨','myprofile','My Profile','View your full profile, posts and badges'],['👤','edit','Edit profile','Name, bio, profile photo and banner'],['🏆','points','Points & level','XP, progress and streak'],['🔑','account','Account','Login, email and account security'],['🔒','privacy','Privacy','Online status, public account'],['💬','chats','Chats','Chat wallpaper and theme'],['🎨','appearance','Appearance','Light and dark app theme'],['🔔','notif','Notifications','Message and push alerts'],['🌐','lang','App language','Current language options'],['💎','subs','Subscriptions','Available plans'],['📢','ads','Ad Preferences','Manage ad visibility and frequency'],['🚀','updates','App Updates','Check the app version'],['🤖','assistant','Wordii Assistant','Help, rules and account commands'],...(me?.admin===true ? [['🎨','brand','App Branding','Upload or reset the Wordii logo']] : [])].map(([ico,k,label,desc])=>`<button type="button" class="wd-settings-link" data-wd-settings="${k}"><span class="wd-settings-ico">${ico}</span><span><b>${label}</b><small>${desc}</small></span><span class="wd-settings-arrow">›</span></button>`).join('')}</div>`,
+      ${[['✨','myprofile','My Profile','View your full profile, posts and badges'],['👤','edit','Edit profile','Name, bio, profile photo and banner'],['🏆','points','Points & level','XP, progress and streak'],['🔑','account','Account','Login, email and account security'],['🔒','privacy','Privacy','Online status, public account'],['💬','chats','Chats','Chat wallpaper and theme'],['🎨','appearance','Appearance','Light and dark app theme'],['🔔','notif','Notifications','Message and push alerts'],['🌐','lang','App language','Current language options'],['💎','subs','Subscriptions','Available plans'],['📢','ads','Ad Preferences','Manage ad visibility and frequency'],['🚀','updates','App Updates','Check the app version'],['🤖','assistant','Wordii Assistant','Help, rules and account commands'],...(me?.admin===true ? [['🎨','brand','App Branding','Upload or reset the Wordii logo'],['👑','levelCharacter','Character on Level','Assign a transparent PNG to a username']] : [])].map(([ico,k,label,desc])=>`<button type="button" class="wd-settings-link" data-wd-settings="${k}"><span class="wd-settings-ico">${ico}</span><span><b>${label}</b><small>${desc}</small></span><span class="wd-settings-arrow">›</span></button>`).join('')}</div>`,
     appearance: () => `<div class="card"><b>App theme</b><p class="tiny">Choose a theme for all screens.</p><select id="setTheme"><option value="dark" ${t==='dark'?'selected':''}>Dark</option><option value="light" ${t==='light'?'selected':''}>Light</option>${canGreenTheme(me) ? `<option value="green" ${t==='green'?'selected':''}>White + Green</option>` : ""}<option value="auto" ${t==='auto'?'selected':''}>System default</option></select></div>`,
     points: () => {
       const points = Math.max(0, Number(me.points) || 0);
@@ -2167,11 +2251,13 @@ function renderSettings(force) {
     codeSettings: () => `<div class="card"><h3>🔑 Connect by Code</h3><p class="tiny">Code tabhi banega jab Generate Code dabaaoge. Code 10 minutes valid rahega.</p><button type="button" class="btn" id="wdOpenCode">Open Generate Code</button></div>`,
     subs: () => wordiiFullSubscriptionHTML(),
     couple: () => wordiiCouplePage(),
+    levelCharacter: () => me?.admin===true ? `<div class="card"><h3>👑 Character on Level</h3><p class="tiny">Admin only · PNG with transparent background · 256px recommended. Characters appear above the Level badge.</p><label>Exact username</label><input id="wdLevelUser" placeholder="@username#123" autocapitalize="none" autocomplete="off"><label>Character PNG</label><input id="wdLevelFile" type="file" accept="image/png"><img id="wdLevelPreview" alt="Character preview" style="display:none;max-width:120px;max-height:120px;object-fit:contain;background:#171019;border-radius:12px"><div class="row-btns"><button class="btn" id="wdLevelAssign" type="button">Assign / Replace</button><button class="btn ghost" id="wdLevelRemove" type="button">Remove</button></div><p class="tiny" id="wdLevelFeedback">Firestore stores a compact PNG (max 160 KB). Do not upload private photos without permission.</p></div>` : `<div class="card">Admin only</div>`,
     brand: () => me?.admin === true ? `<div class="card wd-brand-manager"><h3>🎨 App Logo Manager</h3><p class="tiny">Only full admins can change the in-app logo. Home-screen icon requires a new APK.</p><img id="wdBrandPreview" src="${esc(wordiiBrandLogo)}" alt="Current Wordii logo"><input type="file" id="wdBrandFile" accept="image/png,image/jpeg,image/webp"><div class="row-btns"><button type="button" class="btn" id="wdBrandSave">Apply logo</button><button type="button" class="btn ghost" id="wdBrandReset">Reset to Logo E</button></div></div>` : `<div class="card">Admin only</div>`,
     admin: () => canBTP() ? `<div class="card"><b>🛡️ BTP — Badge & Trust Panel</b><p class="tiny">Search a username. Only Admin can assign Pre-Admin. Premium and Verified badges require payment approval.</p><div class="wd-badge-showcase" aria-label="Wordii role badges"><img src="wordii-badges/admin_full.png" alt="Admin role badge" loading="lazy"><img src="wordii-badges/pre_admin_full.png" alt="Pre-Admin role badge" loading="lazy"><img src="wordii-badges/premium_user_full.png" alt="Premium User role badge" loading="lazy"><img src="wordii-badges/verified_user_full.png" alt="Verified User role badge" loading="lazy"></div><input id="admSearch" placeholder="Search username" autocapitalize="none" autocomplete="off"><div id="admResults"></div></div>${me?.admin ? `<div class="card"><b>📩 Suspension appeals</b><div id="wdAppealAdminList">Loading…</div><button type="button" class="btn ghost" id="wdRefreshAppeals">Refresh appeals</button></div>` : ``}` : `<div class="card">Access denied.</div>`,
   };
   $("#settingsBody").innerHTML = (pages[subKey] || (() => ""))();
   applyWordiiWallpaper();
+  if (subKey === "levelCharacter" && me?.admin === true) wdBindLevelCharacterSettings();
   if (subKey === "admin") { renderAdm(); if (me?.admin) loadSuspensionAppeals(); }
   if (subKey === "musicAdmin" && me?.admin === true) wordiiBindAdminMusic();
   if (subKey === "subs") loadWordiiSubscription();
