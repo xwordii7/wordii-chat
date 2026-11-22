@@ -328,6 +328,22 @@ service cloud.firestore {
       allow update: if signedIn() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeen'])
         && request.resource.data.lastSeen == request.time;
+      // V15: admin may assign a couple badge only from an approved order.
+      // This also supports syncing previously approved V14 orders.
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coupleCode','couplePartnerUid'])
+        && request.resource.data.coupleCode is string
+        && request.resource.data.couplePartnerUid is string
+        && request.resource.data.couplePartnerUid != uid
+        && request.resource.data.coupleCode == 'WC-' + (uid < request.resource.data.couplePartnerUid
+            ? uid + '_' + request.resource.data.couplePartnerUid
+            : request.resource.data.couplePartnerUid + '_' + uid)
+        && getAfter(/databases/$(database)/documents/coupleOrders/$(uid < request.resource.data.couplePartnerUid
+            ? uid + '_' + request.resource.data.couplePartnerUid
+            : request.resource.data.couplePartnerUid + '_' + uid)).data.status == 'approved'
+        && getAfter(/databases/$(database)/documents/coupleOrders/$(uid < request.resource.data.couplePartnerUid
+            ? uid + '_' + request.resource.data.couplePartnerUid
+            : request.resource.data.couplePartnerUid + '_' + uid)).data.badgeCode == request.resource.data.coupleCode;
       // Admin can give or remove the blue verified badge of any user.
       allow update: if isAdmin() && request.auth.uid != uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified','premium','preAdmin'])
