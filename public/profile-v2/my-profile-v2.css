@@ -767,3 +767,34 @@
 }
 
 /* WORDII CHARACTER FIX V9 END */
+
+/* WORDII MY PROFILE V10: same visual language as public profile */
+#wordiiMyProfileV2{overflow-x:hidden!important;background:#000!important}
+#wordiiMyProfileV2 .wmp-head{background:#050505!important;height:68px!important}
+#wordiiMyProfileV2 .wmp-head b{font-size:19px!important}
+#wordiiMyProfileV2 .wmp-cover{height:185px!important;width:100%!important;background-size:cover!important;background-position:center!important}
+#wordiiMyProfileV2 .wmp-avatar{width:112px!important;height:112px!important;margin:-58px 0 0 20px!important;border:4px solid #f3b955!important;box-shadow:0 0 0 4px #8c1e2a,0 0 18px #f12748!important;overflow:hidden!important}
+#wordiiMyProfileV2 .wmp-inner{padding:15px 20px 40px!important}
+#wordiiMyProfileV2 .wmp-identity{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;min-height:115px;position:relative}
+#wordiiMyProfileV2 .wmp-name-area{min-width:0;max-width:65%;padding-top:4px}
+#wordiiMyProfileV2 .wmp-inner h1{font-size:26px!important;font-weight:900!important;margin:4px 0 12px!important;overflow-wrap:anywhere}
+#wordiiMyProfileV2 .wmp-name-crown{font-size:21px;color:#efad54}
+#wordiiMyProfileV2 .wmp-badges{display:flex!important;flex-wrap:wrap!important;gap:6px!important;margin:0!important}
+#wordiiMyProfileV2 .wmp-badges span{font-weight:800!important;font-size:11px!important;padding:8px 12px!important;white-space:nowrap!important}
+#wordiiMyProfileV2 .wmp-royal{border:1px solid #c99a50!important;background:linear-gradient(110deg,#35100d,#100b0a)!important;color:#ffd17c!important;box-shadow:0 0 10px #d58d4277}
+#wordiiMyProfileV2 .wmp-verified{border:1px solid #ac49ef!important;background:#250b3a!important;color:#ebbbff!important;box-shadow:0 0 10px #a62aff66}
+#wordiiMyProfileV2 .wmp-level-seat{position:relative!important;flex:0 0 113px!important;min-width:113px!important;width:113px!important;height:36px!important;margin:79px 0 0!important;display:flex!important;align-items:center!important;justify-content:center!important;border:1px solid #d6a65c!important;border-radius:30px!important;background:linear-gradient(90deg,#281016,#09080b)!important;color:#ffe1aa!important;isolation:isolate!important;overflow:visible!important}
+#wordiiMyProfileV2 .wmp-level-seat>span{position:relative!important;z-index:2!important;font-size:14px!important;font-weight:900!important}
+#wordiiMyProfileV2 .wmp-level-seat .wmp-level-character{position:absolute!important;display:block!important;right:4px!important;bottom:23px!important;width:116px!important;height:135px!important;max-width:116px!important;max-height:135px!important;object-fit:contain!important;z-index:3!important;pointer-events:none!important;filter:none!important}
+#wordiiMyProfileV2 .wmp-handle{font-size:14px!important;margin-top:2px!important}
+#wordiiMyProfileV2 .wmp-presence{font-size:12px!important;margin-top:5px!important;color:#aaa!important}
+#wordiiMyProfileV2 .wmp-stats{margin:24px 0!important}
+#wordiiMyProfileV2 .wmp-actions button{min-height:47px!important;border-radius:12px!important;font-size:14px!important}
+#wordiiMyProfileV2 .wmp-actions button:first-child{background:linear-gradient(100deg,#a5062d,#fa254b)!important}
+#wordiiMyProfileV2 .wmp-bio{margin:22px 0!important;font-size:14px!important}
+#wordiiMyProfileV2 .wmp-followers{width:100%;padding:11px;border:1px solid #a52b4b;background:#0a080a;color:white;border-radius:25px;font-weight:700}
+#wordiiMyProfileV2 .wmp-meta{font-size:12px;color:#aaa;margin:12px 0}
+#wordiiMyProfileV2 .wmp-quick{margin:25px 0!important;gap:3px!important}
+#wordiiMyProfileV2 .wmp-quick i{width:48px!important;height:48px!important;max-width:100%!important;border-radius:50%!important;box-shadow:0 0 14px #b53c7b70!important}
+#wordiiMyProfileV2 .wmp-tabs button{padding:11px 2px!important;border-radius:25px!important}
+/* END WORDII MY PROFILE V10 */

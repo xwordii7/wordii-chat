@@ -11,7 +11,28 @@ function show(){
   ? "background-image:url('profile-v2/admin-banner.jpg')"
   : (d.banner ? "background:"+d.banner : "");
  const avatar=d.admin?`<img src="${adminAsset}" alt="Admin profile picture">`:d.avatar&&/^(data:image\/|https:\/\/)/.test(d.avatar)?`<img src="${escapeHTML(d.avatar)}" alt="Profile picture">`:`<span>${escapeHTML((d.name||'?').slice(0,1).toUpperCase())}</span>`;
- $('#wmpContent').innerHTML=`<div class="wmp-cover" style="${banner}"></div><div class="wmp-avatar">${avatar}</div><div class="wmp-inner"><h1>${escapeHTML(d.name)}</h1><div class="wmp-badges">${d.admin?'<span>♛ Admin</span>':''}<span class="wmp-level-seat">${d.admin?'<img class="wmp-level-character" src="profile-v2/admin-level-character.png" alt="Xwordii character">':''}★ Lv. ${Number(d.level)||1}</span></div><div class="wmp-handle">${escapeHTML(d.username)}</div><div class="wmp-presence">${d.online?'● Online':''}</div><div class="wmp-stats"><div><b>—</b><small>Posts</small></div><div><b>${Number(d.followers)||0}</b><small>Followers</small></div><div><b>${Number(d.following)||0}</b><small>Following</small></div></div><div class="wmp-actions"><button data-wmp-go="edit">✎ Edit Profile</button><button data-wmp-go="invite">♧ Share Profile</button></div><p class="wmp-bio">${escapeHTML(d.bio||'Add a bio')}</p><div class="wmp-quick"><button data-wmp-go="subs"><i>♛</i>Badges</button><button data-wmp-go="points"><i>⬡</i>Level</button><button data-wmp-go="points"><i>✪</i>Points</button><button data-wmp-go="subs"><i>◆</i>Collection</button><button data-wmp-go="couple"><i>♡♡</i>Couple</button></div>${d.coupleCode?`<div class="wmp-couple"><span class="wmp-heart">♡</span> Couple · ${escapeHTML(d.coupleCode)}</div>`:''}<div class="wmp-tabs"><button class="active" data-wmp-tab="posts">▦ Posts</button><button data-wmp-tab="status">▷ Status</button><button data-wmp-tab="about">ⓘ About</button></div><div id="wmpPanel" class="wmp-panel">Loading posts…</div></div>`;
+ $('#wmpContent').innerHTML=`
+ <div class="wmp-cover" style="${banner}"></div>
+ <div class="wmp-avatar">${avatar}</div>
+ <div class="wmp-inner wmp-premium-v10">
+  <div class="wmp-identity">
+   <div class="wmp-name-area"><h1>${escapeHTML(d.name)}${d.admin?' <span class="wmp-name-crown">♛</span>':''}</h1>
+    <div class="wmp-badges">${d.admin?'<span class="wmp-royal">♛ ADMIN</span>':''}${d.verified?'<span class="wmp-verified">✧ VERIFIED</span>':''}</div>
+   </div>
+   <span class="wmp-level-seat">${d.admin?'<img class="wmp-level-character" src="profile-v2/admin-level-character.png" alt="Xwordii character">':''}<span>✦ Lv. ${Number(d.level)||1}</span></span>
+  </div>
+  <div class="wmp-handle">${escapeHTML(d.username)}</div>
+  <div class="wmp-presence">${d.online?'● Online':'Last seen recently'}</div>
+  <div class="wmp-stats"><div><b>—</b><small>Posts</small></div><div><b>${Number(d.followers)||0}</b><small>Followers</small></div><div><b>${Number(d.following)||0}</b><small>Following</small></div></div>
+  <div class="wmp-actions"><button data-wmp-go="edit">✎ Edit Profile</button><button data-wmp-go="invite">↗ Share Profile</button></div>
+  <p class="wmp-bio">${escapeHTML(d.bio||'Add a bio')}</p>
+  <button type="button" class="wmp-followers" data-wmp-go="followers">👥 ${Number(d.followers)||0} followers · View list</button>
+  <div class="wmp-meta">🌍 ${d.isPublic?'Public':'Private'} account</div>
+  <div class="wmp-meta">📍 ${escapeHTML(d.location||'India')}${d.admin?'　🔗 wordii-hub.web.app':''}</div>
+  <div class="wmp-quick"><button data-wmp-go="subs"><i>♛</i>Badges</button><button data-wmp-go="points"><i>▂▅▇</i>Level</button><button data-wmp-go="points"><i>✪</i>Points</button><button data-wmp-go="subs"><i>◆</i>Collection</button><button data-wmp-go="couple"><i>♡</i>Couple</button></div>
+  ${d.coupleCode?`<div class="wmp-couple"><span class="wmp-heart">♡</span> Couple · ${escapeHTML(d.coupleCode)}</div>`:''}
+  <div class="wmp-tabs"><button class="active" data-wmp-tab="posts">▦ Posts</button><button data-wmp-tab="status">▷ Status</button><button data-wmp-tab="about">ⓘ About</button></div><div id="wmpPanel" class="wmp-panel">Posts publishing is not enabled yet.</div>
+ </div>`
  window.wordiiLevelCharacterForCurrent?.().then(png=>{
    if(!png||page.classList.contains('hidden'))return;
    const badge=page.querySelector('.wmp-level-seat');if(!badge)return;
