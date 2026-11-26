@@ -53,3 +53,5 @@ jobs:
           OTP_HMAC_SECRET: ${{ secrets.OTP_HMAC_SECRET }}
           OTP_TEST_UID: ${{ secrets.OTP_TEST_UID }}
 # Refresh restricted test account
+
+# Deploy Firebase verification endpoint fix

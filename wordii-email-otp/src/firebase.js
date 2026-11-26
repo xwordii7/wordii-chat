@@ -114,9 +114,30 @@ export async function markEmailVerified(env, uid, email, oobCode) {
     throw new Error("Missing verification action code");
   }
 
-  await firebaseRequest(env, "update", {
-    oobCode
-  });
+  const response = await fetch(
+    "https://identitytoolkit.googleapis.com/v1/accounts:update?key=" +
+      encodeURIComponent(env.FIREBASE_API_KEY),
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ oobCode })
+    }
+  );
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const reason = String(data.error?.message || "UNKNOWN")
+      .split(" ")[0];
+
+    console.error("Firebase verification failed", {
+      status: response.status,
+      reason: /^[A-Z0-9_]+$/.test(reason) ? reason : "UNKNOWN"
+    });
+
+    throw new Error("Firebase action code rejected");
+  }
 
   const confirmed = await getFirebaseUser(env, uid);
 
