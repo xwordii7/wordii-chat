@@ -52,3 +52,4 @@ jobs:
           FIREBASE_OTP_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_OTP_SERVICE_ACCOUNT }}
           OTP_HMAC_SECRET: ${{ secrets.OTP_HMAC_SECRET }}
           OTP_TEST_UID: ${{ secrets.OTP_TEST_UID }}
+# Refresh restricted test account
