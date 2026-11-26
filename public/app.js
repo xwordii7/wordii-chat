@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged, linkWithCredential, EmailAuthProvider, signInWithEmailAndPassword, signOut, sendEmailVerification, sendPasswordResetEmail, verifyBeforeUpdateEmail, PhoneAuthProvider, RecaptchaVerifier } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, setPersistence, browserLocalPersistence, signInAnonymously, onAuthStateChanged, linkWithCredential, EmailAuthProvider, signInWithEmailAndPassword, signOut, sendEmailVerification, sendPasswordResetEmail, verifyBeforeUpdateEmail, PhoneAuthProvider, RecaptchaVerifier } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, runTransaction, getCountFromServer, setDoc, updateDoc, deleteDoc, writeBatch, increment, collection, query, where, orderBy, limit, startAfter, onSnapshot, addDoc, serverTimestamp, Timestamp, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { getStorage, ref as storageRef, uploadBytes, getBlob } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
@@ -111,6 +111,12 @@ function copy(text) {
 if (firebaseConfig.apiKey.startsWith("PASTE")) { fatal(new Error("Open public/firebase-config.js and paste your Firebase config.")); throw new Error("Missing Firebase config"); }
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app), db = getFirestore(app);
+
+const wordiiAuthReady = setPersistence(
+  auth, browserLocalPersistence
+).catch(error => {
+  console.warn("Using default auth persistence:", error);
+});
 
 // Admin-managed in-app branding; not the installed Android launcher icon.
 const WORDII_DEFAULT_LOGO = "wordii-logo-e.png";
@@ -284,6 +290,8 @@ function showLevelCelebration(level) {
 
 // ---------- auth + profile ----------
 let authStarted = false;
+let wordiiProfileUnsub = null;
+
 onAuthStateChanged(auth, (u) => {
   if (!u) {
     if (wordiiOneSignalStarted && wordiiOneSignal()) {
@@ -293,9 +301,24 @@ onAuthStateChanged(auth, (u) => {
     signInAnonymously(auth).catch(fatal);
     return;
   }
-  if (authStarted) return;
-  authStarted = true; uid = u.uid;
-  onSnapshot(doc(db, "users", uid), (s) => {
+  if (authStarted && uid === u.uid) return;
+
+  if (started && uid !== u.uid) {
+    location.reload();
+    return;
+  }
+
+  if (wordiiProfileUnsub) {
+    wordiiProfileUnsub();
+    wordiiProfileUnsub = null;
+  }
+
+  authStarted = true;
+  uid = u.uid;
+  me = null;
+
+  wordiiProfileUnsub = onSnapshot(doc(db, "users", uid), (s) => {
+    if (auth.currentUser?.uid !== u.uid) return;
     $("#splash").classList.add("hidden");
     if (!s.exists()) { me = null; $("#app").classList.add("hidden"); $("#onboard").classList.remove("hidden"); return; }
     const incoming = s.data();
@@ -385,7 +408,10 @@ async function linkEmail(email, password) {
   if (!EMAIL_RE.test(email)) throw new Error("Enter a valid Gmail address.");
   if (password.length < 6) throw new Error("Password must be at least 6 characters.");
   await linkWithCredential(auth.currentUser, EmailAuthProvider.credential(email, password));
-  await sendEmailVerification(auth.currentUser).catch(() => {});
+  await sendEmailVerification(auth.currentUser).catch(error => {
+    console.error("Verification email error:", error);
+    toast("Could not send verification email. Please use Resend.");
+  });
   checkGate();
 }
 const needsVerify = () => { const u = auth.currentUser; return !!u && !u.isAnonymous && !!u.email && !isFakeEmail(u.email) && !u.emailVerified; };
@@ -445,8 +471,12 @@ $("#createBtn").onclick = (e) => act(async () => {
 $("#loginBtn").onclick = (e) => act(async () => {
   const v = $("#loginName").value.trim();
   const email = EMAIL_RE.test(v) ? v.toLowerCase() : emailFor(keyFromUsername(v));
-  await signInWithEmailAndPassword(auth, email, $("#loginPw").value);
-  location.reload();
+  await wordiiAuthReady;
+  const result = await signInWithEmailAndPassword(
+    auth, email, $("#loginPw").value
+  );
+  await result.user.getIdToken();
+  toast("Login successful");
 }, e.currentTarget);
 $("#forgotLink").onclick = (e) => {
   e.preventDefault();
