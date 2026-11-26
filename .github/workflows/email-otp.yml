@@ -41,7 +41,8 @@ jobs:
           node -e 'process.stdout.write(JSON.stringify({
             BREVO_API_KEY: process.env.BREVO_API_KEY,
             FIREBASE_OTP_SERVICE_ACCOUNT: process.env.FIREBASE_OTP_SERVICE_ACCOUNT,
-            OTP_HMAC_SECRET: process.env.OTP_HMAC_SECRET
+            OTP_HMAC_SECRET: process.env.OTP_HMAC_SECRET,
+            OTP_TEST_UID: process.env.OTP_TEST_UID
           }))' | npx wrangler secret bulk
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -50,3 +51,4 @@ jobs:
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
           FIREBASE_OTP_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_OTP_SERVICE_ACCOUNT }}
           OTP_HMAC_SECRET: ${{ secrets.OTP_HMAC_SECRET }}
+          OTP_TEST_UID: ${{ secrets.OTP_TEST_UID }}
