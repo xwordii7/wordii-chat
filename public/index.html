@@ -197,7 +197,108 @@
 <section id="profileView" class="hidden"><header class="chat-top"><button id="pvBack" class="icon">←</button><b>Profile</b></header><div id="pvBody"></div></section>
 <section id="picker" class="hidden"><div class="card"><b id="pkTitle"></b><div id="pkList"></div><button id="pkOk" class="btn">Done</button><button id="pkCancel" class="btn ghost">Cancel</button></div></section>
 <section id="verifyGate" class="hidden"><div class="card center"><img class="logo-img" src="wordii-logo-e.png" data-wordii-brand="1" alt="" style="width:90px;height:90px"><h2>Verify your Gmail</h2><p class="muted" id="vgText"></p>
-  <button id="vgDone" class="btn">I verified</button><button id="vgResend" class="btn ghost">Resend email</button><button id="vgOut" class="btn ghost">Log out</button><p class="tiny">Check your Spam folder too.</p></div></section>
+
+<style>
+#wdOtpPanel {
+  margin: 20px auto;
+  max-width: 360px;
+  text-align: center;
+}
+#wdOtpInput {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 16px 8px;
+  background: #151519;
+  color: #fff;
+  border: 1px solid #ff3545;
+  border-radius: 14px;
+  font-size: 28px;
+  letter-spacing: 10px;
+  text-align: center;
+  outline: none;
+}
+#wdOtpInput:focus {
+  box-shadow: 0 0 15px #ff354533;
+}
+#wdOtpMessage {
+  min-height: 24px;
+  font-size: 13px;
+  color: #ff6470;
+}
+#wdOtpTimer {
+  color: #999;
+  font-size: 13px;
+  margin: 12px 0;
+}
+#wdOtpVerify {
+  background: #e52338;
+  color: white;
+  width: 100%;
+  border-radius: 12px;
+}
+</style>
+
+
+<style id="wdOtpProStyle">
+#wdOtpInput {
+  width: 100%;
+  max-width: 330px;
+  height: 64px;
+  font-family: monospace;
+  font-size: 27px;
+  letter-spacing: .65em;
+  padding-left: .65em;
+  background-color: #141418;
+  background-image: linear-gradient(
+    to right,
+    transparent calc(100% - 2px),
+    #ff3545 calc(100% - 2px)
+  );
+  background-size: 16.6667% 100%;
+  border: 1px solid #ff3545;
+  border-radius: 12px;
+}
+#wdOtpVerify:disabled,
+#wdOtpSend:disabled {
+  opacity: .5;
+}
+#wdOtpPanel button {
+  margin-top: 10px;
+}
+</style>
+
+<div id="wdOtpPanel">
+  <h3>6-digit verification</h3>
+
+  <p class="muted">
+    Request a secure code to verify your Gmail.
+  </p>
+
+  <input id="wdOtpInput"
+    type="text"
+    inputmode="numeric"
+    autocomplete="one-time-code"
+    maxlength="6"
+    placeholder="000000"
+    aria-label="Six digit verification code">
+
+  <p id="wdOtpTimer">Request a code to begin</p>
+
+  <p id="wdOtpMessage" role="status"></p>
+
+  <button id="wdOtpVerify" class="btn">
+    Verify Gmail
+  </button>
+
+  <button id="wdOtpSend" class="btn ghost">
+    Send verification code
+  </button>
+
+  <p class="tiny">
+    Codes expire after 5 minutes.
+  </p>
+</div>
+<button id="vgDone" class="btn">I verified</button><button id="vgResend" class="btn ghost">Resend email</button><button id="vgOut" class="btn ghost">Log out</button><p class="tiny">Check your Spam folder too.</p></div></section>
 <section id="incoming" class="hidden"><div class="inc-card"><div id="incAva"></div><h2 id="incName"></h2><p id="incType"></p>
   <div class="inc-btns"><button id="incDecline" class="call-btn red" aria-label="Decline">✕</button><button id="incAccept" class="call-btn green" aria-label="Accept">✓</button></div></div></section>
 <section id="callUI" class="hidden"><video id="remoteVideo" autoplay playsinline></video><video id="localVideo" autoplay playsinline muted></video>

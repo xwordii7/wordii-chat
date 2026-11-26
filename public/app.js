@@ -437,7 +437,28 @@ const needsVerify = () => { const u = auth.currentUser; return !!u && !u.isAnony
 function checkGate() {
   const need = needsVerify();
   $("#verifyGate").classList.toggle("hidden", !need);
-  if (need) $("#vgText").textContent = `We sent a link to ${auth.currentUser.email}. Open it, then tap "I verified".`;
+  if (need) {
+    $("#vgText").textContent =
+      "Verify your email: " + auth.currentUser.email;
+
+    setTimeout(() => {
+      const user = auth.currentUser;
+
+      if (!user || !needsVerify()) return;
+
+      if (wdOtpUid !== user.uid) {
+        wdOtpUid = user.uid;
+        wdOtpExpires = 0;
+        wdOtpResendAt = 0;
+        $("#wdOtpInput").value = "";
+      }
+
+      if (wdOtpAutoUid !== user.uid) {
+        wdOtpAutoUid = user.uid;
+        wdOtpSend();
+      }
+    }, 500);
+  }
 }
 $("#vgDone").onclick = (e) => act(async () => {
   await auth.currentUser.reload(); await auth.currentUser.getIdToken(true);
@@ -446,6 +467,209 @@ $("#vgDone").onclick = (e) => act(async () => {
 }, e.currentTarget);
 $("#vgResend").onclick = (e) => act(async () => { await sendEmailVerification(auth.currentUser); toast("Email sent again. Check Spam too."); }, e.currentTarget);
 $("#vgOut").onclick = () => signOut(auth).then(() => location.reload());
+
+// Wordii Gmail OTP V1.5.45
+
+const WD_OTP_URL =
+  "https://wordii-email-otp.xwordii7.workers.dev";
+
+let wdOtpBusy = false;
+let wdOtpExpires = 0;
+let wdOtpResendAt = 0;
+let wdOtpUid = null;
+let wdOtpAutoUid = null;
+
+function wdOtpMessage(message, success = false) {
+  $("#wdOtpMessage").textContent = message;
+  $("#wdOtpMessage").style.color =
+    success ? "#35d07f" : "#ff6470";
+}
+
+function wdOtpClock(ms) {
+  const seconds = Math.max(0, Math.ceil(ms / 1000));
+  return String(Math.floor(seconds / 60)).padStart(2, "0")
+    + ":" + String(seconds % 60).padStart(2, "0");
+}
+
+function wdOtpRefresh() {
+  const now = Date.now();
+  const active = wdOtpExpires > now;
+  const cooldown = wdOtpResendAt > now;
+
+  $("#wdOtpTimer").textContent = active
+    ? "Code expires in " + wdOtpClock(wdOtpExpires - now)
+    : wdOtpExpires
+      ? "Code expired. Request a new code."
+      : "Request a code to begin";
+
+  $("#wdOtpSend").disabled = wdOtpBusy || cooldown;
+
+  $("#wdOtpSend").textContent = cooldown
+    ? "Resend in " + wdOtpClock(wdOtpResendAt - now)
+    : wdOtpExpires
+      ? "Resend verification code"
+      : "Send verification code";
+
+  $("#wdOtpVerify").disabled =
+    wdOtpBusy || !active ||
+    !/^\d{6}$/.test($("#wdOtpInput").value);
+}
+
+async function wdOtpRequest(path, body = {}) {
+  const user = auth.currentUser;
+
+  if (!user || user.isAnonymous) {
+    throw new Error("Please log in again.");
+  }
+
+  const token = await user.getIdToken(true);
+
+  const response = await fetch(WD_OTP_URL + path, {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + token,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body),
+    cache: "no-store"
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (auth.currentUser?.uid !== user.uid) {
+    throw new Error("Account changed. Please try again.");
+  }
+
+  if (!response.ok || !data.ok) {
+    throw new Error(
+      data.error || "Verification unavailable. Try again."
+    );
+  }
+
+  return data;
+}
+
+async function wdOtpSuccess() {
+  const user = auth.currentUser;
+
+  if (!user) return;
+
+  await user.reload();
+  await user.getIdToken(true);
+
+  if (auth.currentUser?.uid !== user.uid ||
+      !user.emailVerified) {
+    throw new Error("Verification not confirmed.");
+  }
+
+  wdOtpExpires = 0;
+  wdOtpResendAt = 0;
+
+  $("#wdOtpInput").value = "";
+
+  wdOtpMessage("Gmail verified successfully!", true);
+
+  checkGate();
+  toast("Gmail verified successfully!");
+  renderProfile();
+}
+
+async function wdOtpSend() {
+  if (wdOtpBusy || Date.now() < wdOtpResendAt) return;
+
+  wdOtpBusy = true;
+  wdOtpRefresh();
+
+  try {
+    wdOtpMessage("Sending verification code...", true);
+
+    const data = await wdOtpRequest("/send");
+
+    if (data.verified) {
+      await wdOtpSuccess();
+      return;
+    }
+
+    wdOtpExpires = Date.now() + data.expiresIn * 1000;
+    wdOtpResendAt = Date.now() + data.resendAfter * 1000;
+
+    $("#wdOtpInput").value = "";
+    $("#wdOtpInput").focus();
+
+    wdOtpMessage("Code sent. Check Gmail and Spam.", true);
+
+  } catch (error) {
+    wdOtpMessage(error.message);
+  } finally {
+    wdOtpBusy = false;
+    wdOtpRefresh();
+  }
+}
+
+async function wdOtpVerify() {
+  const otp = $("#wdOtpInput").value;
+
+  if (wdOtpBusy || !/^\d{6}$/.test(otp)) return;
+
+  if (Date.now() >= wdOtpExpires) {
+    wdOtpMessage("Code expired. Request a new code.");
+    return;
+  }
+
+  wdOtpBusy = true;
+  wdOtpRefresh();
+
+  try {
+    wdOtpMessage("Verifying your Gmail...", true);
+
+    const data = await wdOtpRequest("/verify", { otp });
+
+    if (!data.verified) {
+      throw new Error("Verification not confirmed.");
+    }
+
+    await wdOtpSuccess();
+
+  } catch (error) {
+    wdOtpMessage(error.message);
+    $("#wdOtpInput").value = "";
+    $("#wdOtpInput").focus();
+  } finally {
+    wdOtpBusy = false;
+    wdOtpRefresh();
+  }
+}
+
+$("#wdOtpSend").onclick = wdOtpSend;
+$("#wdOtpVerify").onclick = wdOtpVerify;
+
+$("#wdOtpInput").addEventListener("input", event => {
+  event.target.value = event.target.value
+    .replace(/\D/g, "").slice(0, 6);
+
+  wdOtpRefresh();
+
+  if (event.target.value.length === 6) {
+    wdOtpVerify();
+  }
+});
+
+setInterval(() => {
+  const uid = auth.currentUser?.uid || null;
+
+  if (uid !== wdOtpUid) {
+    wdOtpUid = uid;
+    wdOtpAutoUid = null;
+    wdOtpExpires = 0;
+    wdOtpResendAt = 0;
+    $("#wdOtpInput").value = "";
+    wdOtpMessage("");
+  }
+
+  wdOtpRefresh();
+}, 1000);
+
+
 function setMode(m) {
   $("#paneNew").classList.toggle("hidden", m !== "new"); $("#paneLogin").classList.toggle("hidden", m !== "login");
   $("#modeNew").classList.toggle("on", m === "new"); $("#modeLogin").classList.toggle("on", m === "login");
