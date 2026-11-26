@@ -320,7 +320,26 @@ onAuthStateChanged(auth, (u) => {
   wordiiProfileUnsub = onSnapshot(doc(db, "users", uid), (s) => {
     if (auth.currentUser?.uid !== u.uid) return;
     $("#splash").classList.add("hidden");
-    if (!s.exists()) { me = null; $("#app").classList.add("hidden"); $("#onboard").classList.remove("hidden"); return; }
+    if (!s.exists()) {
+      me = null;
+      $("#app").classList.add("hidden");
+      $("#onboard").classList.remove("hidden");
+
+      const current = auth.currentUser;
+
+      if (current && !current.isAnonymous && current.email) {
+        setMode("new");
+        $("#newEmail").value = current.email;
+        $("#newEmail").readOnly = true;
+        wdSignupStep = 0;
+        wdRenderSignup();
+        toast("Account found. Complete your username setup.");
+      } else {
+        $("#newEmail").readOnly = false;
+      }
+
+      return;
+    }
     const incoming = s.data();
     if (incoming.suspended === true) {
       me = incoming;
@@ -455,9 +474,28 @@ $("#adminLink").onclick = (e) => { e.preventDefault(); $("#paneAdmin").classList
 $("#createBtn").onclick = (e) => act(async () => {
   const email = $("#newEmail").value.trim().toLowerCase(), pw = $("#newPw").value;
   if (!EMAIL_RE.test(email)) throw new Error("Enter a valid Gmail address.");
-  if (pw.length < 6) throw new Error("Password must be at least 6 characters.");
   const username = $("#nameInput").value;
   const currentUser = auth.currentUser;
+
+  if (!currentUser) {
+    throw new Error("Session not ready. Please try again.");
+  }
+
+  if (currentUser.isAnonymous && pw.length < 6) {
+    throw new Error("Password must be at least 6 characters.");
+  }
+
+  const signupName = username.trim().toLowerCase().replace(/^@/, "");
+
+  if (!/^[a-z0-9_]{3,15}$/.test(signupName)) {
+    throw new Error("Username must be 3-15 letters, numbers or underscores.");
+  }
+
+  const reserved = await getDoc(doc(db, "usernames", signupName));
+
+  if (reserved.exists()) {
+    throw new Error("Username already taken. Choose another username.");
+  }
 
   if (currentUser.isAnonymous) {
     await linkEmail(email, pw);
@@ -472,9 +510,23 @@ $("#loginBtn").onclick = (e) => act(async () => {
   const v = $("#loginName").value.trim();
   const email = EMAIL_RE.test(v) ? v.toLowerCase() : emailFor(keyFromUsername(v));
   await wordiiAuthReady;
-  const result = await signInWithEmailAndPassword(
-    auth, email, $("#loginPw").value
-  );
+  let result;
+  try {
+    result = await signInWithEmailAndPassword(
+      auth, email, $("#loginPw").value
+    );
+  } catch (error) {
+    console.error("Wordii login:", error.code);
+    if (!EMAIL_RE.test(v) &&
+        ["auth/invalid-credential",
+         "auth/user-not-found",
+         "auth/wrong-password"].includes(error.code)) {
+      throw new Error(
+        "New accounts must log in using their registered email address."
+      );
+    }
+    throw error;
+  }
   await result.user.getIdToken();
   toast("Login successful");
 }, e.currentTarget);
