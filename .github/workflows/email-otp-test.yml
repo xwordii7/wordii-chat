@@ -1,0 +1,38 @@
+name: Wordii OTP Backend Tests
+
+on:
+  push:
+    branches:
+      - feature/email-otp-v1545
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: wordii-email-otp
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm ci
+
+      - name: Syntax checks
+        run: |
+          for file in src/*.js; do
+            node --check "$file"
+          done
+
+      - name: OTP storage tests
+        run: node tests/store-test.mjs
+
+      - name: Cloudflare build validation
+        run: npx wrangler deploy --dry-run

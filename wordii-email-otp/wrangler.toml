@@ -1,0 +1,19 @@
+name = "wordii-email-otp"
+main = "src/index.js"
+compatibility_date = "2026-11-26"
+
+[vars]
+FIREBASE_PROJECT_ID = "wordii-chat"
+SENDER_EMAIL = "officialwordii@gmail.com"
+SENDER_NAME = "Wordii Chat"
+OTP_EXPIRY_SECONDS = "300"
+OTP_RESEND_SECONDS = "30"
+OTP_MAX_ATTEMPTS = "5"
+
+[[durable_objects.bindings]]
+name = "OTP_STORE"
+class_name = "OTPStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["OTPStore"]
