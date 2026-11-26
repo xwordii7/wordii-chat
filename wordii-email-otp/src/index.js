@@ -73,7 +73,10 @@ export default {
       }, 404);
     }
 
-    if (env.OTP_ENABLED !== "true") {
+    if (
+      env.OTP_ENABLED !== "true" &&
+      !env.OTP_TEST_UID
+    ) {
       return reply(request, {
         ok: false,
         error: "OTP service is under testing"
@@ -92,6 +95,16 @@ export default {
     }
 
     try {
+      if (
+        env.OTP_ENABLED !== "true" &&
+        identity.uid !== env.OTP_TEST_UID
+      ) {
+        return reply(request, {
+          ok: false,
+          error: "OTP service is under testing"
+        }, 503);
+      }
+
       const user = await getFirebaseUser(env, identity.uid);
 
       if (
