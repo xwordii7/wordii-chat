@@ -3,6 +3,7 @@ main = "src/index.js"
 compatibility_date = "2026-11-26"
 
 [vars]
+OTP_ENABLED = "false"
 FIREBASE_PROJECT_ID = "wordii-chat"
 SENDER_EMAIL = "officialwordii@gmail.com"
 SENDER_NAME = "Wordii Chat"

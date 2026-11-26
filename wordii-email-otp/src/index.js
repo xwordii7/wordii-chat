@@ -73,6 +73,13 @@ export default {
       }, 404);
     }
 
+    if (env.OTP_ENABLED !== "true") {
+      return reply(request, {
+        ok: false,
+        error: "OTP service is under testing"
+      }, 503);
+    }
+
     let identity;
 
     try {

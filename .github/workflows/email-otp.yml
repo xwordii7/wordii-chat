@@ -2,6 +2,11 @@ name: Wordii Email OTP Backend
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/email-otp-v1545
+    paths:
+      - '.github/workflows/email-otp.yml'
 
 permissions:
   contents: read
