@@ -169,6 +169,88 @@ try {
   console.log('PASS: Payment history preserved');
   console.log('ALL INITIAL SECURITY TESTS PASSED');
 
+  // Simulate an old disconnected account.
+  await env.withSecurityRulesDisabled(async ctx=>{
+    const db = ctx.firestore();
+
+    await updateDoc(doc(db,'users',A),{
+      coupleCode:code,
+      coupleBadgeCode:code,
+      couplePartnerUid:B
+    });
+
+    await updateDoc(doc(db,'coupleOrders',pair),{
+      status:'approved'
+    });
+  });
+
+  await assertFails(updateDoc(doc(c,'users',A),{
+    coupleCode:null,
+    coupleBadgeCode:null,
+    couplePartnerUid:null
+  }));
+
+  console.log('PASS: Unauthorized repair blocked');
+
+  await assertSucceeds(updateDoc(doc(a,'users',A),{
+    coupleCode:null,
+    coupleBadgeCode:null,
+    couplePartnerUid:null
+  }));
+
+  console.log('PASS: Old profile badge repaired');
+
+  await assertSucceeds(updateDoc(doc(a,'coupleOrders',pair),{
+    status:'disconnected',
+    disconnectedBy:A,
+    disconnectedAt:serverTimestamp()
+  }));
+
+  console.log('PASS: Old disconnected order repaired');
+
+  const newPair = A+'_'+C;
+  const newCode = 'WC-'+newPair;
+
+  await env.withSecurityRulesDisabled(async ctx=>{
+    const db = ctx.firestore();
+
+    await setDoc(doc(db,'coupleInvites',newPair),{
+      from:A,
+      to:C,
+      members:[A,C],
+      status:'accepted'
+    });
+
+    await setDoc(doc(db,'couplePartnerLocks',A),{
+      pairId:newPair,
+      partnerUid:C
+    });
+
+    await updateDoc(doc(db,'users',A),{
+      coupleCode:newCode,
+      couplePartnerUid:C
+    });
+  });
+
+  const b = env.authenticatedContext(B).firestore();
+
+  await assertFails(updateDoc(doc(b,'users',A),{
+    coupleCode:null,
+    coupleBadgeCode:null,
+    couplePartnerUid:null
+  }));
+
+  console.log('PASS: New connection protected from old partner');
+
+  await assertFails(updateDoc(doc(a,'users',A),{
+    coupleCode:'FAKE-BADGE'
+  }));
+
+  console.log('PASS: Unauthorized badge creation blocked');
+
+  console.log('ALL ADVANCED SECURITY TESTS PASSED');
+
+
 } finally {
   await env.cleanup();
 }
