@@ -4750,15 +4750,49 @@ async function wd17ActivePair(pair){
   return invite.exists()&&invite.data().status==='accepted'&&order.exists()&&order.data().status==='approved';
 }
 async function wd17PublicActive(owner,partner,code){
- if(!owner||!partner||!code)return false;
- const pair=wordiiCouplePair(owner,partner);
- const [x,y]=await Promise.all([getDoc(doc(db,'users',owner)),getDoc(doc(db,'users',partner))]);
- if(!(x.exists()&&y.exists()&&x.data().coupleCode===code&&y.data().coupleCode===code
-   &&x.data().couplePartnerUid===partner&&y.data().couplePartnerUid===owner))return false;
- // Members can check the authoritative invitation; viewers without permission
- // must not be shown a potentially revoked badge.
- try {const inv=await getDoc(doc(db,'coupleInvites',pair));return inv.exists()&&inv.data().status==='accepted';}
- catch(e){console.warn('Couple status unavailable',e.code||e.message);return false;}
+  if(!owner || !partner || !code || owner === partner)
+    return false;
+
+  const pair = wordiiCouplePair(owner,partner);
+
+  if(code !== 'WC-'+pair)
+    return false;
+
+  const [x,y] = await Promise.all([
+    getDoc(doc(db,'users',owner)),
+    getDoc(doc(db,'users',partner))
+  ]);
+
+  if(!x.exists() || !y.exists())
+    return false;
+
+  const a = x.data();
+  const b = y.data();
+
+  const matched =
+    a.coupleCode === code &&
+    b.coupleCode === code &&
+    a.couplePartnerUid === partner &&
+    b.couplePartnerUid === owner;
+
+  if(!matched) return false;
+
+  const viewer = auth.currentUser?.uid;
+
+  if(viewer !== owner && viewer !== partner)
+    return true;
+
+  try{
+    const inv = await getDoc(
+      doc(db,'coupleInvites',pair)
+    );
+
+    return inv.exists() &&
+      inv.data().status === 'accepted';
+
+  }catch(e){
+    return false;
+  }
 }
 function wd17PairFromCode(code){return String(code||'').startsWith('WC-')?String(code).slice(3):'';}
 function wd17DragonScene(left,right,code,viewerMember){
