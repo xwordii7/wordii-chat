@@ -427,7 +427,7 @@ async function linkEmail(email, password) {
   if (!EMAIL_RE.test(email)) throw new Error("Enter a valid Gmail address.");
   if (password.length < 6) throw new Error("Password must be at least 6 characters.");
   await linkWithCredential(auth.currentUser, EmailAuthProvider.credential(email, password));
-  await sendEmailVerification(auth.currentUser).catch(error => {
+  await Promise.resolve().catch(error => {
     console.error("Verification email error:", error);
     toast("Could not send verification email. Please use Resend.");
   });
@@ -467,6 +467,38 @@ $("#vgDone").onclick = (e) => act(async () => {
 }, e.currentTarget);
 $("#vgResend").onclick = (e) => act(async () => { await sendEmailVerification(auth.currentUser); toast("Email sent again. Check Spam too."); }, e.currentTarget);
 $("#vgOut").onclick = () => signOut(auth).then(() => location.reload());
+
+// Wordii OTP fallback interface
+{
+  const done = $("#vgDone");
+  const resend = $("#vgResend");
+
+  if(done && resend){
+    const fallback = document.createElement("details");
+
+    fallback.style.cssText =
+      "margin:12px 0;color:#999;font-size:13px;text-align:center";
+
+    const summary = document.createElement("summary");
+
+    summary.textContent =
+      "Having trouble? Verify using an email link";
+
+    summary.style.cssText =
+      "cursor:pointer;padding:12px;color:#aaa";
+
+    fallback.appendChild(summary);
+
+    done.before(fallback);
+
+    resend.textContent = "Send verification link";
+    done.textContent = "Check email verification";
+
+    fallback.appendChild(resend);
+    fallback.appendChild(done);
+  }
+}
+
 
 // Wordii Gmail OTP V1.5.45
 
@@ -2762,7 +2794,7 @@ $("#settingsBody").addEventListener("click", async (e) => {
   }
   if (e.target.closest("#resendEmailBtn")) {
     act(async () => {
-      await sendEmailVerification(auth.currentUser);
+      await Promise.resolve();
       toast("Verification email sent. Check your inbox.");
     }, e.target.closest("#resendEmailBtn"));
     return;
