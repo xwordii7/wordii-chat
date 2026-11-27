@@ -2284,7 +2284,7 @@ function wdPVFeaturePage(feature,target) {
   sheet.querySelector("#wdPVFeatureBack").onclick=()=>sheet.remove();
   if(feature==='couple' && (u.coupleCode||u.coupleBadgeCode)){
     const pair=wd17PairFromCode(u.coupleCode||u.coupleBadgeCode);
-    wd17PublicActive(target,partnerId,u.coupleCode||u.coupleBadgeCode).then(active=>{
+    wd17PublicActive(target,u.couplePartnerUid,u.coupleCode||u.coupleBadgeCode).then(active=>{
       if(!sheet.isConnected)return;
       if(!active)sheet.querySelector('main').innerHTML='<div class="wd-about-line">No active Couple Badge. Connection ended.</div>';
     }).catch(()=>{if(sheet.isConnected)sheet.querySelector('main').innerHTML='<div class="wd-about-line">Unable to verify Couple Badge. Try again.</div>';});
@@ -4817,6 +4817,7 @@ async function wd68RepairProfiles(){
   for(const item of invites.docs){
     if(item.data().status !== 'disconnected')
       continue;
+
     const changed = await runTransaction(db,async tx=>{
       const invite = await tx.get(item.ref);
 
@@ -4826,55 +4827,41 @@ async function wd68RepairProfiles(){
 
       if(d.status !== 'disconnected') return false;
       if(!d.members.includes(currentUid)) return false;
+
       if(auth.currentUser?.uid !== currentUid)
         throw Error('Account changed.');
 
-      const people = [d.from,d.to];
-      const records = [];
+      const other = d.from === currentUid ? d.to : d.from;
 
-      for(const person of people){
-        const other = person === d.from ? d.to : d.from;
-        const profileRef = doc(db,'users',person);
-        const lockRef = doc(db,'couplePartnerLocks',person);
+      const profileRef = doc(db,'users',currentUid);
+      const lockRef = doc(db,'couplePartnerLocks',currentUid);
 
-        const profile = await tx.get(profileRef);
-        const lock = await tx.get(lockRef);
+      const profile = await tx.get(profileRef);
+      const lock = await tx.get(lockRef);
 
-        records.push({
-          other,profileRef,lockRef,profile,lock
-        });
-      }
+      if(lock.exists() && lock.data().pairId !== item.id)
+        return false;
 
       let updated = false;
 
-      for(const r of records){
-        const lockData = r.lock.data();
-        const profileData = r.profile.data();
+      if(lock.exists()){
+        tx.delete(lockRef);
+        updated = true;
+      }
 
-        if(r.lock.exists() && lockData.pairId !== item.id)
-          continue;
+      const data = profile.data();
 
-        if(r.lock.exists()){
-          tx.delete(r.lockRef);
-          updated = true;
-        }
+      if(profile.exists() &&
+         data.couplePartnerUid === other &&
+         (data.coupleCode === 'WC-'+item.id ||
+          data.coupleBadgeCode === 'WC-'+item.id)){
+        tx.update(profileRef,{
+          coupleCode:null,
+          coupleBadgeCode:null,
+          couplePartnerUid:null
+        });
 
-        if(
-          r.profile.exists() &&
-          profileData.couplePartnerUid === r.other &&
-          (
-            profileData.coupleCode === 'WC-'+item.id ||
-            profileData.coupleBadgeCode === 'WC-'+item.id
-          )
-        ){
-          tx.update(r.profileRef,{
-            coupleCode:null,
-            coupleBadgeCode:null,
-            couplePartnerUid:null
-          });
-
-          updated = true;
-        }
+        updated = true;
       }
 
       return updated;

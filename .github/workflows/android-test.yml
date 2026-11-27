@@ -64,3 +64,5 @@ jobs:
         with:
           name: Wordii-Chat-1.5.45-Test-APK
           path: android/app/build/outputs/apk/release/app-release.apk
+
+# Rebuild after final couple repair
