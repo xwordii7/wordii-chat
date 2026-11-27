@@ -259,12 +259,20 @@ export default {
         return reply(request, result, 400);
       }
 
-      await markEmailVerified(
-        env,
-        identity.uid,
-        user.email,
-        result.oobCode
-      );
+      try {
+        await markEmailVerified(
+          env,
+          identity.uid,
+          user.email,
+          result.oobCode
+        );
+      } catch (error) {
+        await store.releaseVerification(
+          identity.uid,
+          result.nonce
+        );
+        throw error;
+      }
 
       await store.complete(
         identity.uid,

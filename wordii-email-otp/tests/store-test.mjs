@@ -71,6 +71,14 @@ const result = await store.verify(uid, email, r.otp);
 assert(result.ok);
 assert.equal(result.oobCode, "mock-action-code");
 
+assert(!(await store.verify(uid, email, r.otp)).ok);
+console.log("PASS: Concurrent verification blocked");
+
+assert(!(await store.reserve(uid, email)).ok);
+console.log("PASS: Resend blocked during verification");
+
+assert(await store.releaseVerification(uid, r.nonce));
+
 assert((await store.verify(uid, email, r.otp)).ok);
 console.log("PASS: Temporary failure recovery");
 

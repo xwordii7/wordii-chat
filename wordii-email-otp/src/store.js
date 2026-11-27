@@ -27,6 +27,14 @@ export class OTPStore extends DurableObject {
 
     return this.ctx.storage.transaction(async tx => {
       const old = await tx.get("account") || {};
+
+      if (old.verifyingUntil > now) {
+        return {
+          ok: false,
+          error: "Verification in progress. Please wait."
+        };
+      }
+
       const history = (old.history || [])
         .filter(t => now - t < 86400000);
 
@@ -93,6 +101,7 @@ export class OTPStore extends DurableObject {
           data.nonce !== nonce) return false;
 
       data.used = true;
+      delete data.verifyingUntil;
       delete data.hash;
       delete data.oobCode;
 
@@ -119,6 +128,15 @@ export class OTPStore extends DurableObject {
         return {
           ok: false,
           error: "Code expired or unavailable"
+        };
+      }
+
+
+
+      if (data.verifyingUntil > Date.now()) {
+        return {
+          ok: false,
+          error: "Verification already in progress"
         };
       }
 
@@ -155,11 +173,28 @@ export class OTPStore extends DurableObject {
         };
       }
 
+      data.verifyingUntil = Date.now() + 30000;
+      await tx.put("account", data);
+
       return {
         ok: true,
         oobCode: data.oobCode,
         nonce: data.nonce
       };
+    });
+  }
+
+  async releaseVerification(uid, nonce) {
+    return this.ctx.storage.transaction(async tx => {
+      const data = await tx.get("account");
+
+      if (!data || data.used ||
+          data.uid !== uid ||
+          data.nonce !== nonce) return false;
+
+      delete data.verifyingUntil;
+      await tx.put("account", data);
+      return true;
     });
   }
 

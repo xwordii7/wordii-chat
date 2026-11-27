@@ -136,6 +136,13 @@ export async function markEmailVerified(env, uid, email, oobCode) {
       reason: /^[A-Z0-9_]+$/.test(reason) ? reason : "UNKNOWN"
     });
 
+    const latest = await getFirebaseUser(env, uid);
+
+    if (latest.email === email &&
+        latest.emailVerified === true) {
+      return true;
+    }
+
     throw new Error("Firebase action code rejected");
   }
 
