@@ -208,23 +208,49 @@ try {
 
   console.log('PASS: Old disconnected order repaired');
 
+
   const newPair = A+'_'+C;
   const newCode = 'WC-'+newPair;
 
-  await env.withSecurityRulesDisabled(async ctx=>{
-    const db = ctx.firestore();
-
-    await setDoc(doc(db,'coupleInvites',newPair),{
+  await assertSucceeds(setDoc(
+    doc(a,'coupleInvites',newPair),{
       from:A,
       to:C,
+      fromName:A,
+      toName:C,
       members:[A,C],
-      status:'accepted'
-    });
+      status:'pending',
+      createdAt:serverTimestamp()
+    }
+  ));
 
-    await setDoc(doc(db,'couplePartnerLocks',A),{
-      pairId:newPair,
-      partnerUid:C
-    });
+  console.log('PASS: New partner invitation created');
+
+  const accept = writeBatch(c);
+
+  accept.set(doc(c,'couplePartnerLocks',A),{
+    pairId:newPair,
+    partnerUid:C
+  });
+
+  accept.set(doc(c,'couplePartnerLocks',C),{
+    pairId:newPair,
+    partnerUid:A
+  });
+
+  accept.update(doc(c,'coupleInvites',newPair),{
+    status:'accepted',
+    updatedBy:C,
+    updatedAt:serverTimestamp()
+  });
+
+  await assertSucceeds(accept.commit());
+
+  console.log('PASS: New partner accepted');
+  console.log('PASS: New partner locks created');
+
+  await env.withSecurityRulesDisabled(async ctx=>{
+    const db = ctx.firestore();
 
     await updateDoc(doc(db,'users',A),{
       coupleCode:newCode,
