@@ -76,7 +76,7 @@ export async function getFirebaseUser(env, uid) {
 }
 
 
-export async function createVerificationCode(env, uid, email) {
+export async function createVerificationCode(env, uid, email, idToken) {
   const user = await getFirebaseUser(env, uid);
 
   if (user.email !== email || user.emailVerified === true) {
@@ -85,7 +85,7 @@ export async function createVerificationCode(env, uid, email) {
 
   const result = await firebaseRequest(env, "sendOobCode", {
     requestType: "VERIFY_EMAIL",
-    email,
+    idToken,
     returnOobLink: true
   });
 

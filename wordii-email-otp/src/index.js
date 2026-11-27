@@ -168,7 +168,8 @@ export default {
         const oobCode = await createVerificationCode(
           env,
           identity.uid,
-          user.email
+          user.email,
+          request.headers.get("Authorization").slice(7)
         );
 
         const attached = await store.attachCode(

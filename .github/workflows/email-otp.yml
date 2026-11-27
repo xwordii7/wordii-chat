@@ -57,3 +57,5 @@ jobs:
 # Deploy Firebase verification endpoint fix
 
 # Deploy final OTP concurrency fix
+
+# Deploy OTP account binding patch
