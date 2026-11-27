@@ -4762,8 +4762,13 @@ async function wd17PublicActive(owner,partner,code){
 }
 function wd17PairFromCode(code){return String(code||'').startsWith('WC-')?String(code).slice(3):'';}
 function wd17DragonScene(left,right,code,viewerMember){
- const verse=viewerMember?'Do dilon ki ek pehchaan bani,\nHar khushi ab dono ke naam hui.':'Na taaj ki zarurat, na kisi pehchaan ki,\nYe kahani hai do dilon ke armaan ki.';
- return `<div class="wd17-dragon" aria-hidden="true"><span class="wd17-dragon-red">🐉</span><span class="wd17-dragon-violet">🐉</span><span class="wd17-spark">✦ ✨ ✦</span></div><div class="wd17-shayari"><b>✨ Love Celebration ✨</b><p>${esc(verse).replace(/\n/g,'<br>')}</p><small>Two Hearts · One Legendary Bond</small></div>`;
+  return `<div class="wd58-hearts">
+    <span class="wd58-left">♥</span>
+    <span class="wd58-right">♥</span>
+    <span class="wd58-final">♥</span>
+  </div>
+  <div class="wd58-title">COUPLE BADGE</div>
+  <div class="wd58-subtitle">Two Profiles · One Connection</div>`;
 }
 
 
@@ -4794,21 +4799,186 @@ async function wordiiCouplePayments(){
  }catch(e){box.textContent='Payment loading: '+String(e.code||e.message||e);}}
  const admin=document.getElementById('wdCoupleAdminPayments');if(admin&&me?.admin===true){try{const snap=await getDocs(query(collection(db,'coupleOrders'),limit(100)));admin.innerHTML=snap.docs.filter(d=>['pending','approved'].includes(d.data().status)).map(d=>{const v=d.data();return `<div class="card"><b>${wd14esc(v.fromName)} + ${wd14esc(v.toName)}</b><p class="tiny">${v.mode==='both'?'₹80 for both':'₹40 + ₹40'} · Consent: ${wd14esc(v.consent||'pending')}</p><p>Sender UTR: ${wd14esc(v.fromUtr)}</p><img class="wordii-proof-preview" src="${wd14esc(v.fromProof)}" alt="Sender payment proof">${v.mode==='split'?`<p>Partner UTR: ${wd14esc(v.toUtr||'Not submitted')}</p>${v.toProof?`<img class="wordii-proof-preview" src="${wd14esc(v.toProof)}" alt="Partner payment proof">`:''}`:''}<div class="row-btns">${v.status==='approved'?`<button class="btn sm" data-wd14-admin="activate" data-pair="${wd14esc(d.id)}">Sync badges to profiles</button>`:`<button class="btn sm" data-wd14-admin="approved" data-pair="${wd14esc(d.id)}">Approve</button><button class="btn sm ghost" data-wd14-admin="rejected" data-pair="${wd14esc(d.id)}">Reject</button>`}</div></div>`;}).join('')||'No pending requests.';}catch(e){admin.textContent='Admin loading: '+String(e.code||e.message||e);}}
 }
-async function wordiiCoupleSubmitPayment(){const utr=String(document.getElementById('wdCoupleUtr')?.value||'').trim();if(!/^[A-Za-z0-9-]{8,45}$/.test(utr))throw Error('Enter a valid UTR (8–45 characters).');const proof=await wordiiImageData(document.getElementById('wdCoupleProof')?.files?.[0]);const mode=document.querySelector('[name="wd14Mode"]:checked')?.value||'split';const ref=doc(db,'couplePaymentDrafts',uid);if((await getDoc(ref)).exists())throw Error('Existing draft: finish partner details.');if((await wd14GetOrders()).some(d=>d.data().status==='pending'||d.data().status==='approved'))throw Error('You already have a pending or active Couple Badge.');await setDoc(ref,{uid,username:me.username,utr,proof,price:mode==='both'?80:40,mode,status:'awaiting_partner',createdAt:serverTimestamp()});await wordiiCouplePayments();wd14Modal('wdCoupleModal',true);document.getElementById('wdCoupleModalName')?.focus();}
+
+
+async function wd68RepairProfiles(){
+  const currentUid = auth.currentUser?.uid;
+
+  if(!currentUid || currentUid !== uid)
+    throw Error('Please log in again.');
+
+  const invites = await getDocs(query(
+    collection(db,'coupleInvites'),
+    where('members','array-contains',currentUid)
+  ));
+
+  let repaired = 0;
+
+  for(const item of invites.docs){
+    if(item.data().status !== 'disconnected')
+      continue;
+    const changed = await runTransaction(db,async tx=>{
+      const invite = await tx.get(item.ref);
+
+      if(!invite.exists()) return false;
+
+      const d = invite.data();
+
+      if(d.status !== 'disconnected') return false;
+      if(!d.members.includes(currentUid)) return false;
+      if(auth.currentUser?.uid !== currentUid)
+        throw Error('Account changed.');
+
+      const people = [d.from,d.to];
+      const records = [];
+
+      for(const person of people){
+        const other = person === d.from ? d.to : d.from;
+        const profileRef = doc(db,'users',person);
+        const lockRef = doc(db,'couplePartnerLocks',person);
+
+        const profile = await tx.get(profileRef);
+        const lock = await tx.get(lockRef);
+
+        records.push({
+          other,profileRef,lockRef,profile,lock
+        });
+      }
+
+      let updated = false;
+
+      for(const r of records){
+        const lockData = r.lock.data();
+        const profileData = r.profile.data();
+
+        if(r.lock.exists() && lockData.pairId !== item.id)
+          continue;
+
+        if(r.lock.exists()){
+          tx.delete(r.lockRef);
+          updated = true;
+        }
+
+        if(
+          r.profile.exists() &&
+          profileData.couplePartnerUid === r.other &&
+          (
+            profileData.coupleCode === 'WC-'+item.id ||
+            profileData.coupleBadgeCode === 'WC-'+item.id
+          )
+        ){
+          tx.update(r.profileRef,{
+            coupleCode:null,
+            coupleBadgeCode:null,
+            couplePartnerUid:null
+          });
+
+          updated = true;
+        }
+      }
+
+      return updated;
+    });
+
+    if(changed) repaired++;
+  }
+
+  return repaired;
+}
+
+async function wd66RepairOrders(){
+  const currentUid = auth.currentUser?.uid;
+
+  if(!currentUid || currentUid !== uid)
+    throw Error('Please log in again.');
+
+  const orders = await wd14GetOrders();
+  let repaired = 0;
+
+  for(const item of orders){
+    if(!['pending','approved'].includes(item.data().status))
+      continue;
+
+    const changed = await runTransaction(db, async tx => {
+      const orderRef = doc(db,'coupleOrders',item.id);
+      const inviteRef = doc(db,'coupleInvites',item.id);
+
+      const order = await tx.get(orderRef);
+      const invite = await tx.get(inviteRef);
+
+      if(!order.exists() || !invite.exists())
+        return false;
+
+      if(auth.currentUser?.uid !== currentUid)
+        throw Error('Account changed.');
+
+      if(!order.data().members.includes(currentUid))
+        return false;
+
+      if(invite.data().status !== 'disconnected')
+        return false;
+
+      if(!['pending','approved'].includes(order.data().status))
+        return false;
+
+      tx.update(orderRef,{
+        status:'disconnected',
+        disconnectedAt:serverTimestamp(),
+        disconnectedBy:currentUid
+      });
+
+      return true;
+    });
+
+    if(changed) repaired++;
+  }
+
+  return repaired;
+}
+
+
+async function wordiiCoupleSubmitPayment(){
+  try {
+    await wd68RepairProfiles();
+    await wd66RepairOrders();
+  } catch(error) {
+    console.warn('Couple repair failed',error.code);
+    toast('Unable to check previous connection. Please try again.');
+    return;
+  }
+const utr=String(document.getElementById('wdCoupleUtr')?.value||'').trim();if(!/^[A-Za-z0-9-]{8,45}$/.test(utr))throw Error('Enter a valid UTR (8–45 characters).');const proof=await wordiiImageData(document.getElementById('wdCoupleProof')?.files?.[0]);const mode=document.querySelector('[name="wd14Mode"]:checked')?.value||'split';const ref=doc(db,'couplePaymentDrafts',uid);if((await getDoc(ref)).exists())throw Error('Existing draft: finish partner details.');if((await wd14GetOrders()).some(d=>d.data().status==='pending'||d.data().status==='approved'))throw Error('You already have a pending or active Couple Badge.');await setDoc(ref,{uid,username:me.username,utr,proof,price:mode==='both'?80:40,mode,status:'awaiting_partner',createdAt:serverTimestamp()});await wordiiCouplePayments();wd14Modal('wdCoupleModal',true);document.getElementById('wdCoupleModalName')?.focus();}
 async function wordiiCoupleCompletePartner(){if(!(await getDoc(doc(db,'couplePaymentDrafts',uid))).exists())throw Error('No saved payment details.');wd14Modal('wdCoupleModal',true);}
 async function wordiiCoupleConfirmPartner(){let name=String(document.getElementById('wdCoupleModalName')?.value||'').trim().toLowerCase();if(name&&!name.startsWith('@'))name='@'+name;if(!/^@[a-z0-9_]{3,15}(?:#[0-9]{3})?$/.test(name))throw Error('Enter an exact @username.');const found=await getDocs(query(collection(db,'users'),where('username','==',name),limit(2)));if(found.empty)throw Error('Username not found.');const to=found.docs[0].id;if(to===uid)throw Error('Cannot invite yourself.');const pair=wordiiCouplePair(uid,to),invRef=doc(db,'coupleInvites',pair),orderRef=doc(db,'coupleOrders',pair),draftRef=doc(db,'couplePaymentDrafts',uid);const draft=await getDoc(draftRef);if(!draft.exists())throw Error('No saved payment details.');if((await getDoc(orderRef)).exists())throw Error('A request for this pair already exists.');if((await getDoc(invRef)).exists())throw Error('An earlier invitation exists for this pair. Contact admin to reset it.');const v=draft.data();await runTransaction(db,async tx=>{const old=await tx.get(invRef);if(old.exists())throw Error('Invitation already exists.');tx.set(invRef,{members:[uid,to].sort(),from:uid,to,fromName:me.username,toName:name,status:'pending',createdAt:serverTimestamp()});});try{await setDoc(orderRef,{members:[uid,to].sort(),from:uid,to,fromName:me.username,toName:name,mode:v.mode||'split',fromUtr:v.utr,fromProof:v.proof,status:'pending',consent:'pending',createdAt:serverTimestamp()});}catch(e){throw Error('Invitation sent but payment request failed: '+(e.code||e.message));}await deleteDoc(draftRef);wd14Modal('wdCoupleModal',false);toast('Invitation sent. Awaiting partner and admin review.');await Promise.all([wordiiCouplePayments(),wordiiCoupleRefresh()]);}
 async function wordiiCoupleRefresh(){const box=document.getElementById('wdCoupleRequests');if(!box)return;try{const snap=await getDocs(query(collection(db,'coupleInvites'),where('members','array-contains',uid),limit(40)));box.innerHTML=snap.docs.map(d=>{const v=d.data();return `<div class="card"><b>${wd14esc(uid===v.from?v.toName:v.fromName)}</b><p class="tiny">${wd14esc(v.status)}</p>${v.status==='pending'&&v.to===uid?`<button class="btn" data-wd-couple-act="accepted" data-pair="${wd14esc(d.id)}">Accept</button> <button class="btn ghost" data-wd-couple-act="rejected" data-pair="${wd14esc(d.id)}">Reject</button>`:''}${v.status==='accepted'?`<button class="btn ghost" data-wd-couple-act="disconnected" data-pair="${wd14esc(d.id)}">Disconnect</button>`:''}</div>`;}).join('')||'No invitations.';
  const pending=snap.docs.find(d=>d.data().status==='pending'&&d.data().to===uid);if(pending&&wd14InviteShown!==pending.id){wd14InviteShown=pending.id;window.wd14PendingPair=pending.id;const v=pending.data();document.getElementById('wd14InviteSender').textContent='Invitation from '+v.fromName;const av=document.getElementById('wd14InviteAvatar');av.textContent='💌';try{const u=await getDoc(doc(db,'users',v.from));const pic=u.data()?.photoURL||u.data()?.photo||u.data()?.avatar||'';if(pic&&typeof pic==='string'&&/^(https:\/\/|data:image\/)/.test(pic))av.innerHTML='<img class="wd14-invite-photo" alt="Sender profile photo" src="'+wd14esc(pic)+'">';}catch(_){}wd14Modal('wd14InviteModal',true);}
  }catch(e){box.textContent='Invitations: '+String(e.code||e.message||e);}}
-async function wordiiCoupleAction(pair,status){if(!['accepted','rejected','disconnected'].includes(status))return;if(status==='disconnected'&&!confirm('Disconnect this couple connection?'))return;await runTransaction(db,async tx=>{const ref=doc(db,'coupleInvites',pair),snap=await tx.get(ref);if(!snap.exists())throw Error('Invitation not found.');const d=snap.data();if(!d.members.includes(uid))throw Error('Not a participant.');if(['accepted','rejected'].includes(status)&&(d.to!==uid||d.status!=='pending'))throw Error('Only invited user can respond.');if(status==='disconnected'&&!['pending','accepted'].includes(d.status))throw Error('Already ended.');const lockA=doc(db,'couplePartnerLocks',d.from),lockB=doc(db,'couplePartnerLocks',d.to);if(status==='accepted'){const la=await tx.get(lockA),lb=await tx.get(lockB);if(la.exists()||lb.exists())throw Error('One account is already connected.');tx.set(lockA,{pairId:pair,partnerUid:d.to});tx.set(lockB,{pairId:pair,partnerUid:d.from});}if(status==='disconnected'&&d.status==='accepted'){
+async function wordiiCoupleAction(pair,status){if(!['accepted','rejected','disconnected'].includes(status))return;if(status==='disconnected'&&!confirm('Disconnect this couple connection?'))return;await runTransaction(db,async tx=>{const ref=doc(db,'coupleInvites',pair),snap=await tx.get(ref);if(!snap.exists())throw Error('Invitation not found.');const d=snap.data();if(!d.members.includes(uid))throw Error('Not a participant.');if(['accepted','rejected'].includes(status)&&(d.to!==uid||d.status!=='pending'))throw Error('Only invited user can respond.');if(status==='disconnected'&&!['pending','accepted'].includes(d.status))throw Error('Already ended.');
+const wd62OrderRef = doc(db,'coupleOrders',pair);
+const wd62Order = status === 'disconnected'
+  ? await tx.get(wd62OrderRef)
+  : null;
+
+const lockA=doc(db,'couplePartnerLocks',d.from),lockB=doc(db,'couplePartnerLocks',d.to);if(status==='accepted'){const la=await tx.get(lockA),lb=await tx.get(lockB);if(la.exists()||lb.exists())throw Error('One account is already connected.');tx.set(lockA,{pairId:pair,partnerUid:d.to});tx.set(lockB,{pairId:pair,partnerUid:d.from});}if(status==='disconnected'&&d.status==='accepted'){
  const la=await tx.get(lockA),lb=await tx.get(lockB);
  if((la.exists()&&la.data().pairId!==pair)||(lb.exists()&&lb.data().pairId!==pair))throw Error('Partner is linked to another connection.');
  const ua=doc(db,'users',d.from),ub=doc(db,'users',d.to);
  const sa=await tx.get(ua),sb=await tx.get(ub);
  if(la.exists())tx.delete(lockA);if(lb.exists())tx.delete(lockB);
- if(sa.data()?.coupleCode==='WC-'+pair)tx.update(ua,{coupleCode:null,couplePartnerUid:null});
- if(sb.data()?.coupleCode==='WC-'+pair)tx.update(ub,{coupleCode:null,couplePartnerUid:null});
- }tx.update(ref,{status,updatedAt:serverTimestamp(),updatedBy:uid});});if(status==='accepted'){try{await updateDoc(doc(db,'coupleOrders',pair),{consent:'accepted'});}catch(e){console.warn('Order consent sync pending',e);}}if(status==='rejected'){try{await updateDoc(doc(db,'coupleOrders',pair),{consent:'rejected'});}catch(e){console.warn('Order consent sync pending',e);}}wd14Modal('wd14InviteModal',false);toast('Invitation '+status);await Promise.all([wordiiCoupleRefresh(),wordiiCouplePayments()]);}
+ if(sa.data()?.coupleCode==='WC-'+pair)tx.update(ua,{coupleCode:null,couplePartnerUid:null,coupleBadgeCode:null});
+ if(sb.data()?.coupleCode==='WC-'+pair)tx.update(ub,{coupleCode:null,couplePartnerUid:null,coupleBadgeCode:null});
+ }
+if (
+  status === 'disconnected' &&
+  wd62Order?.exists() &&
+  ['pending','approved'].includes(wd62Order.data().status)
+) {
+  tx.update(wd62OrderRef,{
+    status:'disconnected',
+    disconnectedAt:serverTimestamp(),
+    disconnectedBy:uid
+  });
+}
+tx.update(ref,{status,updatedAt:serverTimestamp(),updatedBy:uid});});if(status==='accepted'){try{await updateDoc(doc(db,'coupleOrders',pair),{consent:'accepted'});}catch(e){console.warn('Order consent sync pending',e);}}if(status==='rejected'){try{await updateDoc(doc(db,'coupleOrders',pair),{consent:'rejected'});}catch(e){console.warn('Order consent sync pending',e);}}wd14Modal('wd14InviteModal',false);toast('Invitation '+status);await Promise.all([wordiiCoupleRefresh(),wordiiCouplePayments()]);}
 async function wd14PayPartner(pair){const utr=String(document.getElementById('wd14Utr')?.value||'').trim();if(!/^[A-Za-z0-9-]{8,45}$/.test(utr))throw Error('Enter a valid UTR.');const proof=await wordiiImageData(document.getElementById('wd14Proof')?.files?.[0]);await updateDoc(doc(db,'coupleOrders',pair),{toUtr:utr,toProof:proof});toast('Your proof submitted for admin verification.');await wordiiCouplePayments();}
 async function wd15Play(pair){const snap=await getDoc(doc(db,'coupleOrders',pair));if(!snap.exists()||snap.data().status!=='approved'||!(await wd17ActivePair(pair)))throw Error('Couple connection is not active.');const v=snap.data();const [a,b]=await Promise.all([getDoc(doc(db,'users',v.from)),getDoc(doc(db,'users',v.to))]);const root=document.createElement('div');root.className='wd15-overlay';root.innerHTML=`<div class="wd15-stage" role="dialog" aria-modal="true" aria-label="Couple Badge"><button class="wd15-close" type="button">✕</button><div class="wd15-hearts">💗 💞 💗</div>${wd17DragonScene(null,null,v.badgeCode,uid===v.from||uid===v.to)}<div class="wd15-pair"><div><div class="wd15-avatar">${avatarHTML(a.data()||{},true)}</div><b>${esc(v.fromName)}</b></div><div class="wd15-beat">❤️</div><div><div class="wd15-avatar">${avatarHTML(b.data()||{},true)}</div><b>${esc(v.toName)}</b></div></div><div class="wd15-code">${esc(wd16Code(v.badgeCode))}</div><p>Two profiles · One connection</p></div>`;document.body.append(root);root.querySelector('button').onclick=()=>root.remove();root.addEventListener('click',e=>{if(e.target===root)root.remove();});}
 async function wd15Activate(pair,v){if(me?.admin!==true||v.status!=='approved'||v.badgeCode!=='WC-'+pair||!(await wd17ActivePair(pair)))throw Error('Approved active couple required.');const batch=writeBatch(db);batch.update(doc(db,'users',v.from),{coupleCode:v.badgeCode,couplePartnerUid:v.to});batch.update(doc(db,'users',v.to),{coupleCode:v.badgeCode,couplePartnerUid:v.from});await batch.commit();}

@@ -1,0 +1,63 @@
+name: Wordii Couple Security Tests
+
+on:
+  push:
+    branches:
+      - feature/email-otp-v1545
+    paths:
+      - 'firestore.rules'
+      - 'public/app.js'
+      - 'tests/couple-security/**'
+      - '.github/workflows/couple-security.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  firestore-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: tests/couple-security
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Prepare Firestore rules
+        run: cp ../../firestore.rules firestore.rules
+
+      - name: Run Firestore security tests
+        run: |
+          npx firebase emulators:exec \
+            --only firestore \
+            --project demo-wordii-couple \
+            "node security.test.mjs"
+
+      - name: Dependency security report
+        if: always()
+        run: npm audit --json > npm-audit.json
+        continue-on-error: true
+
+      - name: Upload dependency report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: couple-security-audit
+          path: tests/couple-security/npm-audit.json

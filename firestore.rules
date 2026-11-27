@@ -141,6 +141,13 @@ service cloud.firestore {
           && request.resource.data.toUtr is string && request.resource.data.toUtr.matches('^[A-Za-z0-9-]{8,45}$')
           && request.resource.data.toProof is string && request.resource.data.toProof.matches('^data:image/jpeg;base64,.*')
           && request.resource.data.toProof.size() <= 180000)
+        || (request.auth.uid in resource.data.members
+          && resource.data.status in ['pending','approved']
+          && request.resource.data.status == 'disconnected'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','disconnectedAt','disconnectedBy'])
+          && request.resource.data.disconnectedBy == request.auth.uid
+          && request.resource.data.disconnectedAt == request.time
+          && getAfter(/databases/$(database)/documents/coupleInvites/$(pairId)).data.status == 'disconnected')
         || (isAdmin() && resource.data.status == 'pending'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','badgeCode','reviewedBy','reviewedAt'])
           && request.resource.data.status in ['approved','rejected']
@@ -349,10 +356,11 @@ service cloud.firestore {
             : request.resource.data.couplePartnerUid + '_' + uid)).data.badgeCode == request.resource.data.coupleCode;
       // V17: either partner may revoke both badges atomically when ending an accepted invitation.
       allow update: if signedIn()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coupleCode','couplePartnerUid'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coupleCode','couplePartnerUid','coupleBadgeCode'])
         && resource.data.coupleCode is string
         && resource.data.couplePartnerUid is string
         && (request.auth.uid == uid || request.auth.uid == resource.data.couplePartnerUid)
+        && request.resource.data.get('coupleBadgeCode', null) == null
         && request.resource.data.coupleCode == null
         && request.resource.data.couplePartnerUid == null
         && resource.data.coupleCode == 'WC-' + (uid < resource.data.couplePartnerUid
@@ -364,6 +372,22 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/coupleInvites/$(uid < resource.data.couplePartnerUid
           ? uid + '_' + resource.data.couplePartnerUid
           : resource.data.couplePartnerUid + '_' + uid)).data.status == 'disconnected';
+
+      // V67: stale couple badge repair
+      allow update: if signedIn()
+        && resource.data.get('couplePartnerUid', null) is string
+        && resource.data.couplePartnerUid != uid
+        && request.auth.uid in [uid, resource.data.couplePartnerUid]
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['coupleCode','coupleBadgeCode','couplePartnerUid'])
+        && request.resource.data.get('coupleCode', null) == null
+        && request.resource.data.get('coupleBadgeCode', null) == null
+        && request.resource.data.get('couplePartnerUid', null) == null
+        && getAfter(/databases/$(database)/documents/coupleInvites/$(uid < resource.data.couplePartnerUid
+          ? uid + '_' + resource.data.couplePartnerUid
+          : resource.data.couplePartnerUid + '_' + uid)).data.status == 'disconnected'
+        && (!existsAfter(/databases/$(database)/documents/couplePartnerLocks/$(uid)));
+
       // Admin can give or remove the blue verified badge of any user.
       allow update: if isAdmin() && request.auth.uid != uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified','premium','preAdmin'])
@@ -533,7 +557,7 @@ service cloud.firestore {
     }
 
     // Status: visible to the owner and to the friends listed in `viewers` (24 h is enforced by the app).
-    
+
     // Admin-managed music catalog
     match /wordiiAdminMusic/{trackId} {
       allow read: if signedIn();
