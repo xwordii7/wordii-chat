@@ -4,7 +4,7 @@ compatibility_date = "2026-11-26"
 
 [vars]
 FIREBASE_API_KEY = "AIzaSyCfTTaoBbzBhOASh9H8uZ5wWaJjSzK5E5U"
-OTP_ENABLED = "false"
+OTP_ENABLED = "true"
 FIREBASE_PROJECT_ID = "wordii-chat"
 SENDER_EMAIL = "officialwordii@gmail.com"
 SENDER_NAME = "Wordii Chat"

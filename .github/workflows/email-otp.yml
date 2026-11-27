@@ -61,3 +61,5 @@ jobs:
 # Deploy OTP account binding patch
 
 # Update restricted OTP test account
+
+# Activate public Gmail OTP
