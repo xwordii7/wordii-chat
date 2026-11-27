@@ -72,6 +72,7 @@ export async function sendOTPEmail(env, email, otp) {
   );
 
   if (!response.ok) {
+    console.error("OTP_BREVO_DELIVERY", response.status);
     throw new Error("Email delivery request failed");
   }
 

@@ -285,7 +285,11 @@ export default {
         verified: true
       });
 
-    } catch {
+    } catch (error) {
+      console.error("OTP_REQUEST_FAILED", {
+        path,
+        type: error instanceof TypeError ? "TypeError" : "BackendError"
+      });
       return reply(request, {
         ok: false,
         error: "Service temporarily unavailable"

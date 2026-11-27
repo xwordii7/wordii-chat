@@ -19,3 +19,7 @@ class_name = "OTPStore"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["OTPStore"]
+
+[observability]
+enabled = true
+head_sampling_rate = 1

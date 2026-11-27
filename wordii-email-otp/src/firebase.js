@@ -31,6 +31,7 @@ async function getAccessToken(env) {
   );
 
   if (!response.ok) {
+    console.error("OTP_FIREBASE_AUTH", response.status);
     throw new Error("Firebase authorization failed");
   }
 
@@ -55,6 +56,7 @@ async function firebaseRequest(env, action, body) {
   );
 
   if (!response.ok) {
+    console.error("OTP_FIREBASE_OPERATION", action, response.status);
     throw new Error("Firebase account operation failed");
   }
 
